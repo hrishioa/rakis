@@ -9,9 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.35",
+    "@shopify/react-web-worker": "^5.0.17",
+    "next": "14.2.3",
     "react": "^18",
-    "react-dom": "^18",
-    "next": "14.2.3"
+    "react-dom": "^18"
   },
   "devDependencies": {
     "typescript": "^5",
