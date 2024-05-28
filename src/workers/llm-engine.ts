@@ -14,9 +14,6 @@ const availableModels = [
 export type InferenceParams = {
   modelName: (typeof availableModels)[number];
   messages: webllm.ChatCompletionMessageParam[];
-  waitForLoad?: boolean;
-  queueIfBusy?: boolean;
-  maxQueueDepth?: number;
 };
 
 export type InferencePacket =
@@ -82,7 +79,24 @@ let engineInstance: null | {
   engine?: webllm.EngineInterface;
   state: "loading" | "processing" | "ready";
   loadingPromise: DeferredPromise<void>;
+  inferencePromise?: DeferredPromise<void>;
 } = null;
+
+export async function waitForModelLoading(): Promise<void> {
+  if (
+    engineInstance &&
+    engineInstance.state === "loading" &&
+    engineInstance.loadingPromise
+  ) {
+    await engineInstance.loadingPromise.promise;
+  }
+}
+
+export async function waitForInference(): Promise<void> {
+  if (engineInstance && engineInstance.inferencePromise) {
+    await engineInstance.inferencePromise.promise;
+  }
+}
 
 export async function loadModel(modelName: (typeof availableModels)[number]) {
   try {
@@ -123,6 +137,7 @@ export async function loadModel(modelName: (typeof availableModels)[number]) {
       at: new Date(),
       error: err,
     });
+    engineInstance!.loadingPromise.reject(err);
     return false;
   }
 }
@@ -165,44 +180,21 @@ export function getEngineLogs({
 export async function* runInference(
   params: InferenceParams
 ): AsyncGenerator<InferencePacket, void, unknown> {
-  const {
-    modelName,
-    messages,
-    waitForLoad = true,
-    queueIfBusy = true,
-    maxQueueDepth = 10,
-  } = params;
+  const { modelName, messages } = params;
 
-  if (!engineInstance || engineInstance.state === "loading") {
-    if (waitForLoad) {
-      console.log("Loading model...");
-      const success = await loadModel(modelName);
-      if (!success) {
-        return;
-      }
-    } else {
-      console.log("Model is not loaded, not waiting.");
-
-      yield {
-        type: "error",
-        error: "Model is not loaded",
-      };
-
-      return;
-    }
-  }
-
-  if (!engineInstance || !engineInstance.engine || !engineInstance.state) {
+  if (
+    !engineInstance ||
+    engineInstance.state === "loading" ||
+    !engineInstance.engine
+  ) {
     yield {
       type: "error",
-      error: "Engine could not be loaded",
+      error: "Model is not loaded",
     };
     return;
   }
 
-  if (engineInstance.state === "processing" && queueIfBusy) {
-    // TODO: We need to keep track of pending inference requests, wait for them to finish, then run ours
-  }
+  engineInstance.inferencePromise = new DeferredPromise<void>();
 
   const inferenceId = engineLogs.length * 10 + Math.floor(Math.random() * 10); // Poor man's hash collision avoidance
   engineLogs.push({
@@ -254,6 +246,8 @@ export async function* runInference(
     };
 
     engineInstance.state = "ready";
+
+    engineInstance.inferencePromise.resolve();
   } catch (error) {
     engineLogs.push({
       type: "engine_inference_error",
@@ -263,6 +257,8 @@ export async function* runInference(
     });
     engineInstance.state = "ready";
     console.error("Inference error - ", error);
+
+    engineInstance.inferencePromise.reject(error);
 
     yield {
       type: "error",
