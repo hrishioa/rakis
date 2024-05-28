@@ -1,4 +1,4 @@
-import { DeferredPromise } from "../../utils/deferredpromise";
+import { DeferredPromise } from "../utils/deferredpromise";
 import * as webllm from "@mlc-ai/web-llm";
 import {
   availableModels,
@@ -22,6 +22,19 @@ function logEngineEvent(entry: LLMEngineLogEntry): number {
 
   engineLog.push(entry);
   return logLength;
+}
+
+export function searchEngineLogs(
+  type: string,
+  workerId: string
+): LLMEngineLogEntry[] {
+  return engineLog.filter(
+    (entry) => entry.type === type && entry.workerId === workerId
+  );
+}
+
+export function getEngineLogs(lastNPackets: number): LLMEngineLogEntry[] {
+  return engineLog.slice(-lastNPackets);
 }
 
 function updateStreamingLogResult(
@@ -90,11 +103,16 @@ export async function loadWorker(
             report
           );
           if (report.progress === 1) {
-            logEngineEvent({
-              type: "engine_loaded",
-              modelName,
-              workerId,
-            });
+            if (
+              !searchEngineLogs("engine_loaded", workerId).filter(
+                (entry) => (entry as any).modelName === modelName
+              ).length
+            )
+              logEngineEvent({
+                type: "engine_loaded",
+                modelName,
+                workerId,
+              });
             llmWorkers[workerId].modelLoadingPromise?.resolve(workerId);
           }
         },
@@ -258,7 +276,6 @@ export async function* runInferenceOnWorker(
         updateStreamingLogResult(packet, outputLogIndex);
         yield packet;
       }
-      // TODO: Implement abortcontroller with a function that can be called to abort inference in progress
     }
 
     const tokenCountPacket: InferencePacket = {

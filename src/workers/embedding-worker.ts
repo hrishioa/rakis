@@ -1,5 +1,5 @@
 import { FeatureExtractionPipeline, pipeline } from "@xenova/transformers";
-import { DeferredPromise } from "../utils/deferredpromise";
+import { DeferredPromise } from "../core/utils/deferredpromise";
 
 const availableEmbeddingModels = [
   "bert-base-multilingual-cased",

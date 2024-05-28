@@ -2,7 +2,7 @@ import type {
   EngineInterface,
   ChatCompletionMessageParam,
 } from "@mlc-ai/web-llm";
-import type { DeferredPromise } from "../../utils/deferredpromise";
+import type { DeferredPromise } from "../utils/deferredpromise";
 
 export const availableModels = [
   "Llama-3-8B-Instruct-q4f32_1",
