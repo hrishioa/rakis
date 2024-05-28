@@ -10,6 +10,26 @@ const createWorker = createWorkerFactory(
 export default function Home() {
   const worker = useWorker(createWorker);
 
+  async function askLLM(message: string) {
+    const response = await worker.runInference("Llama-3-8B-Instruct-q4f32_1", [
+      {
+        content: message,
+        role: "user",
+      },
+    ]);
+
+    if (response) {
+      for await (const chunk of response) {
+        console.log(
+          "Got response - ",
+          chunk.choices.map((choice) => choice.delta.content).join("")
+        );
+      }
+    } else {
+      console.log("Failed");
+    }
+  }
+
   useEffect(() => {
     // console.log("Initializing llm worker...");
     // worker.loadModel("Llama-3-8B-Instruct-q4f32_1").then(() => {
@@ -18,6 +38,8 @@ export default function Home() {
 
     (async () => {
       console.log("Chatting to model...");
+
+      (window as any).askLLM = askLLM;
 
       const response = await worker.runInference(
         "Llama-3-8B-Instruct-q4f32_1",
