@@ -1,17 +1,5 @@
 import * as webllm from "@mlc-ai/web-llm";
-
-class DeferredPromise<T> {
-  promise: Promise<T>;
-  resolve!: (value: T | PromiseLike<T>) => void;
-  reject!: (reason?: any) => void;
-
-  constructor() {
-    this.promise = new Promise<T>((resolve, reject) => {
-      this.resolve = resolve;
-      this.reject = reject;
-    });
-  }
-}
+import { DeferredPromise } from "../utils/deferredpromise";
 
 const availableModels = ["Llama-3-8B-Instruct-q4f32_1"] as const;
 

@@ -3,20 +3,28 @@
 import { useEffect } from "react";
 import { createWorkerFactory, useWorker } from "@shopify/react-web-worker";
 
-const createWorker = createWorkerFactory(
+const createLLMWorker = createWorkerFactory(
   () => import("../../../workers/llm-worker")
 );
 
+const createEmbeddingsWorker = createWorkerFactory(
+  () => import("../../../workers/embedding-worker")
+);
+
 export default function Home() {
-  const worker = useWorker(createWorker);
+  const llmWorker = useWorker(createLLMWorker);
+  const embeddingsWorker = useWorker(createEmbeddingsWorker);
 
   async function askLLM(message: string) {
-    const response = await worker.runInference("Llama-3-8B-Instruct-q4f32_1", [
-      {
-        content: message,
-        role: "user",
-      },
-    ]);
+    const response = await llmWorker.runInference(
+      "Llama-3-8B-Instruct-q4f32_1",
+      [
+        {
+          content: message,
+          role: "user",
+        },
+      ]
+    );
 
     if (response) {
       for await (const chunk of response) {
@@ -30,37 +38,25 @@ export default function Home() {
     }
   }
 
+  // useEffect(() => {
+  //   (async () => {
+  //     console.log("Loading LLM model");
+  //     await llmWorker.loadModel("Llama-3-8B-Instruct-q4f32_1");
+  //     (window as any).askLLM = askLLM;
+  //   })();
+  // }, []);
+
   useEffect(() => {
-    // console.log("Initializing llm worker...");
-    // worker.loadModel("Llama-3-8B-Instruct-q4f32_1").then(() => {
-    //   console.log("Model assigned to load.");
-    // });
-
+    console.log("Embeddings useeffect");
     (async () => {
-      console.log("Chatting to model...");
+      console.log("Computing embeddings...");
 
-      (window as any).askLLM = askLLM;
-
-      const response = await worker.runInference(
-        "Llama-3-8B-Instruct-q4f32_1",
-        [
-          {
-            content: "Hello, what is your name?",
-            role: "user",
-          },
-        ]
+      const embedding = await embeddingsWorker.embedText(
+        "Hello how are you?",
+        "Xenova/all-MiniLM-L6-v2"
       );
 
-      if (response) {
-        for await (const chunk of response) {
-          console.log(
-            "Got response - ",
-            chunk.choices.map((choice) => choice.delta.content).join("")
-          );
-        }
-      } else {
-        console.log("Failed");
-      }
+      console.log("Got - ", embedding);
     })();
   }, []);
 
