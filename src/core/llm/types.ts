@@ -20,6 +20,7 @@ export type LLMWorker = {
   modelName: LLMModelName;
   llmEngine?: EngineInterface;
   modelLoadingPromise?: DeferredPromise<boolean | string>;
+  modelLoadingProgress: number;
   inferenceInProgress?: boolean;
   inferencePromise?: DeferredPromise<boolean>;
 };

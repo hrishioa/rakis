@@ -3,15 +3,14 @@
 import React, { useEffect, useState } from "react";
 import {
   loadWorker,
-  runInference,
   runInferenceOnWorker,
   abortWorkerInference,
   unloadWorker,
   getEngineLogs,
+  getWorkerState,
 } from "../../core/llm/llm-engine";
 import {
   availableModels,
-  LLMWorker,
   InferenceParams,
   LLMEngineLogEntry,
 } from "../../core/llm/types";
@@ -27,6 +26,12 @@ import {
 import { Button } from "../../components/ui/button";
 import { Textarea } from "../../components/ui/textarea";
 import { Progress } from "../../components/ui/progress";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../../components/ui/collapsible";
+import { ChevronsUpDown, X } from "lucide-react";
 
 const LLMTestingPage: React.FC = () => {
   const [workerIds, setWorkerIds] = useState<string[]>([]);
@@ -37,12 +42,40 @@ const LLMTestingPage: React.FC = () => {
   const [workerPrompts, setWorkerPrompts] = useState<Record<string, string>>(
     {}
   );
+
   const [globalPrompt, setGlobalPrompt] = useState<string>("");
   const [engineLog, setEngineLog] = useState<LLMEngineLogEntry[]>([]);
   const [workerStatus, setWorkerStatus] = useState<
-    Record<string, { tps: number; output: string; isLoading: boolean }>
+    Record<
+      string,
+      {
+        tps: number;
+        output: string;
+        isLoading: boolean;
+        state: string;
+        loadingProgress: number;
+      }
+    >
   >({});
   const [showEngineLog, setShowEngineLog] = useState(false);
+
+  const pollWorkerState = async (workerId: string) => {
+    try {
+      const state = await getWorkerState(workerId);
+      if (state) {
+        setWorkerStatus((prevStatus) => ({
+          ...prevStatus,
+          [workerId]: {
+            ...prevStatus[workerId],
+            state: state.state,
+            loadingProgress: state.loadingProgress || 1,
+          },
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching worker state for ${workerId}:`, error);
+    }
+  };
 
   const pollEngineLogs = async () => {
     try {
@@ -64,11 +97,7 @@ const LLMTestingPage: React.FC = () => {
 
   const handleSpawnWorker = async () => {
     const workerId = Math.random().toString(36).substring(7);
-    setWorkerStatus((prevStatus) => ({
-      ...prevStatus,
-      [workerId]: { tps: 0, output: "", isLoading: true },
-    }));
-    await loadWorker(selectedModel, workerId);
+
     setWorkerIds((prevWorkerIds) => [...prevWorkerIds, workerId]);
     setWorkerModels((prevWorkerModels) => ({
       ...prevWorkerModels,
@@ -76,8 +105,34 @@ const LLMTestingPage: React.FC = () => {
     }));
     setWorkerStatus((prevStatus) => ({
       ...prevStatus,
-      [workerId]: { ...prevStatus[workerId], isLoading: false },
+      [workerId]: {
+        tps: 0,
+        output: "",
+        isLoading: true,
+        state: "loading",
+        loadingProgress: 0,
+      },
     }));
+
+    const pollInterval = setInterval(() => pollWorkerState(workerId), 1000);
+
+    try {
+      await loadWorker(selectedModel, workerId);
+    } catch (error) {
+      console.error(`Error loading worker ${workerId}:`, error);
+      setWorkerStatus((prevStatus) => {
+        const { [workerId]: _, ...rest } = prevStatus;
+        return rest;
+      });
+      setWorkerIds((prevWorkerIds) =>
+        prevWorkerIds.filter((id) => id !== workerId)
+      );
+      clearInterval(pollInterval);
+    }
+
+    return () => {
+      clearInterval(pollInterval);
+    };
   };
 
   const handleWorkerInference = async (workerId: string) => {
@@ -102,6 +157,8 @@ const LLMTestingPage: React.FC = () => {
             tps: tokensPerSecond,
             output: outputText,
             isLoading: false,
+            loadingProgress: workerStatus[workerId]?.loadingProgress || 1,
+            state: workerStatus[workerId]?.state || "idle",
           },
         }));
       }
@@ -135,6 +192,8 @@ const LLMTestingPage: React.FC = () => {
                 tps: tokensPerSecond,
                 output: outputText,
                 isLoading: true,
+                loadingProgress: workerStatus[workerId]?.loadingProgress || 1,
+                state: workerStatus[workerId]?.state || "idle",
               },
             }));
           }
@@ -166,54 +225,101 @@ const LLMTestingPage: React.FC = () => {
   };
 
   return (
-    <div className="flex">
-      <div className="flex-grow p-8">
-        <h1 className="text-4xl font-bold mb-8 text-center">LLM Testing</h1>
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold mb-4 text-center">Spawn Worker</h2>
-          <div className="flex justify-center space-x-4 items-center">
-            <Select
-              value={selectedModel}
-              onValueChange={(value) =>
-                setSelectedModel(value as (typeof availableModels)[number])
-              }
-            >
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Select a model" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Models</SelectLabel>
-                  {availableModels.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Button onClick={handleSpawnWorker}>Spawn Worker</Button>
-          </div>
+    <div className="flex flex-col min-h-screen">
+      <div className="flex items-center justify-between p-4 bg-gray-100">
+        <h1 className="text-2xl font-bold">LLM Testing</h1>
+        <div className="flex items-center space-x-4">
+          <span className="text-lg">
+            Global Average TPS:{" "}
+            <span className="font-bold">
+              {Object.values(workerStatus).reduce(
+                (sum, status) => sum + (status?.tps || 0),
+                0
+              ) / Object.keys(workerStatus).length}
+            </span>
+          </span>
+          <Select
+            value={selectedModel}
+            onValueChange={(value) =>
+              setSelectedModel(value as (typeof availableModels)[number])
+            }
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Select Model" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Models</SelectLabel>
+                {availableModels.map((model) => (
+                  <SelectItem key={model} value={model}>
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Textarea
+            className="w-80"
+            placeholder="Enter prompt..."
+            value={globalPrompt}
+            onChange={(e) => setGlobalPrompt(e.target.value)}
+          />
+          <Button onClick={handleGlobalInference}>Send to All</Button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+        <Button
+          onClick={() => setShowEngineLog(!showEngineLog)}
+          variant="outline"
+        >
+          {showEngineLog ? "Hide Log" : "Show Log"}
+        </Button>
+      </div>
+      <div className="flex-grow p-4">
+        <div className="flex justify-end mb-4">
+          <Select
+            value={selectedModel}
+            onValueChange={(value) =>
+              setSelectedModel(value as (typeof availableModels)[number])
+            }
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Select Model" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Models</SelectLabel>
+                {availableModels.map((model) => (
+                  <SelectItem key={model} value={model}>
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Button onClick={handleSpawnWorker} className="ml-4">
+            Spawn Worker
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {workerIds.map((workerId) => (
             <div
               key={workerId}
-              className="border border-gray-200 rounded-lg p-6 bg-white shadow-md"
+              className="border border-gray-200 rounded-lg p-4 bg-white shadow"
             >
-              <h3 className="text-xl font-bold mb-4 text-center">
-                Worker ID: {workerId}
-              </h3>
-              <p className="mb-2 text-lg">Model: {workerModels[workerId]}</p>
-              <p className="mb-4 text-lg">
-                Tokens per second:{" "}
-                <span className="font-bold">
-                  {workerStatus[workerId]?.tps || 0}
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-lg font-semibold">
+                  Worker: {workerId}
                 </span>
-              </p>
+                <span className="text-lg">
+                  TPS:{" "}
+                  <span className="font-bold">
+                    {workerStatus[workerId]?.tps || 0}
+                  </span>
+                </span>
+              </div>
+              <p className="text-sm mb-2">Model: {workerModels[workerId]}</p>
               <Textarea
-                className="mb-4 text-lg"
-                rows={4}
+                className="w-full mb-2"
+                rows={2}
                 value={workerPrompts[workerId] || ""}
                 onChange={(e) =>
                   setWorkerPrompts((prevPrompts) => ({
@@ -222,104 +328,98 @@ const LLMTestingPage: React.FC = () => {
                   }))
                 }
               />
-              <div className="relative mb-4 p-4 bg-gray-50 rounded text-lg min-h-[6rem]">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  {workerStatus[workerId]?.isLoading && (
-                    <Progress value={30} className="w-[60%]" />
-                  )}
-                </div>
+              <div className="relative mb-2 p-2 bg-gray-50 rounded text-sm max-h-20 overflow-auto">
+                {workerStatus[workerId]?.state === "loading" && (
+                  <Progress
+                    value={workerStatus[workerId]?.loadingProgress || 0}
+                    className="absolute top-0 left-0 w-full h-1"
+                  />
+                )}
+                {workerStatus[workerId]?.state === "inference-in-progress" && (
+                  <Progress
+                    value={30}
+                    className="absolute top-0 left-0 w-full h-1"
+                  />
+                )}
                 <p className="whitespace-pre-line">
                   {workerStatus[workerId]?.output}
                 </p>
               </div>
-              <div className="flex space-x-4 justify-center">
+              <div className="flex space-x-2 justify-center">
                 <Button
+                  size="sm"
                   onClick={() => handleWorkerInference(workerId)}
-                  disabled={workerStatus[workerId]?.isLoading}
+                  disabled={
+                    workerStatus[workerId]?.state === "loading" ||
+                    workerStatus[workerId]?.state === "inference-in-progress"
+                  }
                 >
                   Send
                 </Button>
                 <Button
+                  size="sm"
                   onClick={() => handleAbortInference(workerId)}
-                  disabled={!workerStatus[workerId]?.isLoading}
+                  disabled={
+                    workerStatus[workerId]?.state !== "inference-in-progress"
+                  }
                 >
                   Stop
                 </Button>
-                <Button onClick={() => handleUnloadWorker(workerId)}>
+                <Button
+                  size="sm"
+                  onClick={() => handleUnloadWorker(workerId)}
+                  disabled={
+                    workerStatus[workerId]?.state === "loading" ||
+                    workerStatus[workerId]?.state === "inference-in-progress"
+                  }
+                >
                   Unload
                 </Button>
               </div>
             </div>
           ))}
         </div>
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-4 text-center">
-            Send to All Free Workers
-          </h2>
-          <div className="flex flex-col items-center space-y-4">
-            <Select
-              value={selectedModel}
-              onValueChange={(value) =>
-                setSelectedModel(value as (typeof availableModels)[number])
-              }
-            >
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Select a model" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Models</SelectLabel>
-                  {availableModels.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Textarea
-              className="mb-2 w-full text-lg"
-              rows={4}
-              value={globalPrompt}
-              onChange={(e) => setGlobalPrompt(e.target.value)}
-            />
-            <Button onClick={handleGlobalInference} className="w-64">
-              Send
-            </Button>
-          </div>
-          <p className="mt-4 text-center text-lg">
-            Tokens per second:{" "}
-            <span className="font-bold">
-              {workerStatus["global"]?.tps || 0}
-            </span>
-          </p>
-          <div className="mt-4 p-4 bg-gray-50 rounded text-lg min-h-[6rem]">
-            <p className="whitespace-pre-line">
-              {workerStatus["global"]?.output}
-            </p>
-          </div>
-        </div>
       </div>
       <div
-        className={`fixed top-0 right-0 bottom-0 w-96 bg-white p-8 shadow-lg transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 bottom-0 w-96 bg-white p-4 shadow-lg transition-transform duration-300 ease-in-out border-l border-gray-200 ${
           showEngineLog ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <h2 className="text-xl font-bold mb-4">Engine Log</h2>
-        <div className="p-2 bg-gray-50 rounded max-h-[calc(100vh-8rem)] overflow-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">Engine Log</h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowEngineLog(false)}
+            className="p-0"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </Button>
+        </div>
+        <div className="space-y-2 overflow-auto max-h-[calc(100vh-8rem)]">
           {engineLog.map((entry, index) => (
-            <pre key={index} className="mb-2 text-sm">
-              {JSON.stringify(entry, null, 2)}
-            </pre>
+            <Collapsible key={index} className="space-y-2">
+              <div className="flex items-center justify-between space-x-4 px-4">
+                <h4 className="text-sm font-semibold">{entry.type}</h4>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-9 p-0">
+                    <ChevronsUpDown className="h-4 w-4" />
+                    <span className="sr-only">Toggle</span>
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent>
+                <pre className="rounded-md border px-4 py-3 font-mono text-sm overflow-auto">
+                  <code className="language-json">
+                    {JSON.stringify(entry, null, 2)}
+                  </code>
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
           ))}
         </div>
       </div>
-      <button
-        className="fixed right-0 top-0 m-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded shadow-md"
-        onClick={() => setShowEngineLog(!showEngineLog)}
-      >
-        {showEngineLog ? "Hide Log" : "Show Event Log"}
-      </button>
     </div>
   );
 };

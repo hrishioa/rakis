@@ -65,12 +65,32 @@ export async function unloadWorker(workerId: string) {
   }
 }
 
+export async function getWorkerState(workerId: string) {
+  if (!llmWorkers[workerId]) return null;
+
+  if (llmWorkers[workerId].modelLoadingProgress < 1) {
+    return {
+      state: "loading",
+      loadingProgress: llmWorkers[workerId].modelLoadingProgress,
+    };
+  } else if (llmWorkers[workerId].inferenceInProgress) {
+    return {
+      state: "inference-in-progress",
+    };
+  } else {
+    return {
+      state: "idle",
+    };
+  }
+}
+
 export async function loadWorker(
   modelName: (typeof availableModels)[number],
   workerId: string
 ) {
   llmWorkers[workerId] ??= {
     modelName,
+    modelLoadingProgress: 0,
   };
 
   if (llmWorkers[workerId].modelLoadingPromise) {
@@ -102,6 +122,7 @@ export async function loadWorker(
             `Worker ${workerId}: Loading ${modelName} progress - `,
             report
           );
+          llmWorkers[workerId].modelLoadingProgress = report.progress;
           if (report.progress === 1) {
             if (
               !searchEngineLogs("engine_loaded", workerId).filter(
