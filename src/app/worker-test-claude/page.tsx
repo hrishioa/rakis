@@ -13,6 +13,7 @@ import {
   availableModels,
   InferenceParams,
   LLMEngineLogEntry,
+  LLMModelName,
 } from "../../core/llm/types";
 import {
   Select,
@@ -37,9 +38,17 @@ import {
   addEmbeddingWorker,
   embedText,
 } from "../../core/embeddings/embedding-engine";
+import { EmbeddingResult } from "../../core/embeddings/types";
+import EmbeddingChart from "./embedding-chart";
+import { modelColors } from "./colors";
 
 const LLMTestingPage: React.FC = () => {
   const [workerIds, setWorkerIds] = useState<string[]>([]);
+
+  const [allEmbeddingsSoFar, setAllEmbeddingsSoFar] = useState<
+    (EmbeddingResult & { modelName: LLMModelName })[]
+  >([]);
+
   const [selectedModel, setSelectedModel] = useState<
     (typeof availableModels)[number]
   >(availableModels[0]);
@@ -196,6 +205,16 @@ const LLMTestingPage: React.FC = () => {
       [outputText],
       "nomic-ai/nomic-embed-text-v1.5"
     );
+
+    if (embeddingResult && embeddingResult.length > 0)
+      setAllEmbeddingsSoFar((prev) => [
+        ...prev,
+        ...embeddingResult.map((result) => ({
+          ...result,
+          modelName: workerModels[workerId] as LLMModelName,
+        })),
+      ]);
+
     if (embeddingResult && embeddingResult.length > 0) {
       setWorkerStatus((prevStatus) => ({
         ...prevStatus,
@@ -247,6 +266,16 @@ const LLMTestingPage: React.FC = () => {
           [outputText],
           "nomic-ai/nomic-embed-text-v1.5"
         );
+
+        if (embeddingResult && embeddingResult.length > 0)
+          setAllEmbeddingsSoFar((prev) => [
+            ...prev,
+            ...embeddingResult.map((result) => ({
+              ...result,
+              modelName: workerModels[workerId] as LLMModelName,
+            })),
+          ]);
+
         if (embeddingResult && embeddingResult.length > 0) {
           setWorkerStatus((prevStatus) => ({
             ...prevStatus,
@@ -315,7 +344,7 @@ const LLMTestingPage: React.FC = () => {
               setSelectedModel(value as (typeof availableModels)[number])
             }
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-70">
               <SelectValue placeholder="Select Model" />
             </SelectTrigger>
             <SelectContent>
@@ -356,7 +385,9 @@ const LLMTestingPage: React.FC = () => {
           {workerIds.map((workerId) => (
             <div
               key={workerId}
-              className="border border-gray-200 rounded-lg p-4 bg-white shadow"
+              className={`border border-gray-200 rounded-lg p-4 bg-white shadow ${
+                modelColors[workerModels[workerId] as LLMModelName]
+              }`}
             >
               <div className="flex justify-between items-center mb-2">
                 <span className="text-lg font-semibold">
@@ -479,6 +510,9 @@ const LLMTestingPage: React.FC = () => {
           ))}
         </div>
       </div>
+      {allEmbeddingsSoFar.length >= 6 && (
+        <EmbeddingChart embeddings={allEmbeddingsSoFar} />
+      )}
     </div>
   );
 };
