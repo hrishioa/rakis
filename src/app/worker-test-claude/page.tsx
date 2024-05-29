@@ -297,7 +297,7 @@ const LLMTestingPage: React.FC = () => {
               {Object.values(workerStatus).reduce(
                 (sum, status) => sum + (status?.tps || 0),
                 0
-              ) / Object.keys(workerStatus).length}
+              ) / Object.keys(workerStatus).length || "Nil"}
             </span>
           </span>
           <Select
