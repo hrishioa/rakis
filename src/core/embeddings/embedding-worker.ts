@@ -27,6 +27,16 @@ export async function waitForCompletion() {
   }
 }
 
+async function hashBinaryEmbedding(bEmbedding: number[]) {
+  const uint8Array = new Uint8Array(bEmbedding);
+  const hashBufer = await crypto.subtle.digest("SHA-256", uint8Array);
+  const hashArray = Array.from(new Uint8Array(hashBufer));
+  const hashHex = hashArray
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return hashHex;
+}
+
 export async function loadEmbeddingWorker(modelName: EmbeddingModelName) {
   try {
     if (!workerInstance) {
@@ -41,6 +51,7 @@ export async function loadEmbeddingWorker(modelName: EmbeddingModelName) {
         "feature-extraction",
         modelName,
         {
+          quantized: false, // Note: Quantized models cause a lot more divergence in embeddings
           progress_callback: (report: any) => {
             // console.log(`Progress loading embedding ${modelName} - `, report);
             if (workerInstance) {
@@ -98,17 +109,23 @@ export async function embedText(
     normalize: true,
     pooling: "mean",
   });
-  console.log("Actually embedded ", texts);
+  // console.log("Actually embedded ", texts, embeddings);
   workerInstance.busyEmbedding = false;
   workerInstance.busyEmbeddingPromise.resolve();
 
-  const binaryEmbeddings = quantize_embeddings(embeddings, "binary");
+  const binaryEmbeddings = quantize_embeddings(embeddings, "ubinary");
 
-  const results = texts.map((text, index) => ({
-    text,
-    embedding: Array.from(embeddings.data[index]) as number[],
-    binaryEmbedding: Array.from(binaryEmbeddings.data[index]) as number[],
-  }));
+  const results = await Promise.all(
+    texts.map(async (text, index) => ({
+      text,
+      embedding: embeddings.slice([index, index + 1]).data as number[],
+      binaryEmbedding: binaryEmbeddings.slice([index, index + 1])
+        .data as number[],
+      bEmbeddingHash: await hashBinaryEmbedding(
+        binaryEmbeddings.slice([index, index + 1]).data as number[]
+      ),
+    }))
+  );
 
   return results;
 }

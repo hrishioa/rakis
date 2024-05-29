@@ -20,4 +20,5 @@ export type EmbeddingResult = {
   text: string;
   embedding: number[];
   binaryEmbedding: number[];
+  bEmbeddingHash: string;
 };

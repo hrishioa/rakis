@@ -91,7 +91,7 @@ const LLMTestingPage: React.FC = () => {
         const embeddingResults = await Promise.all(
           embeddingTexts.map(async (text, index) => {
             const results = await embedText(
-              embeddingTexts.slice(index, index + 2),
+              embeddingTexts.slice(index, index + 4),
               "nomic-ai/nomic-embed-text-v1.5"
             );
             return results;
