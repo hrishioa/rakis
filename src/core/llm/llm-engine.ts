@@ -41,15 +41,17 @@ function updateStreamingLogResult(
   packet: InferencePacket,
   logEntryIndex: number
 ) {
-  if (engineLog[logEntryIndex].type === "engine_inference_streaming_result") {
+  const logEntry = engineLog[logEntryIndex];
+
+  if (logEntry.type === "engine_inference_streaming_result") {
     if (packet.type === "token") {
-      engineLog[logEntryIndex].result += packet.token;
-      engineLog[logEntryIndex].tokenCount++;
+      logEntry.result += packet.token;
+      logEntry.tokenCount++;
     } else if (packet.type === "fullMessage") {
-      engineLog[logEntryIndex].result = packet.message;
-      engineLog[logEntryIndex].completed = true;
+      logEntry.result = packet.message;
+      logEntry.completed = true;
     } else if (packet.type === "tokenCount") {
-      engineLog[logEntryIndex].tokenCount = packet.tokenCount;
+      logEntry.tokenCount = packet.tokenCount;
     }
   }
 }
@@ -189,14 +191,12 @@ export function runInference(
 }
 
 export function abortWorkerInference(workerId: string) {
-  if (
-    llmWorkers[workerId] &&
-    llmWorkers[workerId].llmEngine &&
-    llmWorkers[workerId].inferenceInProgress
-  ) {
-    llmWorkers[workerId].llmEngine.interruptGenerate();
-    llmWorkers[workerId].inferenceInProgress = false;
-    llmWorkers[workerId].inferencePromise?.resolve(false);
+  const worker = llmWorkers[workerId];
+
+  if (worker && worker.llmEngine && worker.inferenceInProgress) {
+    worker.llmEngine.interruptGenerate();
+    worker.inferenceInProgress = false;
+    worker.inferencePromise?.resolve(false);
     logEngineEvent({
       type: "engine_inference_error",
       workerId,

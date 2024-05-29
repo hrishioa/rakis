@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   loadWorker,
   runInferenceOnWorker,
@@ -39,8 +40,12 @@ import {
   embedText,
 } from "../../core/embeddings/embedding-engine";
 import { EmbeddingResult } from "../../core/embeddings/types";
-import EmbeddingChart from "./embedding-chart";
+// import EmbeddingChart from "./embedding-chart";
 import { modelColors } from "./colors";
+
+const EmbeddingChart = dynamic(() => import("./embedding-chart"), {
+  ssr: false,
+});
 
 const LLMTestingPage: React.FC = () => {
   const [workerIds, setWorkerIds] = useState<string[]>([]);
