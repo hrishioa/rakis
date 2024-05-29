@@ -39,17 +39,17 @@ export type EmbeddingWorkerLogEntryRaw =
   | {
       type: "engine_embedding_start";
       text: string;
-      batchId: number;
+      batchId: string;
     }
   | {
       type: "engine_embedding_error";
       error: any;
-      batchId: number;
+      batchId: string;
     }
   | {
       type: "engine_embedding_success";
       bEmbeddingHash: string;
-      batchId: number;
+      batchId: string;
     };
 
 export type EmbeddingWorkerLogEntry = {
