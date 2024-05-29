@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   loadWorker,
   runInferenceOnWorker,
@@ -32,6 +32,12 @@ import {
   CollapsibleTrigger,
 } from "../../components/ui/collapsible";
 import { ChevronsUpDown, X } from "lucide-react";
+import { createWorkerFactory, useWorker } from "@shopify/react-web-worker";
+import { cos_sim } from "@xenova/transformers";
+
+const createEmbeddingWorker = createWorkerFactory(
+  () => import("../../core/embeddings/embedding-worker")
+);
 
 const LLMTestingPage: React.FC = () => {
   const [workerIds, setWorkerIds] = useState<string[]>([]);
@@ -42,6 +48,77 @@ const LLMTestingPage: React.FC = () => {
   const [workerPrompts, setWorkerPrompts] = useState<Record<string, string>>(
     {}
   );
+
+  // EMBEDDINGS START
+  const embeddingWorker = useWorker(createEmbeddingWorker);
+  const embeddingsMutex = useRef(false);
+
+  useEffect(() => {
+    const embeddingTexts = [
+      "What is a panda?",
+      "A panda is a large black-and-white bear native to China.",
+      "I love the color blue.",
+      "My favorite movie is Kung Fu Panda.",
+      "The typical life span of a panda is 20 years in the wild.",
+      "A panda's diet consists almost entirely of bamboo.",
+      "This is an example sentence.",
+      "Ailuropoda melanoleuca is a bear species endemic to China.",
+      "Once upon a time, in a land far, far away...",
+      "I love pandas so much!",
+      "Bamboo is a fast-growing, woody grass.",
+      "Hello world.",
+    ];
+
+    if (window) {
+      (async () => {
+        if (embeddingsMutex.current) return;
+        embeddingsMutex.current = true;
+        console.time("Loading embedding model");
+        await embeddingWorker.loadEmbeddingModel(
+          "nomic-ai/nomic-embed-text-v1.5"
+        );
+        console.timeEnd("Loading embedding model");
+        console.time("Embedding texts");
+        const embeddings = await embeddingWorker.embedText(
+          embeddingTexts,
+          "nomic-ai/nomic-embed-text-v1.5"
+        );
+        console.timeEnd("Embedding texts");
+        if (embeddings) {
+          console.time("computing similarity to first one");
+          const embeddingsWithSimilarities = embeddings
+            .map((embedding) => ({
+              ...embedding,
+              similarity: cos_sim(embedding.embedding, embeddings[0].embedding),
+            }))
+            .sort((a, b) => b.similarity - a.similarity);
+          console.timeEnd("computing similarity to first one");
+          console.log(
+            "Embeddings with similarities",
+            embeddingsWithSimilarities
+          );
+
+          console.time("computing binary similarity to first one");
+          const bEmbeddingsWithSimilarities = embeddings
+            .map((embedding) => ({
+              ...embedding,
+              similarity: cos_sim(
+                embedding.binaryEmbedding,
+                embeddings[0].binaryEmbedding
+              ),
+            }))
+            .sort((a, b) => b.similarity - a.similarity);
+          console.timeEnd("computing binary similarity to first one");
+          console.log(
+            "binary embeddings with similarities",
+            bEmbeddingsWithSimilarities
+          );
+        }
+      })();
+    }
+  }, []);
+
+  // EMBEDDINGS END
 
   const [globalPrompt, setGlobalPrompt] = useState<string>("");
   const [engineLog, setEngineLog] = useState<LLMEngineLogEntry[]>([]);
