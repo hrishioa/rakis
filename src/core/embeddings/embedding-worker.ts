@@ -40,6 +40,8 @@ async function hashBinaryEmbedding(bEmbedding: number[]) {
 export async function loadEmbeddingWorker(modelName: EmbeddingModelName) {
   try {
     if (!workerInstance) {
+      console.log("Creating new embedding worker");
+
       workerInstance = {
         modelName,
         busyEmbedding: false,

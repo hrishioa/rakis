@@ -32,7 +32,6 @@ import {
   CollapsibleTrigger,
 } from "../../components/ui/collapsible";
 import { ChevronsUpDown, X } from "lucide-react";
-import { createWorkerFactory, useWorker } from "@shopify/react-web-worker";
 import { cos_sim } from "@xenova/transformers";
 import {
   addEmbeddingWorker,
@@ -48,63 +47,7 @@ const LLMTestingPage: React.FC = () => {
   const [workerPrompts, setWorkerPrompts] = useState<Record<string, string>>(
     {}
   );
-
-  // EMBEDDINGS START
-  const embeddingsMutex = useRef(false);
-
-  useEffect(() => {
-    const embeddingTexts = [
-      "What is a panda?",
-      "A panda is a large black-and-white bear native to China.",
-      "I love the color blue.",
-      "My favorite movie is Kung Fu Panda.",
-      "The typical life span of a panda is 20 years in the wild.",
-      "A panda's diet consists almost entirely of bamboo.",
-      "This is an example sentence.",
-      "Ailuropoda melanoleuca is a bear species endemic to China.",
-      "Once upon a time, in a land far, far away...",
-      "I love pandas so much!",
-      "Bamboo is a fast-growing, woody grass.",
-      "Hello world.",
-    ];
-
-    if (window) {
-      (async () => {
-        if (embeddingsMutex.current) return;
-        embeddingsMutex.current = true;
-
-        const MODELS_TO_LOAD = 3;
-
-        console.log(`Loading ${MODELS_TO_LOAD} embedding workers...`);
-        await Promise.all(
-          Array(MODELS_TO_LOAD)
-            .fill(0)
-            .map(async (_, i) => {
-              await addEmbeddingWorker(
-                "nomic-ai/nomic-embed-text-v1.5",
-                `worker-${i}`
-              );
-              console.log(`Embedding Worker ${i} loaded.`);
-            })
-        );
-
-        const embeddingResults = await Promise.all(
-          embeddingTexts.map(async (text, index) => {
-            const results = await embedText(
-              embeddingTexts.slice(index, index + 4),
-              "nomic-ai/nomic-embed-text-v1.5"
-            );
-            return results;
-          })
-        );
-
-        console.log("Got embedding results ", embeddingResults);
-      })();
-    }
-  }, []);
-
-  // EMBEDDINGS END
-
+  const [embeddingWorkerCount, setEmbeddingWorkerCount] = useState(2);
   const [globalPrompt, setGlobalPrompt] = useState<string>("");
   const [engineLog, setEngineLog] = useState<LLMEngineLogEntry[]>([]);
   const [workerStatus, setWorkerStatus] = useState<
@@ -116,10 +59,30 @@ const LLMTestingPage: React.FC = () => {
         isLoading: boolean;
         state: string;
         loadingProgress: number;
+        embeddingHash: string;
       }
     >
   >({});
   const [showEngineLog, setShowEngineLog] = useState(false);
+
+  useEffect(() => {
+    const addEmbeddingWorkers = async () => {
+      await Promise.all(
+        Array(embeddingWorkerCount)
+          .fill(0)
+          .map(async (_, i) => {
+            console.log("Adding embedding worker ", i);
+            await addEmbeddingWorker(
+              "nomic-ai/nomic-embed-text-v1.5",
+              `embedding-worker-${i}`
+            );
+            console.log("Added embedding worker", i);
+          })
+      );
+    };
+
+    addEmbeddingWorkers();
+  }, [embeddingWorkerCount]);
 
   const pollWorkerState = async (workerId: string) => {
     try {
@@ -173,6 +136,7 @@ const LLMTestingPage: React.FC = () => {
         isLoading: true,
         state: "loading",
         loadingProgress: 0,
+        embeddingHash: "",
       },
     }));
 
@@ -221,9 +185,25 @@ const LLMTestingPage: React.FC = () => {
             isLoading: false,
             loadingProgress: workerStatus[workerId]?.loadingProgress || 1,
             state: workerStatus[workerId]?.state || "idle",
+            embeddingHash: "",
           },
         }));
       }
+    }
+
+    // Embed the output and update the embeddingHash
+    const embeddingResult = await embedText(
+      [outputText],
+      "nomic-ai/nomic-embed-text-v1.5"
+    );
+    if (embeddingResult && embeddingResult.length > 0) {
+      setWorkerStatus((prevStatus) => ({
+        ...prevStatus,
+        [workerId]: {
+          ...prevStatus[workerId],
+          embeddingHash: embeddingResult[0].bEmbeddingHash,
+        },
+      }));
     }
   };
 
@@ -256,17 +236,27 @@ const LLMTestingPage: React.FC = () => {
                 isLoading: true,
                 loadingProgress: workerStatus[workerId]?.loadingProgress || 1,
                 state: workerStatus[workerId]?.state || "idle",
+                embeddingHash: "",
               },
             }));
           }
         }
-        setWorkerStatus((prevStatus) => ({
-          ...prevStatus,
-          [workerId]: {
-            ...prevStatus[workerId],
-            isLoading: false,
-          },
-        }));
+
+        // Embed the output and update the embeddingHash
+        const embeddingResult = await embedText(
+          [outputText],
+          "nomic-ai/nomic-embed-text-v1.5"
+        );
+        if (embeddingResult && embeddingResult.length > 0) {
+          setWorkerStatus((prevStatus) => ({
+            ...prevStatus,
+            [workerId]: {
+              ...prevStatus[workerId],
+              isLoading: false,
+              embeddingHash: embeddingResult[0].bEmbeddingHash,
+            },
+          }));
+        }
       } catch (error) {
         console.error(`Error running inference on worker ${workerId}:`, error);
       }
@@ -294,32 +284,14 @@ const LLMTestingPage: React.FC = () => {
           <span className="text-lg">
             Global Average TPS:{" "}
             <span className="font-bold">
-              {Object.values(workerStatus).reduce(
-                (sum, status) => sum + (status?.tps || 0),
-                0
-              ) / Object.keys(workerStatus).length || "Nil"}
+              {(
+                Object.values(workerStatus).reduce(
+                  (sum, status) => sum + (status?.tps || 0),
+                  0
+                ) / Object.keys(workerStatus).length
+              ).toFixed(1) || "Nil"}
             </span>
           </span>
-          <Select
-            value={selectedModel}
-            onValueChange={(value) =>
-              setSelectedModel(value as (typeof availableModels)[number])
-            }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Select Model" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Models</SelectLabel>
-                {availableModels.map((model) => (
-                  <SelectItem key={model} value={model}>
-                    {model}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
           <Textarea
             className="w-80"
             placeholder="Enter prompt..."
@@ -336,7 +308,7 @@ const LLMTestingPage: React.FC = () => {
         </Button>
       </div>
       <div className="flex-grow p-4">
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end mb-4 items-center">
           <Select
             value={selectedModel}
             onValueChange={(value) =>
@@ -360,6 +332,25 @@ const LLMTestingPage: React.FC = () => {
           <Button onClick={handleSpawnWorker} className="ml-4">
             Spawn Worker
           </Button>
+          <div className="ml-4 flex items-center">
+            <Button
+              onClick={() =>
+                setEmbeddingWorkerCount((prev) => Math.max(0, prev - 1))
+              }
+              size="sm"
+              className="w-8 p-0"
+            >
+              -
+            </Button>
+            <span className="mx-2">{embeddingWorkerCount}</span>
+            <Button
+              onClick={() => setEmbeddingWorkerCount((prev) => prev + 1)}
+              size="sm"
+              className="w-8 p-0"
+            >
+              +
+            </Button>
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {workerIds.map((workerId) => (
@@ -406,6 +397,12 @@ const LLMTestingPage: React.FC = () => {
                 <p className="whitespace-pre-line">
                   {workerStatus[workerId]?.output}
                 </p>
+              </div>
+              <div className="mb-2">
+                <span className="text-sm font-semibold">Embedding Hash:</span>{" "}
+                <div className="text-xs font-bold uppercase overflow-x-scroll">
+                  {workerStatus[workerId]?.embeddingHash}
+                </div>
               </div>
               <div className="flex space-x-2 justify-center">
                 <Button
