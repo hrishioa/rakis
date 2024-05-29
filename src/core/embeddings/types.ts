@@ -12,4 +12,12 @@ export type EmbeddingWorker = {
   pipeline?: FeatureExtractionPipeline;
   modelLoadingProgress: number;
   modelLoadingPromise: DeferredPromise<void>;
+  busyEmbedding: boolean;
+  busyEmbeddingPromise?: DeferredPromise<void>;
+};
+
+export type EmbeddingResult = {
+  text: string;
+  embedding: number[];
+  binaryEmbedding: number[];
 };

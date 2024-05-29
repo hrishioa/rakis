@@ -34,10 +34,10 @@ import {
 import { ChevronsUpDown, X } from "lucide-react";
 import { createWorkerFactory, useWorker } from "@shopify/react-web-worker";
 import { cos_sim } from "@xenova/transformers";
-
-const createEmbeddingWorker = createWorkerFactory(
-  () => import("../../core/embeddings/embedding-worker")
-);
+import {
+  addEmbeddingWorker,
+  embedText,
+} from "../../core/embeddings/embedding-engine";
 
 const LLMTestingPage: React.FC = () => {
   const [workerIds, setWorkerIds] = useState<string[]>([]);
@@ -50,7 +50,6 @@ const LLMTestingPage: React.FC = () => {
   );
 
   // EMBEDDINGS START
-  const embeddingWorker = useWorker(createEmbeddingWorker);
   const embeddingsMutex = useRef(false);
 
   useEffect(() => {
@@ -73,47 +72,33 @@ const LLMTestingPage: React.FC = () => {
       (async () => {
         if (embeddingsMutex.current) return;
         embeddingsMutex.current = true;
-        console.time("Loading embedding model");
-        await embeddingWorker.loadEmbeddingModel(
-          "nomic-ai/nomic-embed-text-v1.5"
-        );
-        console.timeEnd("Loading embedding model");
-        console.time("Embedding texts");
-        const embeddings = await embeddingWorker.embedText(
-          embeddingTexts,
-          "nomic-ai/nomic-embed-text-v1.5"
-        );
-        console.timeEnd("Embedding texts");
-        if (embeddings) {
-          console.time("computing similarity to first one");
-          const embeddingsWithSimilarities = embeddings
-            .map((embedding) => ({
-              ...embedding,
-              similarity: cos_sim(embedding.embedding, embeddings[0].embedding),
-            }))
-            .sort((a, b) => b.similarity - a.similarity);
-          console.timeEnd("computing similarity to first one");
-          console.log(
-            "Embeddings with similarities",
-            embeddingsWithSimilarities
-          );
 
-          console.time("computing binary similarity to first one");
-          const bEmbeddingsWithSimilarities = embeddings
-            .map((embedding) => ({
-              ...embedding,
-              similarity: cos_sim(
-                embedding.binaryEmbedding,
-                embeddings[0].binaryEmbedding
-              ),
-            }))
-            .sort((a, b) => b.similarity - a.similarity);
-          console.timeEnd("computing binary similarity to first one");
-          console.log(
-            "binary embeddings with similarities",
-            bEmbeddingsWithSimilarities
-          );
-        }
+        const MODELS_TO_LOAD = 3;
+
+        console.log(`Loading ${MODELS_TO_LOAD} embedding workers...`);
+        await Promise.all(
+          Array(MODELS_TO_LOAD)
+            .fill(0)
+            .map(async (_, i) => {
+              await addEmbeddingWorker(
+                "nomic-ai/nomic-embed-text-v1.5",
+                `worker-${i}`
+              );
+              console.log(`Embedding Worker ${i} loaded.`);
+            })
+        );
+
+        const embeddingResults = await Promise.all(
+          embeddingTexts.map(async (text, index) => {
+            const results = await embedText(
+              embeddingTexts.slice(index, index + 2),
+              "nomic-ai/nomic-embed-text-v1.5"
+            );
+            return results;
+          })
+        );
+
+        console.log("Got embedding results ", embeddingResults);
       })();
     }
   }, []);
