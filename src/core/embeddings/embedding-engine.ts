@@ -1,5 +1,9 @@
 import { createWorkerFactory } from "@shopify/react-web-worker";
-import { EmbeddingModelName, EmbeddingResult } from "./types";
+import {
+  EmbeddingEngineLogEntry,
+  EmbeddingModelName,
+  EmbeddingResult,
+} from "./types";
 import { DeferredPromise } from "../utils/deferredpromise";
 
 const createEmbeddingWorker = createWorkerFactory(
@@ -8,6 +12,10 @@ const createEmbeddingWorker = createWorkerFactory(
 
 let queueActive = false,
   maxQueueRuns = 40;
+
+const embeddingEngineLog: EmbeddingEngineLogEntry[] = [];
+
+let embeddingBatchCounter = 0;
 
 const embeddingWorkers: Record<
   string,
@@ -26,26 +34,69 @@ const embeddingJobQueue: {
   completionPromise: DeferredPromise<EmbeddingResult[] | false>;
 }[] = [];
 
+export function getEmbeddingEngineLogs(
+  lastNPackets: number
+): EmbeddingEngineLogEntry[] {
+  return embeddingEngineLog.slice(-lastNPackets);
+}
+
+function logEngineEvent(entry: EmbeddingEngineLogEntry): number {
+  if (!entry.at) entry.at = new Date();
+  const logLength = embeddingEngineLog.length;
+
+  console.log("Embedding engine event ", logLength, " - ", entry);
+
+  embeddingEngineLog.push(entry);
+  return logLength;
+}
+
 export async function addEmbeddingWorker(
   modelName: EmbeddingModelName,
   workerId: string
 ) {
   if (!embeddingWorkers[workerId]) {
-    const newWorker = createEmbeddingWorker();
+    logEngineEvent({
+      type: "embeddings_worker_loading",
+      modelName,
+      workerId,
+    });
 
-    const success = await newWorker.loadEmbeddingWorker(modelName);
+    embeddingWorkers[workerId] = {
+      modelName,
+      worker: createEmbeddingWorker(),
+    };
 
-    if (success)
-      embeddingWorkers[workerId] = {
-        worker: newWorker,
+    const success = await embeddingWorkers[workerId].worker.loadEmbeddingWorker(
+      modelName
+    );
+
+    if (success) {
+      logEngineEvent({
+        type: "embeddings_worker_loaded",
         modelName,
-      };
+        workerId,
+      });
+    } else {
+      logEngineEvent({
+        type: "engine_loading_error",
+        modelName,
+        error: "Failed to load embedding worker",
+        workerId,
+      });
+
+      delete embeddingWorkers[workerId];
+    }
   }
 }
 
 export function deleteEmbeddingWorker(workerId: string) {
   if (embeddingWorkers[workerId]) {
     delete embeddingWorkers[workerId];
+
+    logEngineEvent({
+      type: "embeddings_worker_unload",
+      workerId,
+    });
   }
 }
 
@@ -130,8 +181,6 @@ async function runJobFromQueue() {
       );
 
       if (freeWorkers.length === 0) {
-        // TODO: For now a different type of model's job can hold up other jobs, we should consider parallel queues or some kind of more complex requeuing if we go down the multiple embedding models route, for now this is fine
-
         unassignedJobs.unshift(selectedJob);
 
         console.log("No free workers available, waiting for one");
@@ -151,6 +200,17 @@ async function runJobFromQueue() {
 
       selectedJob.assignedWorkerId = selectedWorkerId;
 
+      const batchId = embeddingBatchCounter++;
+
+      selectedJob.params.texts.forEach((text, index) => {
+        logEngineEvent({
+          type: "engine_embedding_start",
+          text,
+          batchId: `${batchId}-${index}`,
+          workerId: selectedWorkerId,
+        });
+      });
+
       console.log(
         "Embedding ",
         selectedJob.params.texts.length,
@@ -160,17 +220,55 @@ async function runJobFromQueue() {
         selectedWorkerId
       );
 
-      const results = await embeddingWorkers[selectedWorkerId].worker.embedText(
-        selectedJob.params.texts,
-        selectedJob.modelName
-      );
+      try {
+        const results = await embeddingWorkers[
+          selectedWorkerId
+        ].worker.embedText(selectedJob.params.texts, selectedJob.modelName);
 
-      selectedJob.completionPromise.resolve(results);
+        if (results) {
+          results.forEach((result, index) => {
+            logEngineEvent({
+              type: "engine_embedding_success",
+              bEmbeddingHash: result.bEmbeddingHash,
+              batchId: `${batchId}-${index}`,
+              workerId: selectedWorkerId,
+            });
+          });
+        } else {
+          selectedJob.params.texts.forEach((text, index) => {
+            logEngineEvent({
+              type: "engine_embedding_error",
+              error: "Failed to embed text, returned false",
+              batchId: `${batchId}-${index}`,
+              workerId: selectedWorkerId,
+            });
+          });
+        }
+
+        selectedJob.completionPromise.resolve(results);
+      } catch (error) {
+        selectedJob.params.texts.forEach((text, index) => {
+          logEngineEvent({
+            type: "engine_embedding_error",
+            error,
+            batchId: `${batchId}-${index}`,
+            workerId: selectedWorkerId,
+          });
+        });
+
+        selectedJob.completionPromise.resolve(false);
+      }
     }
 
     return runJobFromQueue();
   } catch (err) {
     console.error("Error running job from queue", err);
+    logEngineEvent({
+      type: "engine_embedding_error",
+      error: err,
+      batchId: "unassigned",
+      workerId: "unassigned",
+    });
     queueActive = false;
   }
 }

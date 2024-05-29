@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   loadWorker,
@@ -34,13 +34,16 @@ import {
   CollapsibleTrigger,
 } from "../../components/ui/collapsible";
 import { ChevronsUpDown, X } from "lucide-react";
-import { cos_sim } from "@xenova/transformers";
 import {
   addEmbeddingWorker,
+  deleteEmbeddingWorker,
   embedText,
+  getEmbeddingEngineLogs,
 } from "../../core/embeddings/embedding-engine";
-import { EmbeddingResult } from "../../core/embeddings/types";
-// import EmbeddingChart from "./embedding-chart";
+import {
+  EmbeddingEngineLogEntry,
+  EmbeddingResult,
+} from "../../core/embeddings/types";
 import { modelColors } from "./colors";
 
 const EmbeddingChart = dynamic(() => import("./embedding-chart"), {
@@ -61,9 +64,13 @@ const LLMTestingPage: React.FC = () => {
   const [workerPrompts, setWorkerPrompts] = useState<Record<string, string>>(
     {}
   );
-  const [embeddingWorkerCount, setEmbeddingWorkerCount] = useState(2);
+  const [embeddingWorkerCount, setEmbeddingWorkerCount] = useState(0);
+  const [requestedEmbeddingWorkerCount, setRequestedEmbeddingWorkerCount] =
+    useState(2);
   const [globalPrompt, setGlobalPrompt] = useState<string>("");
-  const [engineLog, setEngineLog] = useState<LLMEngineLogEntry[]>([]);
+  const [engineLog, setEngineLog] = useState<
+    (LLMEngineLogEntry | EmbeddingEngineLogEntry)[]
+  >([]);
   const [workerStatus, setWorkerStatus] = useState<
     Record<
       string,
@@ -80,23 +87,52 @@ const LLMTestingPage: React.FC = () => {
   const [showEngineLog, setShowEngineLog] = useState(false);
 
   useEffect(() => {
-    const addEmbeddingWorkers = async () => {
-      await Promise.all(
-        Array(embeddingWorkerCount)
-          .fill(0)
-          .map(async (_, i) => {
-            console.log("Adding embedding worker ", i);
-            await addEmbeddingWorker(
-              "nomic-ai/nomic-embed-text-v1.5",
-              `embedding-worker-${i}`
-            );
-            console.log("Added embedding worker", i);
-          })
-      );
-    };
+    if (requestedEmbeddingWorkerCount < embeddingWorkerCount) {
+      setEmbeddingWorkerCount(requestedEmbeddingWorkerCount);
 
-    addEmbeddingWorkers();
-  }, [embeddingWorkerCount]);
+      console.log(
+        "Removing ",
+        embeddingWorkerCount - requestedEmbeddingWorkerCount,
+        " workers"
+      );
+      const removeEmbeddingWorkers = async () => {
+        for (
+          let i = embeddingWorkerCount - 1;
+          i >= requestedEmbeddingWorkerCount;
+          i--
+        ) {
+          const workerId = `embedding-worker-${i}`;
+          console.log("Removing ", workerId);
+          await deleteEmbeddingWorker(workerId);
+        }
+      };
+
+      removeEmbeddingWorkers();
+    } else if (requestedEmbeddingWorkerCount > embeddingWorkerCount) {
+      setEmbeddingWorkerCount(requestedEmbeddingWorkerCount);
+
+      console.log(
+        "Adding ",
+        requestedEmbeddingWorkerCount - embeddingWorkerCount,
+        " workers"
+      );
+
+      const addEmbeddingWorkers = async () => {
+        for (
+          let i = embeddingWorkerCount;
+          i < requestedEmbeddingWorkerCount;
+          i++
+        ) {
+          const workerId = `embedding-worker-${i}`;
+          console.log("Creating new embedding worker ", workerId);
+          await addEmbeddingWorker("nomic-ai/nomic-embed-text-v1.5", workerId);
+          console.log("Added embedding worker", i);
+        }
+      };
+
+      addEmbeddingWorkers();
+    }
+  }, [requestedEmbeddingWorkerCount, embeddingWorkerCount]);
 
   const pollWorkerState = async (workerId: string) => {
     try {
@@ -118,9 +154,15 @@ const LLMTestingPage: React.FC = () => {
 
   const pollEngineLogs = async () => {
     try {
-      const newLogs = await getEngineLogs(20);
-      if (newLogs.length > 0) {
-        setEngineLog(newLogs);
+      const newLogs = await getEngineLogs(50);
+      const latestEmbeddingLogs = getEmbeddingEngineLogs(50);
+
+      const joinedLogs = [...newLogs, ...latestEmbeddingLogs].sort(
+        (a, b) => a.at!.getTime() - b.at!.getTime()
+      );
+
+      if (joinedLogs.length > 0) {
+        setEngineLog(joinedLogs);
       }
     } catch (error) {
       console.error("Error fetching engine logs:", error);
@@ -322,7 +364,7 @@ const LLMTestingPage: React.FC = () => {
                 Object.values(workerStatus).reduce(
                   (sum, status) => sum + (status?.tps || 0),
                   0
-                ) / Object.keys(workerStatus).length
+                ) / Object.keys(workerStatus).length || 0
               ).toFixed(1) || "Nil"}
             </span>
           </span>
@@ -366,10 +408,13 @@ const LLMTestingPage: React.FC = () => {
           <Button onClick={handleSpawnWorker} className="ml-4">
             Spawn Worker
           </Button>
+          <span className="ml-6">Embedding Workers:</span>
           <div className="ml-4 flex items-center">
             <Button
               onClick={() =>
-                setEmbeddingWorkerCount((prev) => Math.max(0, prev - 1))
+                setRequestedEmbeddingWorkerCount((prev) =>
+                  Math.max(0, prev - 1)
+                )
               }
               size="sm"
               className="w-8 p-0"
@@ -378,7 +423,9 @@ const LLMTestingPage: React.FC = () => {
             </Button>
             <span className="mx-2">{embeddingWorkerCount}</span>
             <Button
-              onClick={() => setEmbeddingWorkerCount((prev) => prev + 1)}
+              onClick={() =>
+                setRequestedEmbeddingWorkerCount((prev) => prev + 1)
+              }
               size="sm"
               className="w-8 p-0"
             >
