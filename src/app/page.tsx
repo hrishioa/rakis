@@ -1,13 +1,35 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { testNknPubSub } from "../core/p2p/nkn-test";
 export default function Home() {
-  useEffect(() => {
-    console.log("Starting nkn pubsub for test...");
-    testNknPubSub().then(() => console.log("Nkn pubsub test done"));
-  }, []);
+  const mutex = useRef(false);
+
+  // useEffect(() => {
+  //   console.log("Starting nkn pubsub for test...");
+  //   testNknPubSub().then(() => console.log("Nkn pubsub test done"));
+  // }, []);
+
+  // useEffect(() => {
+  //   if (window) {
+  //     if (mutex.current) return;
+  //     mutex.current = true;
+
+  //     (async () => {
+  //       console.log("Testing Helia pubsub...");
+  //       await subscribeToMessages((msg) => {
+  //         console.log("Received message inside hook:", msg);
+  //       });
+
+  //       console.log("Subscribed to messages");
+
+  //       await publishMessage("Hello from Helia!");
+
+  //       console.log("Published message");
+  //     })();
+  //   }
+  // });
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
