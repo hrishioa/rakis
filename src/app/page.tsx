@@ -6,10 +6,10 @@ import { testNknPubSub } from "../core/p2p/nkn-test";
 export default function Home() {
   const mutex = useRef(false);
 
-  // useEffect(() => {
-  //   console.log("Starting nkn pubsub for test...");
-  //   testNknPubSub().then(() => console.log("Nkn pubsub test done"));
-  // }, []);
+  useEffect(() => {
+    console.log("Starting nkn pubsub for test...");
+    testNknPubSub().then(() => console.log("Nkn pubsub test done"));
+  }, []);
 
   // useEffect(() => {
   //   if (window) {
