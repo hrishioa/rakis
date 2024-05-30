@@ -113,7 +113,7 @@ export async function loadWorker(
       workerId,
     });
 
-    llmWorkers[workerId].llmEngine = await webllm.CreateWebWorkerEngine(
+    llmWorkers[workerId].llmEngine = await webllm.CreateWebWorkerMLCEngine(
       new Worker(new URL("./mlc-worker.ts", import.meta.url), {
         type: "module",
       }),

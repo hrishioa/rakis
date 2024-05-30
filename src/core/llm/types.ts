@@ -1,5 +1,5 @@
 import type {
-  EngineInterface,
+  MLCEngineInterface,
   ChatCompletionMessageParam,
 } from "@mlc-ai/web-llm";
 import type { DeferredPromise } from "../utils/deferredpromise";
@@ -18,7 +18,7 @@ export type LLMModelName = (typeof availableModels)[number];
 
 export type LLMWorker = {
   modelName: LLMModelName;
-  llmEngine?: EngineInterface;
+  llmEngine?: MLCEngineInterface;
   modelLoadingPromise?: DeferredPromise<boolean | string>;
   modelLoadingProgress: number;
   inferenceInProgress?: boolean;
