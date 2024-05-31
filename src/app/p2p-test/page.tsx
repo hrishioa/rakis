@@ -3,8 +3,25 @@ import { useEffect, useId, useRef } from "react";
 import { setupNostr } from "../../core/p2p/nostr-test";
 import { setupNkn } from "../../core/p2p/nkn-test";
 import { setupWaku } from "../../core/p2p/waku-test";
+import { createWorkerFactory, useWorker } from "@shopify/react-web-worker";
+
+const nostrWorkerFactory = createWorkerFactory(
+  () => import("../../core/p2p/nostr-test")
+);
+
+const wakuWorkerFactory = createWorkerFactory(
+  () => import("../../core/p2p/waku-test")
+);
+
+const nknWorkerFactory = createWorkerFactory(
+  () => import("../../core/p2p/nkn-test")
+);
 
 const P2PTestPage: React.FC = () => {
+  const nostrWorker = useWorker(nostrWorkerFactory);
+  const wakuWorker = useWorker(wakuWorkerFactory);
+  const nknWorker = useWorker(nknWorkerFactory);
+
   const nostrStarted = useRef(false);
   const nknStarted = useRef(false);
   const wakuStarted = useRef(false);
@@ -15,17 +32,25 @@ const P2PTestPage: React.FC = () => {
     if (!nostrStarted.current) {
       nostrStarted.current = true;
       console.log("Starting Nostr");
-      setupNostr(nodeName);
+      nostrWorker.setupNostr(nodeName);
     }
-  }, [nodeName]);
+  }, [nodeName, nostrWorker]);
 
   useEffect(() => {
     if (!nknStarted.current) {
       nknStarted.current = true;
       console.log("Starting NKN");
-      setupNkn(nodeName);
+      nknWorker.setupNkn(nodeName);
     }
-  }, [nodeName]);
+  }, [nodeName, nknWorker]);
+
+  useEffect(() => {
+    if (!wakuStarted.current) {
+      wakuStarted.current = true;
+      console.log("Starting Waku");
+      wakuWorker.setupWaku(nodeName);
+    }
+  }, [nodeName, wakuWorker]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -39,14 +64,6 @@ const P2PTestPage: React.FC = () => {
       };
     }
   });
-
-  useEffect(() => {
-    if (!wakuStarted.current) {
-      wakuStarted.current = true;
-      console.log("Starting Waku");
-      setupWaku(nodeName);
-    }
-  }, []);
 
   return (
     <div>
