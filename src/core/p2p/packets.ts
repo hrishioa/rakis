@@ -1,3 +1,4 @@
+import { EmbeddingModelName } from "../embeddings/types";
 import { LLMModelName } from "../llm/types";
 
 type InferenceSecurityFrame = {
@@ -24,10 +25,39 @@ type NetworkHyperParameterUpdate = {
   hyperParamsMasterSignature: string; // Signature of the hyperParams by the master pubkey of the network
 };
 
+type PeerStatusUpdate =
+  | {
+      status: "idle";
+    }
+  | {
+      status: "inferencing";
+      modelName: LLMModelName;
+      workerId: string;
+    }
+  | {
+      status: "completed_inference";
+      tps: number;
+      modelName: LLMModelName;
+      workerId: string;
+    }
+  | {
+      status: "computing_bEmbeddingHash";
+      embeddingModelName: EmbeddingModelName;
+    }
+  | {
+      status: "verifying quorum";
+      requestId: string;
+    };
+
 type PeerPacketRequiredFields = {
   peerId: string; // Public key identifying the peer
   peerTime: Date; // timezoned time of the packet from the peer
   signature: string; // Signature for this packet signed by the peerId associated Private Key
+};
+
+type PeerHeart = {
+  windowX: number; // X coordinate of the window
+  windowY: number;
 };
 
 type PeerInfo = {
