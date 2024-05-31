@@ -1,4 +1,5 @@
 import {
+  bytesToUtf8,
   createDecoder,
   createEncoder,
   createLightNode,
@@ -14,7 +15,7 @@ import protobuf from "protobufjs";
 
 const BOOTSTRAP_PEERS = [
   // "/dns4/node-01.do-ams3.wakuv2.prod.status.im/tcp/8000/wss/p2p/16Uiu2HAmL5okWopX7NqZWBUKVqW8iUxCEmd5GMHLVPwCgzYzQv3e",
-  "/dns4/waku.myrandomdemos.online/tcp/8000/wss/p2p/16Uiu2HAmKfC2QUvMVyBsVjuEzdo1hVhRddZxo69YkBuXYvuZ83sc", // vpavlin's node (https://discord.com/channels/1110799176264056863/1244619345762717767/1244622388306513980)
+  // "/dns4/waku.myrandomdemos.online/tcp/8000/wss/p2p/16Uiu2HAmKfC2QUvMVyBsVjuEzdo1hVhRddZxo69YkBuXYvuZ83sc", // vpavlin's node (https://discord.com/channels/1110799176264056863/1244619345762717767/1244622388306513980)
   // "/dns4/node-01.do-ams3.wakuv2.test.status.im/tcp/8000/wss/p2p/16Uiu2HAmPLe7Mzm8TsYUubgCAW1aJoeFScxrLj8ppHFivPo97bUZ",
   // "/dns4/node-01.gc-us-central1-a.wakuv2.test.status.im/tcp/8000/wss/p2p/16Uiu2HAmJb2e28qLXxT5kZxVUUoJt72EMzNGXB47Rxx5hw3q4YjS",
   // "/dns4/node-01.ac-cn-hongkong-c.wakuv2.test.status.im/tcp/8000/wss/p2p/16Uiu2HAkvWiyFsgRhuJEb9JfjYxEkoHLgnUQmr1N5mKWnYjxYRVm",
@@ -26,18 +27,39 @@ const BOOTSTRAP_PEERS = [
   // "/dns4/node-01.do-ams3.wakuv2.test.status.im/tcp/8000/wss/p2p/16Uiu2HAmPLe7Mzm8TsYUubgCAW1aJoeFScxrLj8ppHFivPo97bUZ",
   // "/dns4/node-01.gc-us-central1-a.wakuv2.test.status.im/tcp/8000/wss/p2p/16Uiu2HAmJb2e28qLXxT5kZxVUUoJt72EMzNGXB47Rxx5hw3q4YjS",
   // "/dns4/node-01.ac-cn-hongkong-c.wakuv2.test.status.im/tcp/8000/wss/p2p/16Uiu2HAkvWiyFsgRhuJEb9JfjYxEkoHLgnUQmr1N5mKWnYjxYRVm",
+
+  "/dns4/node-01.do-ams3.wakuv2.prod.status.im/tcp/8000/wss/p2p/16Uiu2HAmL5okWopX7NqZWBUKVqW8iUxCEmd5GMHLVPwCgzYzQv3e",
+  "/dns4/node-01.gc-us-central1-a.wakuv2.prod.statusim.net/tcp/8000/wss/p2p/16Uiu2HAmVkKntsECaYfefR1V2yCR79CegLATuTPE6B9TxgxBiiiA",
+  "/dns4/node-01.ac-cn-hongkong-c.wakuv2.prod.status.im/tcp/8000/wss/p2p/16Uiu2HAm4v86W3bmT1BiH6oSPzcsSr24iDQpSN5Qa992BCjjwgrD",
+  "/dns4/node-01.do-ams3.wakuv2.test.status.im/tcp/8000/wss/p2p/16Uiu2HAmPLe7Mzm8TsYUubgCAW1aJoeFScxrLj8ppHFivPo97bUZ",
 ];
+
+// const ContentTopic = "/waku-workshop/1/talk-feedback/json";
+const ContentTopic = "/zensu/2/json";
+const PubsubTopic = "/waku/2/default-waku/proto";
+
+const NODE_CONFIG = {
+  contentTopics: [ContentTopic],
+  pubsubTopics: [PubsubTopic],
+  defaultBootstrap: false,
+  bootstrapPeers: [
+    "/dns4/waku.myrandomdemos.online/tcp/8000/wss/p2p/16Uiu2HAmKfC2QUvMVyBsVjuEzdo1hVhRddZxo69YkBuXYvuZ83sc",
+    // "/dns4/node-01.do-ams3.wakuv2.prod.status.im/tcp/8000/wss/p2p/16Uiu2HAmL5okWopX7NqZWBUKVqW8iUxCEmd5GMHLVPwCgzYzQv3e",
+    // "/dns4/node-01.gc-us-central1-a.wakuv2.prod.statusim.net/tcp/8000/wss/p2p/16Uiu2HAmVkKntsECaYfefR1V2yCR79CegLATuTPE6B9TxgxBiiiA",
+    // "/dns4/node-01.ac-cn-hongkong-c.wakuv2.prod.status.im/tcp/8000/wss/p2p/16Uiu2HAm4v86W3bmT1BiH6oSPzcsSr24iDQpSN5Qa992BCjjwgrD",
+    // "/dns4/node-01.do-ams3.wakuv2.test.status.im/tcp/8000/wss/p2p/16Uiu2HAmPLe7Mzm8TsYUubgCAW1aJoeFScxrLj8ppHFivPo97bUZ",
+  ],
+  libp2p: {
+    peerDiscovery: [wakuPeerExchangeDiscovery([PubsubTopic])],
+  },
+};
 
 const WAKUSTYLE = "color: green; font-size: 16px;";
 
-const WakuMessageProtobuf = new protobuf.Type("ChatMessage")
-  .add(new protobuf.Field("timestamp", 1, "uint64"))
-  .add(new protobuf.Field("sender", 2, "string"))
-  .add(new protobuf.Field("message", 3, "string"));
-
-const ContentTopic = "/waku-workshop/1/talk-feedback/json";
-const PubsubTopic = "/waku/2/rs/1/2";
-// const PubsubTopic = "/waku/2/default-waku/proto";
+// const WakuMessageProtobuf = new protobuf.Type("ChatMessage")
+//   .add(new protobuf.Field("timestamp", 1, "uint64"))
+//   .add(new protobuf.Field("sender", 2, "string"))
+//   .add(new protobuf.Field("message", 3, "string"));
 
 const decoder = createDecoder(ContentTopic, PubsubTopic);
 const encoder = createEncoder({
@@ -57,8 +79,9 @@ export async function getAllWakuMessages() {
 
     const callback = (wakuMessage: DecodedMessage) => {
       if (!wakuMessage.payload) return;
-      const messageObj = WakuMessageProtobuf.decode(wakuMessage.payload);
-      console.log("%cWAKU: Received Message - ", messageObj, WAKUSTYLE);
+      const messageObj = JSON.parse(bytesToUtf8(wakuMessage.payload));
+
+      console.log("%cWAKU: Received Message - ", WAKUSTYLE, messageObj);
     };
 
     wakuNode.store.queryWithOrderedCallback([decoder], callback).then(() => {
@@ -100,15 +123,7 @@ export async function setupWaku(wakuIdentifier: string) {
 
   console.log("%cCreating waku node...", WAKUSTYLE);
 
-  wakuNode = await createLightNode({
-    contentTopics: [ContentTopic],
-    pubsubTopics: [PubsubTopic],
-    defaultBootstrap: false,
-    bootstrapPeers: BOOTSTRAP_PEERS,
-    libp2p: {
-      peerDiscovery: [wakuPeerExchangeDiscovery([PubsubTopic])],
-    },
-  });
+  wakuNode = await createLightNode(NODE_CONFIG);
 
   console.log("%cWAKU: Waku node created.", WAKUSTYLE);
 
@@ -129,37 +144,38 @@ export async function setupWaku(wakuIdentifier: string) {
   await wakuNode.start();
 
   console.log("%cWAKU:Waiting for a peer", WAKUSTYLE);
+  // await waitForRemotePeer(wakuNode, [
+  //   "lightpush",
+  //   "filter",
+  //   "store",
+  //   "peer-exchange",
+  // ]);
   await waitForRemotePeer(wakuNode, [
     Protocols.LightPush,
     Protocols.Filter,
     Protocols.Store,
-    // Protocols.Relay,
-    // "lightpush",
-    // "filter",
-    // "store",
-    // "peer-exchange",
   ]);
 
   console.log("%cWAKU: Peer found!", WAKUSTYLE);
 
-  setInterval(async () => {
-    const callback = (wakuMessage: DecodedMessage) => {
-      if (!wakuMessage.payload) return;
-      const messageObj = WakuMessageProtobuf.decode(wakuMessage.payload);
-      console.log("%cWAKU: Received Message - ", messageObj, WAKUSTYLE);
-    };
+  const callback = (wakuMessage: DecodedMessage) => {
+    if (!wakuMessage.payload) return;
+    const messageObj = JSON.parse(bytesToUtf8(wakuMessage.payload));
 
-    const unsubscribeFromMessages = await wakuNode?.filter.subscribe(
-      [decoder],
-      (wakuMessage) => {
-        callback(wakuMessage);
-      }
-    );
-  }, 5000);
+    console.log("%cWAKU: Received Message - ", WAKUSTYLE, messageObj);
+  };
+
+  const unsubscribeFromMessages = await wakuNode?.filter.subscribe(
+    [decoder],
+    (wakuMessage) => {
+      callback(wakuMessage);
+    }
+  );
+  console.log("%cWAKU: Subscribed to messages", WAKUSTYLE);
 
   // console.log("%cWAKU: Subscribed to messages", WAKUSTYLE);
 
-  (window as any).wakuSend = sendWakuMessage;
+  (window as any).sendWakuMessage = sendWakuMessage;
   (window as any).wakuGetPeers = getWakuPeers;
   (window as any).wakuGetMessages = getAllWakuMessages;
 

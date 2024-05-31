@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef } from "react";
 import { setupNostr } from "../../core/p2p/nostr-test";
 import { setupNkn } from "../../core/p2p/nkn-test";
+import { setupWaku } from "../../core/p2p/waku-test";
 
 const P2PTestPage: React.FC = () => {
   const nostrStarted = useRef(false);
@@ -16,7 +17,7 @@ const P2PTestPage: React.FC = () => {
       console.log("Starting Nostr");
       setupNostr(nodeName);
     }
-  }, []);
+  }, [nodeName]);
 
   useEffect(() => {
     if (!nknStarted.current) {
@@ -24,7 +25,7 @@ const P2PTestPage: React.FC = () => {
       console.log("Starting NKN");
       setupNkn(nodeName);
     }
-  }, []);
+  }, [nodeName]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -33,17 +34,19 @@ const P2PTestPage: React.FC = () => {
           (window as any).sendNknMessage(message);
         if ((window as any).sendTrysteroMessage)
           (window as any).sendTrysteroMessage(message);
+        if ((window as any).sendWakuMessage)
+          (window as any).sendWakuMessage(message);
       };
     }
   });
 
-  // useEffect(() => {
-  //   if (!wakuStarted.current) {
-  //     wakuStarted.current = true;
-  //     console.log("Starting Waku");
-  //     setupWaku(nodeName);
-  //   }
-  // }, []);
+  useEffect(() => {
+    if (!wakuStarted.current) {
+      wakuStarted.current = true;
+      console.log("Starting Waku");
+      setupWaku(nodeName);
+    }
+  }, []);
 
   return (
     <div>
