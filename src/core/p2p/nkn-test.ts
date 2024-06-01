@@ -15,6 +15,16 @@ export async function sendNknMessage(message: string) {
   console.log("%cNKN: Sent message", NKN_STYLE, message);
 }
 
+export async function getSubscribers() {
+  if (!nknClient) {
+    return;
+  }
+
+  const subs = await nknClient.getSubscribers(nknTopic);
+
+  return subs.subscribers as string[];
+}
+
 export async function setupNkn(nknId: string) {
   console.log("%cCreating NKN client...", NKN_STYLE);
   const wallet = new Wallet({ password: "password" });

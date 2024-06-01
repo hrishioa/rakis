@@ -7,6 +7,14 @@ const TRYSTERO_STYLE = "color: teal;";
 
 let trysteroRoom: Room | undefined;
 
+export async function getPeers() {
+  if (!trysteroRoom) {
+    return;
+  }
+
+  return Object.keys(trysteroRoom.getPeers());
+}
+
 export async function setupNostr(trysteroId: string) {
   console.log("%cCreating Nostr client...", TRYSTERO_STYLE);
 

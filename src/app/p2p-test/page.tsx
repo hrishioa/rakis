@@ -3,7 +3,11 @@ import { useEffect, useId, useRef } from "react";
 import { setupNostr } from "../../core/p2p/nostr-test";
 import { setupNkn } from "../../core/p2p/nkn-test";
 import { setupWaku } from "../../core/p2p/waku-test";
-import { createWorkerFactory, useWorker } from "@shopify/react-web-worker";
+import {
+  createPlainWorkerFactory,
+  createWorkerFactory,
+  useWorker,
+} from "@shopify/react-web-worker";
 
 const nostrWorkerFactory = createWorkerFactory(
   () => import("../../core/p2p/nostr-test")
@@ -15,6 +19,10 @@ const wakuWorkerFactory = createWorkerFactory(
 
 const nknWorkerFactory = createWorkerFactory(
   () => import("../../core/p2p/nkn-test")
+);
+
+const plainNostrWorkerFactor = createPlainWorkerFactory(
+  () => import("../../core/p2p/nostr-test")
 );
 
 const P2PTestPage: React.FC = () => {
