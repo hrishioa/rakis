@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import useNostr from "../../core/p2p/useNostr";
+import useTrystero from "../../core/p2p/useTrystero";
 import useWaku from "../../core/p2p/useWaku";
 import useNKN from "../../core/p2p/useNKN";
 import { Button } from "../../components/ui/button";
@@ -42,7 +42,7 @@ const P2PContainer: React.FC = () => {
 
   return (
     <div className={`${darkMode ? "dark" : ""}`}>
-      <div className="container mx-auto p-4 bg-white dark:bg-slate-900">
+      <div className="mx-auto p-4 bg-white dark:bg-slate-900">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">
             P2P Chat - {nodeName}
@@ -75,7 +75,13 @@ const P2PComponent: React.FC<{ nodeName: string; darkMode: boolean }> = ({
     messages: nostrMessages,
     events: nostrEvents,
     peers: nostrPeers,
-  } = useNostr(nodeName);
+  } = useTrystero(nodeName, "nostr");
+  const {
+    send: sendTorrentMessage,
+    messages: torrentMessages,
+    events: torrentEvents,
+    peers: torrentPeers,
+  } = useTrystero(nodeName, "torrent");
   const {
     send: sendWakuMessage,
     messages: wakuMessages,
@@ -94,6 +100,7 @@ const P2PComponent: React.FC<{ nodeName: string; darkMode: boolean }> = ({
   const handleSendMessage = () => {
     if (message.trim() !== "") {
       sendNostrMessage(message);
+      sendTorrentMessage(message);
       sendWakuMessage(message);
       sendNKNMessage(message);
       setMessage("");
@@ -108,10 +115,106 @@ const P2PComponent: React.FC<{ nodeName: string; darkMode: boolean }> = ({
 
   return (
     <>
-      <div className="grid grid-cols-3 gap-8">
-        {/* Nostr */}
+      <div className="grid grid-cols-4 gap-8">
+        {/* Torrent */}
         <div className="bg-purple-100 dark:bg-purple-900 rounded-lg p-4">
           <h2 className="text-xl font-semibold mb-4 text-purple-600 dark:text-purple-400">
+            Torrent
+          </h2>
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Connected Peers</CardTitle>
+              </CardHeader>
+              <CardContent className="h-32 overflow-y-auto">
+                <ul className="text-sm space-y-2">
+                  {torrentPeers.map((peer, index) => (
+                    <li key={index} className="flex items-center space-x-2">
+                      <Avatar className="w-6 h-6">
+                        <AvatarImage
+                          src={`https://api.dicebear.com/5.x/initials/svg?seed=${peer}`}
+                          alt={peer}
+                        />
+                        <AvatarFallback>{peer.slice(0, 2)}</AvatarFallback>
+                      </Avatar>
+                      <div className="font-medium text-slate-700 dark:text-slate-400">
+                        {peer}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Events</CardTitle>
+              </CardHeader>
+              <CardContent className="h-32 overflow-y-auto">
+                <ul className="text-sm space-y-2">
+                  {torrentEvents.map((event, index) => (
+                    <li key={index}>
+                      <div className="font-medium text-slate-700 dark:text-slate-400">
+                        {event.type}
+                      </div>
+                      <div className="text-slate-500 dark:text-slate-500">
+                        {event.data}
+                      </div>
+                      {showTimestamps && (
+                        <div className="text-xs text-slate-400 dark:text-slate-600">
+                          {new Date(event.timestamp).toLocaleString()}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Messages</CardTitle>
+              </CardHeader>
+              <CardContent className="h-64 overflow-y-auto">
+                <ul className="text-sm space-y-4">
+                  {torrentMessages.map((message, index) => (
+                    <li key={index} className="flex space-x-2">
+                      <Avatar className="w-8 h-8">
+                        <AvatarImage
+                          src={`https://api.dicebear.com/5.x/initials/svg?seed=${message.data.nickName}`}
+                          alt={message.data.nickName}
+                        />
+                        <AvatarFallback>
+                          {message.data.nickName.slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div
+                          className={`font-semibold ${
+                            message.data.nickName === nodeName
+                              ? "text-purple-600 dark:text-purple-400"
+                              : "text-slate-700 dark:text-slate-400"
+                          }`}
+                        >
+                          {message.data.nickName}
+                        </div>
+                        <div className="text-slate-500 dark:text-slate-500">
+                          {message.data.message}
+                        </div>
+                        {showTimestamps && (
+                          <div className="text-xs text-slate-400 dark:text-slate-600">
+                            {new Date(message.timestamp).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        {/* Nostr */}
+        <div className="bg-red-100 dark:bg-red-900 rounded-lg p-4">
+          <h2 className="text-xl font-semibold mb-4 text-red-600 dark:text-red-400">
             Nostr
           </h2>
           <div className="space-y-4">
@@ -183,7 +286,7 @@ const P2PComponent: React.FC<{ nodeName: string; darkMode: boolean }> = ({
                         <div
                           className={`font-semibold ${
                             message.data.nickName === nodeName
-                              ? "text-purple-600 dark:text-purple-400"
+                              ? "text-red-600 dark:text-red-400"
                               : "text-slate-700 dark:text-slate-400"
                           }`}
                         >

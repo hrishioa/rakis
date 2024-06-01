@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { joinRoom, Room } from "trystero/torrent";
+import { joinRoom as joinTorrentRoom } from "trystero/torrent";
+import { joinRoom as joinNostrRoom } from "trystero/nostr";
 
 const trysteroAppId = "zensu";
 const trysteroTopic = "zensu-chat";
@@ -23,8 +24,38 @@ type MessagesState = {
   peers: string[];
 };
 
-function useNostr(trysteroId: string) {
-  const [trysteroRoom, setTrysteroRoom] = useState<Room | undefined>();
+const relayRedundancy = 4;
+
+const rtcConfig = {
+  iceServers: [
+    {
+      urls: "stun:stun.relay.metered.ca:80",
+    },
+    {
+      urls: "turn:a.relay.metered.ca:80",
+      username: "fd396a3275680a085c4d66cd",
+      credential: "hFQmauZyx0Mv0bCK",
+    },
+    {
+      urls: "turn:a.relay.metered.ca:80?transport=tcp",
+      username: "fd396a3275680a085c4d66cd",
+      credential: "hFQmauZyx0Mv0bCK",
+    },
+    {
+      urls: "turn:a.relay.metered.ca:443",
+      username: "fd396a3275680a085c4d66cd",
+      credential: "hFQmauZyx0Mv0bCK",
+    },
+    {
+      urls: "turn:a.relay.metered.ca:443?transport=tcp",
+      username: "fd396a3275680a085c4d66cd",
+      credential: "hFQmauZyx0Mv0bCK",
+    },
+  ],
+};
+
+function useTrystero(trysteroId: string, trysteroType: "torrent" | "nostr") {
+  const [trysteroRoom, setTrysteroRoom] = useState<any>();
   const mutex = useRef(false);
   const [messagesState, setMessagesState] = useState<MessagesState>({
     messages: [],
@@ -33,28 +64,44 @@ function useNostr(trysteroId: string) {
   });
 
   useEffect(() => {
-    const setupNostr = async () => {
-      const room = await joinRoom(
-        {
-          appId: trysteroAppId,
-        },
-        trysteroTopic
-      );
+    const setupTrystero = async () => {
+      const room =
+        trysteroType === "nostr"
+          ? await joinNostrRoom(
+              {
+                appId: trysteroAppId,
+                relayRedundancy,
+                rtcConfig,
+              },
+              trysteroTopic
+            )
+          : await joinTorrentRoom(
+              {
+                appId: trysteroAppId,
+                relayRedundancy,
+                rtcConfig,
+              },
+              trysteroTopic
+            );
 
-      console.log("Nostr: Nostr client created", room);
+      console.log("Trystero: Trystero client created", room);
 
       setMessagesState((prevState) => ({
         ...prevState,
         events: [
           ...prevState.events,
-          { type: "log", data: "Nostr client created", timestamp: Date.now() },
+          {
+            type: "log",
+            data: "Trystero client created",
+            timestamp: Date.now(),
+          },
         ],
       }));
 
       setTrysteroRoom(room);
 
       room.onPeerJoin((peerId) => {
-        console.log("Nostr: Peer joined", peerId);
+        console.log("Trystero: Peer joined", peerId);
         setMessagesState((prevState) => ({
           ...prevState,
           events: [
@@ -91,8 +138,8 @@ function useNostr(trysteroId: string) {
 
     if (!mutex.current) {
       mutex.current = true;
-      console.log("Setting up nostr...");
-      setupNostr();
+      console.log("Setting up Trystero...");
+      setupTrystero();
     }
   }, []);
 
@@ -126,4 +173,4 @@ function useNostr(trysteroId: string) {
   };
 }
 
-export default useNostr;
+export default useTrystero;
