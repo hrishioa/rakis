@@ -92,7 +92,7 @@ function useTrystero(trysteroId: string, trysteroType: "torrent" | "nostr") {
           ...prevState.events,
           {
             type: "log",
-            data: "Trystero client created",
+            data: `${trysteroType} client created`,
             timestamp: Date.now(),
           },
         ],
@@ -153,13 +153,13 @@ function useTrystero(trysteroId: string, trysteroType: "torrent" | "nostr") {
       setMessagesState((prevState) => ({
         ...prevState,
         messages: [
-          ...prevState.messages,
           {
             type: "message",
             data: { nickName: trysteroId, message },
             peerId: trysteroId,
             timestamp: Date.now(),
           },
+          ...prevState.messages,
         ],
       }));
     }

@@ -57,7 +57,6 @@ function useNkn(nknId: string) {
         setMessagesState((prevState) => ({
           ...prevState,
           messages: [
-            ...prevState.messages,
             {
               type: "message",
               data: {
@@ -68,6 +67,7 @@ function useNkn(nknId: string) {
               peerId: src,
               timestamp: Date.now(),
             },
+            ...prevState.messages,
           ],
         }));
       });
@@ -122,22 +122,6 @@ function useNkn(nknId: string) {
     if (nknClient) {
       console.log("NKN: Sending message", message);
       nknClient.publish(nknTopic, message, { txPool: true });
-      // setMessagesState((prevState) => ({
-      //   ...prevState,
-      //   messages: [
-      //     ...prevState.messages,
-      //     {
-      //       type: "message",
-      //       data: {
-      //         timestamp: Date.now(),
-      //         sender: nknId,
-      //         message,
-      //       },
-      //       peerId: nknId,
-      //       timestamp: Date.now(),
-      //     },
-      //   ],
-      // }));
     }
   };
 

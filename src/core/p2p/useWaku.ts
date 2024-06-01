@@ -12,7 +12,7 @@ import {
 } from "@waku/sdk";
 import { wakuPeerExchangeDiscovery } from "@waku/discovery";
 
-const ContentTopic = "/zensu/4/json";
+const ContentTopic = "/zsu/6/json";
 const PubsubTopic = "/waku/2/default-waku/proto";
 
 const NODE_CONFIG = {
@@ -123,13 +123,13 @@ function useWaku(wakuIdentifier: string) {
         setMessagesState((prevState) => ({
           ...prevState,
           messages: [
-            ...prevState.messages,
             {
               type: "message",
               data: messageObj,
               peerId: messageObj.sender,
               timestamp: messageObj.timestamp,
             },
+            ...prevState.messages,
           ],
         }));
       });
@@ -152,7 +152,7 @@ function useWaku(wakuIdentifier: string) {
 
         node.store.queryWithOrderedCallback([decoder], callback).then(() => {
           console.log("WAKU: Finished querying messages");
-          resolve(messages.sort((a, b) => a.timestamp - b.timestamp));
+          resolve(messages.sort((a, b) => b.timestamp - a.timestamp));
         });
       });
 
