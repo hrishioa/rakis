@@ -12,7 +12,7 @@ import {
 } from "@waku/sdk";
 import { wakuPeerExchangeDiscovery } from "@waku/discovery";
 
-const ContentTopic = "/zensu/2/json";
+const ContentTopic = "/zensu/3/json";
 const PubsubTopic = "/waku/2/default-waku/proto";
 
 const NODE_CONFIG = {
