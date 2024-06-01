@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { joinRoom, Room } from "trystero/nostr";
+import { joinRoom, Room } from "trystero/torrent";
 
 const trysteroAppId = "zensu";
 const trysteroTopic = "zensu-chat";
