@@ -1,6 +1,6 @@
-import { ChainIdentity } from "./entities";
-import { IDENTITY_ENCRYPTED_KEY } from "../config";
-import { decryptData, encryptData } from "../simple-crypto";
+import { ChainIdentity } from "./db/entities";
+import { IDENTITY_ENCRYPTED_KEY } from "./config";
+import { decryptData, encryptData } from "./simple-crypto";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));

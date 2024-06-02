@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { initClientInfo } from "../core/synthient-chain/db/identity-db";
+import { initClientInfo } from "../core/synthient-chain/identity";
 export default function Home() {
   useEffect(() => {
-    const clientInfo = initClientInfo("test-password").then((clientInfo) => {
+    initClientInfo("test-password").then((clientInfo) => {
       console.log("Got client info ", clientInfo);
     });
   });
