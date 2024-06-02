@@ -1,31 +1,14 @@
-import { DataArray, pipeline, quantize_embeddings } from "@xenova/transformers";
+import { pipeline, quantize_embeddings } from "@xenova/transformers";
+import {
+  EmbeddingModelName,
+  EmbeddingWorker,
+  EmbeddingWorkerReceivedMessage,
+  EmbeddingWorkerSentMessage,
+} from "./types";
 import { DeferredPromise } from "../utils/deferredpromise";
-import { EmbeddingModelName, EmbeddingResult, EmbeddingWorker } from "./types";
+import { EmbeddingResult } from "./types";
 
 let workerInstance: EmbeddingWorker | null = null;
-
-export function getWorkerStatus() {
-  if (!workerInstance) {
-    return {
-      modelLoaded: false,
-      busyEmbedding: false,
-    };
-  }
-
-  return {
-    modelLoadingProgress: workerInstance.modelLoadingProgress,
-    modelLoaded: workerInstance.modelLoadingProgress >= 1,
-    busyEmbedding: workerInstance.busyEmbedding,
-  };
-}
-
-export async function waitForCompletion() {
-  if (workerInstance && workerInstance.busyEmbeddingPromise) {
-    console.log("Waiting for completion");
-    await workerInstance.busyEmbeddingPromise.promise;
-    console.log("Embedding promise completed");
-  }
-}
 
 async function hashBinaryEmbedding(bEmbedding: number[]) {
   const uint8Array = new Uint8Array(bEmbedding);
@@ -37,12 +20,20 @@ async function hashBinaryEmbedding(bEmbedding: number[]) {
   return hashHex;
 }
 
-export async function loadEmbeddingWorker(modelName: EmbeddingModelName) {
+function sendMessageToParent(message: EmbeddingWorkerSentMessage) {
+  self.postMessage(message);
+}
+
+async function loadEmbeddingWorker(
+  modelName: EmbeddingModelName,
+  workerId: string
+) {
   try {
     if (!workerInstance) {
       console.log("Creating new embedding worker");
 
       workerInstance = {
+        workerId,
         modelName,
         busyEmbedding: false,
         modelLoadingProgress: 0,
@@ -53,9 +44,8 @@ export async function loadEmbeddingWorker(modelName: EmbeddingModelName) {
         "feature-extraction",
         modelName,
         {
-          quantized: false, // Note: Quantized models cause a lot more divergence in embeddings
+          quantized: false,
           progress_callback: (report: any) => {
-            // console.log(`Progress loading embedding ${modelName} - `, report);
             if (workerInstance) {
               if (!isNaN(report.progress))
                 workerInstance.modelLoadingProgress = report.progress / 100;
@@ -68,8 +58,7 @@ export async function loadEmbeddingWorker(modelName: EmbeddingModelName) {
       );
     }
   } catch (err) {
-    console.error("Error loading model - ", err);
-    return false;
+    return (err as Error).message;
   }
 
   await workerInstance!.modelLoadingPromise.promise;
@@ -77,57 +66,126 @@ export async function loadEmbeddingWorker(modelName: EmbeddingModelName) {
   return true;
 }
 
-export async function embedText(
+async function embedText(
   texts: string[],
-  modelName: EmbeddingModelName
-): Promise<false | EmbeddingResult[]> {
+  batchId: string
+): Promise<
+  | {
+      success: false;
+      reason: string;
+    }
+  | {
+      success: true;
+      results: EmbeddingResult[];
+    }
+> {
   if (!workerInstance || !workerInstance.pipeline) {
-    console.error("Model could not be loaded.");
-    return false;
+    return {
+      success: false,
+      reason: "Model could not be loaded.",
+    };
   }
 
   if (workerInstance.busyEmbedding) {
-    console.error("Worker is busy embedding.");
-    return false;
-  }
-
-  if (!workerInstance!.pipeline) {
-    await workerInstance!.modelLoadingPromise.promise;
-    if (!workerInstance || workerInstance.modelLoadingProgress < 1) {
-      console.log(
-        "Embedding model ",
-        modelName,
-        "could not be loaded. Exiting."
-      );
-      return false;
-    }
+    return {
+      success: false,
+      reason: "Worker is busy embedding.",
+    };
   }
 
   workerInstance.busyEmbedding = true;
-  workerInstance.busyEmbeddingPromise = new DeferredPromise<void>();
-
-  console.log("Actually embedding ", texts);
-  const embeddings = await workerInstance!.pipeline!(texts, {
-    normalize: true,
-    pooling: "mean",
+  sendMessageToParent({
+    type: "workerBusyEmbedding",
+    batchId,
   });
-  // console.log("Actually embedded ", texts, embeddings);
-  workerInstance.busyEmbedding = false;
-  workerInstance.busyEmbeddingPromise.resolve();
 
-  const binaryEmbeddings = quantize_embeddings(embeddings, "ubinary");
+  try {
+    console.log(
+      `Worker ${workerInstance.workerId} is embedding ${batchId}: `,
+      JSON.stringify(texts)
+    );
+    const embeddings = await workerInstance!.pipeline!(texts, {
+      normalize: true,
+      pooling: "mean",
+    });
 
-  const results = await Promise.all(
-    texts.map(async (text, index) => ({
-      text,
-      embedding: embeddings.slice([index, index + 1]).data as number[],
-      binaryEmbedding: binaryEmbeddings.slice([index, index + 1])
-        .data as number[],
-      bEmbeddingHash: await hashBinaryEmbedding(
-        binaryEmbeddings.slice([index, index + 1]).data as number[]
-      ),
-    }))
-  );
+    workerInstance.busyEmbedding = false;
+    sendMessageToParent({
+      type: "workerIdle",
+    });
 
-  return results;
+    const binaryEmbeddings = quantize_embeddings(embeddings, "ubinary");
+
+    const results: EmbeddingResult[] = await Promise.all(
+      texts.map(async (text, index) => ({
+        text,
+        embedding: embeddings.slice([index, index + 1]).data as number[],
+        binaryEmbedding: binaryEmbeddings.slice([index, index + 1])
+          .data as number[],
+        bEmbeddingHash: await hashBinaryEmbedding(
+          binaryEmbeddings.slice([index, index + 1]).data as number[]
+        ),
+      }))
+    );
+
+    return {
+      success: true,
+      results,
+    };
+  } catch (err) {
+    workerInstance.busyEmbedding = false;
+    sendMessageToParent({
+      type: "workerIdle",
+    });
+    return {
+      success: false,
+      reason: (err as Error).message,
+    };
+  }
 }
+
+self.onmessage = async (
+  event: MessageEvent<EmbeddingWorkerReceivedMessage>
+) => {
+  const message = event.data;
+
+  switch (message.type) {
+    case "loadWorker":
+      const result = await loadEmbeddingWorker(
+        message.modelName,
+        message.workerId
+      );
+      if (result === true) {
+        sendMessageToParent({
+          type: "workerLoaded",
+          modelName: message.modelName,
+        });
+      } else {
+        sendMessageToParent({
+          type: "workerLoadFailure",
+          modelName: message.modelName,
+          err: result,
+        });
+      }
+      break;
+    case "embedText":
+      const outcome = await embedText(message.texts, message.batchId);
+      if (outcome.success) {
+        sendMessageToParent({
+          type: "embeddingSuccess",
+          batchId: message.batchId,
+          results: outcome.results,
+        });
+      } else {
+        sendMessageToParent({
+          type: "embeddingFailure",
+          batchId: message.batchId,
+          reason: outcome.reason,
+        });
+      }
+      break;
+    default:
+      console.error("EMBEDDING WORKER GOT ", event, " - THIS SHOULDNT HAPPEN!");
+      break;
+  }
+};

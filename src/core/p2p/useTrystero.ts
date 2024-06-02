@@ -141,7 +141,7 @@ function useTrystero(trysteroId: string, trysteroType: "torrent" | "nostr") {
       console.log("Setting up Trystero...");
       setupTrystero();
     }
-  }, []);
+  }, [trysteroType]);
 
   const sendMessage = (message: string) => {
     if (trysteroRoom) {

@@ -144,7 +144,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Connected Peers</CardTitle>
                 </CardHeader>
-                <CardContent className="h-16 overflow-y-auto">
+                <CardContent className="h-24 overflow-y-auto">
                   <ul className="text-sm space-y-2">
                     {torrentPeers.map((peer, index) => (
                       <li key={index} className="flex items-center space-x-2">
@@ -167,7 +167,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Events</CardTitle>
                 </CardHeader>
-                <CardContent className="h-16 overflow-y-auto">
+                <CardContent className="h-24 overflow-y-auto">
                   <ul className="text-sm space-y-2">
                     {torrentEvents.map((event, index) => (
                       <li key={index}>
@@ -191,7 +191,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Messages</CardTitle>
                 </CardHeader>
-                <CardContent className="h-40 overflow-y-auto">
+                <CardContent className="h-64 overflow-y-auto">
                   <ul className="text-sm space-y-4">
                     {torrentMessages.map((message, index) => (
                       <li key={index} className="flex space-x-2">
@@ -249,7 +249,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Connected Peers</CardTitle>
                 </CardHeader>
-                <CardContent className="h-16 overflow-y-auto">
+                <CardContent className="h-24 overflow-y-auto">
                   <ul className="text-sm space-y-2">
                     {nostrPeers.map((peer, index) => (
                       <li key={index} className="flex items-center space-x-2">
@@ -272,7 +272,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Events</CardTitle>
                 </CardHeader>
-                <CardContent className="h-16 overflow-y-auto">
+                <CardContent className="h-24 overflow-y-auto">
                   <ul className="text-sm space-y-2">
                     {nostrEvents.map((event, index) => (
                       <li key={index}>
@@ -296,7 +296,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Messages</CardTitle>
                 </CardHeader>
-                <CardContent className="h-40 overflow-y-auto">
+                <CardContent className="h-64 overflow-y-auto">
                   <ul className="text-sm space-y-4">
                     {nostrMessages.map((message, index) => (
                       <li key={index} className="flex space-x-2">
@@ -355,7 +355,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Connected Peers (For relay)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-16 overflow-y-auto">
+                <CardContent className="h-24 overflow-y-auto">
                   <ul className="text-sm space-y-2">
                     {wakuPeers.map((peer, index) => (
                       <li key={index} className="flex items-center space-x-2">
@@ -380,7 +380,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Events</CardTitle>
                 </CardHeader>
-                <CardContent className="h-16 overflow-y-auto">
+                <CardContent className="h-24 overflow-y-auto">
                   <ul className="text-sm space-y-2">
                     {wakuEvents.map((event, index) => (
                       <li key={index}>
@@ -404,7 +404,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Messages</CardTitle>
                 </CardHeader>
-                <CardContent className="h-40 overflow-y-auto">
+                <CardContent className="h-64 overflow-y-auto">
                   <ul className="text-sm space-y-4">
                     {wakuMessages.map((message, index) => (
                       <li key={index} className="flex space-x-2">
@@ -463,7 +463,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Subscribers</CardTitle>
                 </CardHeader>
-                <CardContent className="h-16 overflow-y-auto">
+                <CardContent className="h-24 overflow-y-auto">
                   <ul className="text-sm space-y-2">
                     {nknSubscribers.map((subscriber, index) => (
                       <li key={index} className="flex items-center space-x-2">
@@ -491,7 +491,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Events</CardTitle>
                 </CardHeader>
-                <CardContent className="h-16 overflow-y-auto">
+                <CardContent className="h-24 overflow-y-auto">
                   <ul className="text-sm space-y-2">
                     {nknEvents.map((event, index) => (
                       <li key={index}>
@@ -515,7 +515,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
                 <CardHeader>
                   <CardTitle>Messages</CardTitle>
                 </CardHeader>
-                <CardContent className="h-40 overflow-y-auto">
+                <CardContent className="h-64 overflow-y-auto">
                   <ul className="text-sm space-y-4">
                     {nknMessages.map((message, index) => (
                       <li key={index} className="flex space-x-2">

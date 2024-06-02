@@ -8,13 +8,53 @@ export const availableEmbeddingModels = [
 export type EmbeddingModelName = (typeof availableEmbeddingModels)[number];
 
 export type EmbeddingWorker = {
+  workerId: string;
   modelName: EmbeddingModelName;
   pipeline?: FeatureExtractionPipeline;
   modelLoadingProgress: number;
   modelLoadingPromise: DeferredPromise<void>;
   busyEmbedding: boolean;
-  busyEmbeddingPromise?: DeferredPromise<void>;
 };
+
+export type EmbeddingWorkerReceivedMessage =
+  | {
+      type: "loadWorker";
+      modelName: EmbeddingModelName;
+      workerId: string;
+    }
+  | {
+      type: "embedText";
+      texts: string[];
+      batchId: string;
+    };
+
+export type EmbeddingWorkerSentMessage =
+  | {
+      type: "workerLoaded";
+      modelName: EmbeddingModelName;
+    }
+  | {
+      type: "workerLoadFailure";
+      modelName: EmbeddingModelName;
+      err: any;
+    }
+  | {
+      type: "workerBusyEmbedding";
+      batchId: string;
+    }
+  | {
+      type: "workerIdle";
+    }
+  | {
+      type: "embeddingSuccess";
+      batchId: string;
+      results: EmbeddingResult[];
+    }
+  | {
+      type: "embeddingFailure";
+      batchId: string;
+      reason: string;
+    };
 
 export type EmbeddingResult = {
   text: string;
