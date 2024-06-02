@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.35",
+    "@noble/ed25519": "^2.1.0",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-checkbox": "^1.0.4",
     "@radix-ui/react-collapsible": "^1.0.3",
@@ -30,6 +31,7 @@
     "@xenova/transformers": "^2.17.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "dexie": "^4.0.7",
     "gun": "^0.2020.1240",
     "lucide-react": "^0.379.0",
     "next": "14.2.3",

@@ -1,0 +1,149 @@
+// This is just a stub implementation, definitely not properly fuzz tested so please don't borrow this. NEVER ROLL YOUR OWN CRYPTO, unless you're pressed for time.
+
+import { Buffer } from "buffer";
+
+// Function to encrypt the JSON object
+export async function encryptData(
+  data: any,
+  password: string
+): Promise<string> {
+  console.time("Encrypting info for storage");
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordBytes,
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+
+  const derivedKey = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    key,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"]
+  );
+
+  const jsonBytes = encoder.encode(JSON.stringify(data));
+  const encryptedBytes = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv },
+    derivedKey,
+    jsonBytes
+  );
+
+  const encryptedData = Buffer.from(encryptedBytes).toString("base64");
+  const ivHex = Buffer.from(iv).toString("hex");
+  const saltHex = Buffer.from(salt).toString("hex");
+  console.timeEnd("Encrypting info for storage");
+
+  return `${encryptedData}.${ivHex}.${saltHex}`;
+}
+
+// Function to decrypt the encrypted data
+export async function decryptData(
+  encryptedData: string,
+  password: string
+): Promise<any> {
+  console.time("Decrypting info from storage");
+
+  const [encryptedBase64, ivHex, saltHex] = encryptedData.split(".");
+  const encryptedBytes = Buffer.from(encryptedBase64, "base64");
+  const iv = Buffer.from(ivHex, "hex");
+  const salt = Buffer.from(saltHex, "hex");
+
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordBytes,
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+
+  const derivedKey = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    key,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"]
+  );
+
+  const decryptedBytes = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv },
+    derivedKey,
+    encryptedBytes
+  );
+
+  const decoder = new TextDecoder();
+  const jsonString = decoder.decode(decryptedBytes);
+
+  console.timeEnd("Decrypting info from storage");
+  return JSON.parse(jsonString);
+}
+
+// Function to sign the encrypted data
+export async function signData(
+  encryptedData: string,
+  password: string
+): Promise<string> {
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(encryptedData)
+  );
+  return Buffer.from(signature).toString("base64");
+}
+
+// Function to verify the signature
+export async function verifySignature(
+  encryptedData: string,
+  signature: string,
+  password: string
+): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+
+  const signatureBytes = Buffer.from(signature, "base64");
+  return crypto.subtle.verify(
+    "HMAC",
+    key,
+    signatureBytes,
+    encoder.encode(encryptedData)
+  );
+}
