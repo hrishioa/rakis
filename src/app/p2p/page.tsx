@@ -11,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { Label } from "../../components/ui/label";
 import {
   Avatar,
   AvatarFallback,
@@ -19,11 +18,11 @@ import {
 } from "../../components/ui/avatar";
 import { Switch } from "../../components/ui/switch";
 import Image from "next/image";
+import useGun from "../../core/p2p/useGun";
 
 const P2PContainer: React.FC = () => {
   const [nodeName, setNodeName] = useState<string>("");
   const nodeNameLoading = useRef(false);
-
   useEffect(() => {
     if (!nodeName && !nodeNameLoading.current) {
       nodeNameLoading.current = true;
@@ -68,6 +67,12 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
     events: nknEvents,
     subscribers: nknSubscribers,
   } = useNKN(nodeName);
+  const {
+    send: sendGunMessage,
+    messages: gunMessages,
+    events: gunEvents,
+  } = useGun(nodeName);
+
   const [message, setMessage] = useState("");
   const showTimestamps = true;
 
@@ -79,6 +84,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
       sendTorrentMessage(message);
       sendWakuMessage(message);
       sendNKNMessage(message);
+      sendGunMessage(message);
       setMessage("");
     }
   };
@@ -124,7 +130,7 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
             />
           </Switch>
         </div>
-        <div className="grid grid-cols-4 gap-8">
+        <div className="grid grid-cols-5 gap-8">
           {/* Torrent */}
           <div className="bg-purple-100 dark:bg-purple-900 rounded-lg p-4">
             <div className="flex justify-between items-center mb-4">
@@ -335,7 +341,88 @@ const P2PComponent: React.FC<{ nodeName: string }> = ({ nodeName }) => {
               </Card>
             </div>
           </div>
-
+          {/* Gun */}
+          <div className="bg-red-100 dark:bg-red-900 rounded-lg p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-red-600 dark:text-red-400">
+                GunDB
+              </h2>
+              <Image
+                src={"/gundb.png"}
+                alt={"Vercel"}
+                width={32}
+                height={32}
+                className="h-6 w-6"
+              />
+            </div>
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Events</CardTitle>
+                </CardHeader>
+                <CardContent className="h-24 overflow-y-auto">
+                  <ul className="text-sm space-y-2">
+                    {gunEvents.map((event, index) => (
+                      <li key={index}>
+                        <div className="font-medium text-slate-700 dark:text-slate-400">
+                          {event.type}
+                        </div>
+                        <div className="text-slate-500 dark:text-slate-500">
+                          {event.data}
+                        </div>
+                        {showTimestamps && (
+                          <div className="text-xs text-slate-400 dark:text-slate-600">
+                            {new Date(event.timestamp).toLocaleString()}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Messages</CardTitle>
+                </CardHeader>
+                <CardContent className="h-64 overflow-y-auto">
+                  <ul className="text-sm space-y-4">
+                    {gunMessages.map((message, index) => (
+                      <li key={index} className="flex space-x-2">
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage
+                            src={`https://api.dicebear.com/5.x/initials/svg?seed=${message.data.nickName}`}
+                            alt={message.data.nickName}
+                          />
+                          <AvatarFallback>
+                            {message.data.nickName.slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div
+                            className={`font-semibold ${
+                              message.data.nickName === nodeName
+                                ? "text-red-600 dark:text-red-400"
+                                : "text-slate-700 dark:text-slate-400"
+                            }`}
+                          >
+                            {message.data.nickName}
+                          </div>
+                          <div className="text-slate-500 dark:text-slate-500">
+                            {message.data.message}
+                          </div>
+                          {showTimestamps && (
+                            <div className="text-xs text-slate-400 dark:text-slate-600">
+                              {new Date(message.timestamp).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
           {/* Waku */}
           <div className="bg-emerald-100 dark:bg-emerald-900 rounded-lg p-4">
             <div className="flex justify-between items-center mb-4">
