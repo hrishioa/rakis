@@ -19,7 +19,7 @@ type MessagesState = {
   events: Event[];
 };
 
-const gunTopic = "zensu/chat";
+const gunTopic = "zensu/chat2";
 
 function useGun(nodeName: string) {
   const gunStarted = useRef(false);

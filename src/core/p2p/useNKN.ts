@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Client, MultiClient, Wallet } from "nkn-sdk-temp-patch";
 
-const nknTopic = "zensu2";
+const nknTopic = "zensu3";
 const POLLING_INTERVAL = 2000; // 2 seconds
 
 type Message = {
