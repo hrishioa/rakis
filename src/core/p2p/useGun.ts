@@ -19,6 +19,8 @@ type MessagesState = {
   events: Event[];
 };
 
+const gunTopic = "zensu/chat";
+
 function useGun(nodeName: string) {
   const gunStarted = useRef(false);
   const [gun, setGun] = useState<IGunInstance<any> | undefined>();
@@ -78,7 +80,7 @@ function useGun(nodeName: string) {
       }));
 
       console.log("Attaching gun listener");
-      gunInstance.get("messages").on((data, key) => {
+      gunInstance.get(gunTopic).on((data, key) => {
         console.log("GUN: Received message", data);
         setLatestMessage({
           type: "message",
@@ -100,7 +102,7 @@ function useGun(nodeName: string) {
   const sendMessage = (message: string) => {
     if (gun) {
       console.log("GUN: Sending message", message);
-      gun.get("messages").put({
+      gun.get(gunTopic).put({
         message,
         nickName: nodeName,
         time: new Date().getTime(),
