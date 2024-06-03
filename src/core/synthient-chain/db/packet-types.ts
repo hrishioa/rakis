@@ -31,6 +31,7 @@ type NetworkHyperParameterUpdate = {
 
 export type ReceivedPeerPacket = TransmittedPeerPacket & {
   receivedTime?: Date; // Time that the packet was received, undefined if this was our own packet
+  deliveredThrough?: string; // The network that this packet was delivered through
 };
 
 export type TransmittedPeerPacket = {

@@ -1,9 +1,9 @@
 import { MultiClient, Wallet } from "nkn-sdk";
 import { ReceivedPeerPacket, TransmittedPeerPacket } from "../db/packet-types";
 import {
+  ErrorHandler,
   P2PNetworkInstance,
   PacketReceivedCallback,
-  RegisterErrorHandler,
 } from "./p2pnetwork-types";
 import { DeferredPromise } from "../../utils/deferredpromise";
 import { NKN_CONFIG } from "../config";
@@ -33,9 +33,7 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
   private transmissionErrorCount: number = 0;
   private packetReceivedCallbacks: PacketReceivedCallback<NknAvailablePeerInfo>[] =
     [];
-  private errorHandler:
-    | ((error: Error, restartRecommended: boolean) => void)
-    | undefined;
+  private errorHandlers: ErrorHandler[] = [];
 
   constructor(synthientId: string, options: NknBootstrapOptions) {
     super(synthientId, options);
@@ -54,6 +52,7 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
       console.log(`NKN: Received message from `, src, "payload", payload);
       const packet: ReceivedPeerPacket = JSON.parse(payload as string);
       packet.receivedTime = new Date();
+      packet.deliveredThrough = "nkn";
       this.packetReceivedCallbacks.forEach((callback) => {
         callback(packet, { nknAddress: src });
       });
@@ -69,9 +68,9 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
       console.log("NKN: Connection failed");
       this.loadingPromise.resolve(false);
 
-      if (this.errorHandler) {
-        this.errorHandler(new Error("NKN: Connection failed"), true);
-      }
+      this.errorHandlers.forEach((handler) => {
+        handler(new Error("NKN: Connection failed"), true);
+      });
     });
 
     wallet
@@ -114,10 +113,11 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
         console.error("NKN: Error sending message", error);
         this.transmissionErrorCount++;
         if (
-          this.errorHandler &&
           this.transmissionErrorCount > NKN_CONFIG.maxSendErrorsBeforeRestart
         ) {
-          this.errorHandler(error as Error, true);
+          this.errorHandlers.forEach((handler) =>
+            handler(error as Error, true)
+          );
         }
         return false;
       }
@@ -136,9 +136,14 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
     };
   }
 
-  registerErrorHandler: RegisterErrorHandler = (errorHandler) => {
-    this.errorHandler = errorHandler;
-  };
+  registerErrorHandler(errorHandler: ErrorHandler) {
+    this.errorHandlers.push(errorHandler);
+    return () => {
+      this.errorHandlers = this.errorHandlers.filter(
+        (handler) => handler !== errorHandler
+      );
+    };
+  }
 
   async gracefulShutdown() {
     if (this.renewalIntervalId) {

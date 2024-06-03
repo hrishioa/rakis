@@ -6,7 +6,11 @@ import type {
   IGunOnEvent,
 } from "gun";
 import { ReceivedPeerPacket, TransmittedPeerPacket } from "../db/packet-types";
-import { P2PNetworkInstance, PacketReceivedCallback } from "./p2pnetwork-types";
+import {
+  ErrorHandler,
+  P2PNetworkInstance,
+  PacketReceivedCallback,
+} from "./p2pnetwork-types";
 import { DeferredPromise } from "../../utils/deferredpromise";
 
 export type GunBootstrapOptions = {
@@ -30,6 +34,7 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
   private packetHandlerIds: number[] = [];
   private packetHandlerIdCouinter = 0;
   private loadingPromise = new DeferredPromise<void>();
+  private errorHandlers: ErrorHandler[] = [];
 
   constructor(synthientId: string, options: GunBootstrapOptions) {
     super(synthientId, options);
@@ -92,6 +97,7 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
       const packet: ReceivedPeerPacket = {
         ...data,
         receivedTime: new Date(),
+        deliveredThrough: "gun",
         packet: JSON.parse(data.packet),
       };
 
@@ -107,12 +113,16 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
     };
   }
 
-  registerErrorHandler(
-    errorHandler: (error: Error, shutdownRecommended: boolean) => void
-  ): void {
-    // Gun doesn't provide a direct way to handle errors
-    // You can implement your own error handling mechanism if needed
-    // TODO: Long term we want to shuttle the errors out so replace the console errors with a call to the error handler
+  // Gun doesn't provide a direct way to handle errors
+  // You can implement your own error handling mechanism if needed
+  // TODO: Long term we want to shuttle the errors out so replace the console errors with a call to the error handler
+  registerErrorHandler(errorHandler: ErrorHandler) {
+    this.errorHandlers.push(errorHandler);
+    return () => {
+      this.errorHandlers = this.errorHandlers.filter(
+        (handler) => handler !== errorHandler
+      );
+    };
   }
 
   gracefulShutdown(): void {

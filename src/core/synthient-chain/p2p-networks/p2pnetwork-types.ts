@@ -15,9 +15,7 @@ export type ListenForPacketFunc<AvailablePeerInfo> = (
   callback: PacketReceivedCallback<AvailablePeerInfo>
 ) => UnregisterCallback;
 
-export type RegisterErrorHandler = (
-  errorHandler: (error: Error, restartRecommended: boolean) => void
-) => void;
+export type ErrorHandler = (error: Error, restartRecommended: boolean) => void;
 
 export abstract class P2PNetworkInstance<BootstrapOptions, AvailablePeerInfo> {
   protected constructor(
@@ -30,6 +28,6 @@ export abstract class P2PNetworkInstance<BootstrapOptions, AvailablePeerInfo> {
   abstract listenForPacket(
     callback: PacketReceivedCallback<AvailablePeerInfo>
   ): UnregisterCallback;
-  abstract registerErrorHandler(errorHandler: (error: Error) => void): void;
+  abstract registerErrorHandler(errorHandler: ErrorHandler): UnregisterCallback;
   abstract gracefulShutdown(): void;
 }

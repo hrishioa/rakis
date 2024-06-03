@@ -7,7 +7,11 @@ import {
 } from "../../core/synthient-chain/identity";
 import { GunP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/pewpewdb";
 import { PacketDB } from "../../core/synthient-chain/db/packetdb";
-import { GUNDB_CONFIG, NKN_CONFIG } from "../../core/synthient-chain/config";
+import {
+  GUNDB_CONFIG,
+  NKN_CONFIG,
+  TRYSTERO_CONFIG,
+} from "../../core/synthient-chain/config";
 import {
   PeerPacket,
   TransmittedPeerPacket,
@@ -16,6 +20,7 @@ import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { stringifyDateWithOffset } from "../../core/synthient-chain/utils";
 import { NknP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/nkn";
+import { TrysteroP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/trystero";
 
 const Heart = ({ x, y }: { x: number; y: number }) => {
   const [visible, setVisible] = useState(true);
@@ -53,6 +58,8 @@ const Home = () => {
   const [nknInstance, setNKNInstance] = useState<NknP2PNetworkInstance | null>(
     null
   );
+  const [nostrInstance, setNostrInstance] =
+    useState<TrysteroP2PNetworkInstance | null>(null);
   const [packetDB, setPacketDB] = useState<PacketDB | null>(null);
   const [hearts, setHearts] = useState<{ x: number; y: number; id: string }[]>(
     []
@@ -80,14 +87,29 @@ const Home = () => {
         });
         setNKNInstance(nkn);
 
-        await Promise.all([gun.waitForReady(), nkn.waitForReady()]);
+        console.log("Initializing TrysteroP2PNetworkInstance...");
+        const nostr = new TrysteroP2PNetworkInstance(clientInfo.synthientId, {
+          relayRedundancy: TRYSTERO_CONFIG.relayRedundancy,
+          rtcConfig: TRYSTERO_CONFIG.rtcConfig,
+          trysteroTopic: TRYSTERO_CONFIG.topic,
+          trysteroAppId: TRYSTERO_CONFIG.appId,
+          trysteroType: "nostr",
+        });
+        setNostrInstance(nostr);
+
+        await Promise.all([
+          gun.waitForReady(),
+          nkn.waitForReady(),
+          nostr.waitForReady(),
+        ]);
 
         console.log("Initializing PacketDB...");
         const packetdb = new PacketDB(
           clientInfo,
           async (packet: TransmittedPeerPacket) => {
-            gun.broadcastPacket(packet);
-            nkn.broadcastPacket(packet);
+            // gun.broadcastPacket(packet);
+            // nkn.broadcastPacket(packet);
+            nostr.broadcastPacket(packet);
           }
         );
         setPacketDB(packetdb);
@@ -132,6 +154,23 @@ const Home = () => {
       });
     }
   }, [nknInstance, packetDB]);
+
+  useEffect(() => {
+    if (nostrInstance && packetDB) {
+      console.log("Listening for packets...");
+      nostrInstance.listenForPacket(async (packet) => {
+        console.log("Received packet from Trystero:", packet);
+        const success = await packetDB.receivePacket(packet);
+        if (success && packet.packet.type === "peerHeart") {
+          const heart = packet.packet;
+          setHearts((prevHearts) => [
+            ...prevHearts,
+            { x: heart.windowX, y: heart.windowY, id: packet.signature },
+          ]);
+        }
+      });
+    }
+  }, [nostrInstance, packetDB]);
 
   const handlePasswordKeyPress = async (
     e: React.KeyboardEvent<HTMLInputElement>

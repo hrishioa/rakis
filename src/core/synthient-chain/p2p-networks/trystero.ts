@@ -1,0 +1,143 @@
+import { joinRoom as joinTorrentRoom } from "trystero/torrent";
+import { joinRoom as joinNostrRoom } from "trystero/nostr";
+import { ReceivedPeerPacket, TransmittedPeerPacket } from "../db/packet-types";
+import {
+  ErrorHandler,
+  P2PNetworkInstance,
+  PacketReceivedCallback,
+} from "./p2pnetwork-types";
+import { DeferredPromise } from "../../utils/deferredpromise";
+import { Room } from "trystero";
+import { TRYSTERO_CONFIG } from "../config";
+
+export type TrysteroBootstrapOptions = {
+  trysteroAppId: string;
+  trysteroType: "torrent" | "nostr";
+  trysteroTopic: string;
+  relayRedundancy: number;
+  rtcConfig: any;
+};
+
+export type TrysteroAvailablePeerInfo = {
+  peerId: string;
+};
+
+export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
+  TrysteroBootstrapOptions,
+  TrysteroAvailablePeerInfo
+> {
+  private trysteroRoom: Room;
+  private loadingPromise = new DeferredPromise<boolean>();
+  private transmissionErrorCount: number = 0;
+  private packetReceivedCallbacks: PacketReceivedCallback<TrysteroAvailablePeerInfo>[] =
+    [];
+  private errorHandlers: ErrorHandler[] = [];
+
+  constructor(synthientId: string, options: TrysteroBootstrapOptions) {
+    super(synthientId, options);
+    try {
+      this.trysteroRoom =
+        this.options.trysteroType === "nostr"
+          ? joinNostrRoom(
+              {
+                appId: this.options.trysteroAppId,
+                relayRedundancy: this.options.relayRedundancy,
+                rtcConfig: this.options.rtcConfig,
+              },
+              this.options.trysteroTopic
+            )
+          : joinTorrentRoom(
+              {
+                appId: this.options.trysteroAppId,
+                relayRedundancy: this.options.relayRedundancy,
+                rtcConfig: this.options.rtcConfig,
+              },
+              this.options.trysteroTopic
+            );
+
+      console.log("Trystero: Trystero client created", this.trysteroRoom);
+
+      // this.trysteroRoom.onPeerJoin((peerId: string) => {
+      //   console.log("Trystero: Peer joined", peerId);
+
+      //   this.loadingPromise.resolve(true);
+      // });
+
+      const [, getMessages] = this.trysteroRoom.makeAction(
+        this.options.trysteroTopic
+      );
+
+      getMessages((data: any, peerId: string) => {
+        const packet: ReceivedPeerPacket = {
+          ...data,
+          receivedTime: new Date(),
+          deliveredThrough: `trystero-${this.options.trysteroType}`,
+        };
+        this.packetReceivedCallbacks.forEach((callback) => {
+          callback(packet, { peerId });
+        });
+      });
+
+      this.loadingPromise.resolve(true); // Best we can do 🤷
+    } catch (error) {
+      console.error("Trystero: Error setting up Trystero", error);
+      this.loadingPromise.resolve(false);
+      this.errorHandlers.forEach((handler) => handler(error as Error, true));
+
+      throw error;
+    }
+  }
+
+  async waitForReady(): Promise<boolean> {
+    return this.loadingPromise.promise;
+  }
+
+  async broadcastPacket(packet: TransmittedPeerPacket): Promise<boolean> {
+    if (this.trysteroRoom) {
+      try {
+        const [sendMessage] = this.trysteroRoom.makeAction(
+          this.options.trysteroTopic
+        );
+        sendMessage(packet);
+        return true;
+      } catch (error) {
+        this.transmissionErrorCount++;
+
+        console.error("Trystero: Error sending message", error);
+        this.errorHandlers.forEach((handler) =>
+          handler(
+            error as Error,
+            this.transmissionErrorCount >
+              TRYSTERO_CONFIG.maxTransmissionErrorsBeforeRestart
+          )
+        );
+        return false;
+      }
+    }
+    return false;
+  }
+
+  listenForPacket(
+    callback: PacketReceivedCallback<TrysteroAvailablePeerInfo>
+  ): () => void {
+    this.packetReceivedCallbacks.push(callback);
+    return () => {
+      this.packetReceivedCallbacks = this.packetReceivedCallbacks.filter(
+        (cb) => cb !== callback
+      );
+    };
+  }
+
+  registerErrorHandler(errorHandler: ErrorHandler) {
+    this.errorHandlers.push(errorHandler);
+    return () => {
+      this.errorHandlers = this.errorHandlers.filter(
+        (handler) => handler !== errorHandler
+      );
+    };
+  }
+
+  async gracefulShutdown() {
+    this.trysteroRoom.leave();
+  }
+}

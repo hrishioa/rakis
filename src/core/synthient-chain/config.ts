@@ -4,6 +4,8 @@ export const SYNTHIENT_NETWORK_CONFIG = {};
 
 export const IDENTITY_ENCRYPTED_KEY = "encSynthientId";
 
+export const ENABLED_NETWORKS = ["gundb", "nkn"] as const;
+
 export const GUNDB_CONFIG = {
   topic: "synthient-testnet5",
   bootFixedDelayMs: 1000,
@@ -18,4 +20,38 @@ export const GUNDB_CONFIG = {
 export const NKN_CONFIG = {
   maxSendErrorsBeforeRestart: 5,
   topic: "zensu5",
+};
+
+export const TRYSTERO_CONFIG = {
+  maxTransmissionErrorsBeforeRestart: 5,
+  appId: "synthient",
+  topic: "synthient5",
+  relayRedundancy: 4,
+  rtcConfig: {
+    iceServers: [
+      {
+        urls: "stun:stun.relay.metered.ca:80",
+      },
+      {
+        urls: "turn:a.relay.metered.ca:80",
+        username: "fd396a3275680a085c4d66cd",
+        credential: "hFQmauZyx0Mv0bCK",
+      },
+      {
+        urls: "turn:a.relay.metered.ca:80?transport=tcp",
+        username: "fd396a3275680a085c4d66cd",
+        credential: "hFQmauZyx0Mv0bCK",
+      },
+      {
+        urls: "turn:a.relay.metered.ca:443",
+        username: "fd396a3275680a085c4d66cd",
+        credential: "hFQmauZyx0Mv0bCK",
+      },
+      {
+        urls: "turn:a.relay.metered.ca:443?transport=tcp",
+        username: "fd396a3275680a085c4d66cd",
+        credential: "hFQmauZyx0Mv0bCK",
+      },
+    ],
+  },
 };
