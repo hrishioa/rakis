@@ -1,4 +1,4 @@
-import Dexie from "dexie";
+import Dexie, { DexieOptions } from "dexie";
 import * as ed from "@noble/ed25519";
 import type {
   PeerPacket,
@@ -7,6 +7,7 @@ import type {
 } from "./packet-types";
 import type { ClientInfo } from "../identity";
 import { sha512 } from "@noble/hashes/sha512";
+import { signJSONObject, verifySignatureOnJSONObject } from "../simple-crypto";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 type SendPacketOverP2PFunc = (packet: TransmittedPeerPacket) => Promise<void>;
@@ -15,11 +16,11 @@ type SendPacketOverP2PFunc = (packet: TransmittedPeerPacket) => Promise<void>;
 class PacketDatabase extends Dexie {
   packets!: Dexie.Table<ReceivedPeerPacket, string>;
 
-  constructor() {
-    super("PacketDatabase");
+  constructor(options: DexieOptions = {}) {
+    super("PacketDatabase", options);
     this.version(1).stores({
       packets:
-        "++id, synthientId, [synthientId+signature], packet.type, packet.requestId, packet.inferenceId, receivedTime",
+        "[synthientId+signature], synthientId, packet.type, packet.requestId, packet.inferenceId, receivedTime",
     });
   }
 }
@@ -31,20 +32,13 @@ export class PacketDB {
 
   constructor(
     clientInfo: ClientInfo,
-    sendPacketOverP2P: SendPacketOverP2PFunc
+    sendPacketOverP2P: SendPacketOverP2PFunc,
+    dbOptions: DexieOptions = {}
   ) {
-    this.db = new PacketDatabase();
+    this.db = new PacketDatabase(dbOptions);
     this.clientInfo = clientInfo;
     this.sendPacketOverP2P = sendPacketOverP2P;
   }
-
-  // Function to send a packet over the P2P network (replace with your implementation)
-  // private async sendPacketOverP2P(
-  //   packet: TransmittedPeerPacket
-  // ): Promise<void> {
-  //   console.log("Sending packet over P2P network:", packet);
-  //   // Your implementation to send the packet over the P2P network goes here
-  // }
 
   async transmitPacket(packet: PeerPacket): Promise<void> {
     console.log("Transmitting packet:", packet);
@@ -52,24 +46,32 @@ export class PacketDB {
     // Create the transmitted packet
     const transmittedPacket: TransmittedPeerPacket = {
       synthientId: this.clientInfo.synthientId,
-      peerTime: new Date(),
       signature: "", // Will be set later
       packet,
     };
 
-    // Compute the signature
-    const message = JSON.stringify(transmittedPacket);
-    const signature = await ed.sign(message, this.clientInfo.synthientPrivKey);
-    transmittedPacket.signature = ed.etc.bytesToHex(signature);
+    transmittedPacket.signature = signJSONObject(
+      this.clientInfo.synthientPrivKey,
+      packet
+    );
 
     // Save the packet in the database
     await this.db.packets.add({
       ...transmittedPacket,
-      receivedTime: undefined, // Set as undefined since it's our own packet
+      // receivedTime: undefined, // Set as undefined since it's our own packet
     });
 
     // Send the packet over the P2P network
     await this.sendPacketOverP2P(transmittedPacket);
+  }
+
+  // Expensive, primarily for testing, if you're calling this otherwise please rethink your life choices
+  async getAllPackets() {
+    return await this.db.packets.toArray();
+  }
+
+  async getPacket(synthientId: string, signature: string) {
+    return await this.db.packets.get({ synthientId, signature });
   }
 
   async receivePacket(receivedPacket: ReceivedPeerPacket): Promise<void> {
@@ -86,23 +88,31 @@ export class PacketDB {
       return;
     }
 
-    // Validate the signature
-    const message = JSON.stringify(receivedPacket);
-    const signatureValid = await ed.verify(
-      ed.etc.hexToBytes(receivedPacket.signature),
-      message,
-      receivedPacket.synthientId
-    );
+    try {
+      // Validate the signature
+      const signatureValid = verifySignatureOnJSONObject(
+        receivedPacket.synthientId,
+        receivedPacket.signature,
+        receivedPacket.packet
+      );
 
-    if (!signatureValid) {
-      console.log("Invalid signature. Dropping packet.");
+      if (!signatureValid) {
+        console.log("Invalid signature. Dropping packet.");
+        return;
+      }
+    } catch (err) {
+      console.error(
+        "Error verifying signature for packet ",
+        receivedPacket,
+        err
+      );
       return;
     }
 
     // Add the packet to the database
     await this.db.packets.add({
       ...receivedPacket,
-      receivedTime: new Date(), // Set the receivedTime to the current timestamp
+      // receivedTime: new Date(), // Set the receivedTime to the current timestamp
     });
   }
 

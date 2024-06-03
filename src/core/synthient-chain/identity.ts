@@ -15,6 +15,19 @@ export type ClientInfo = {
 
 let clientInfo: ClientInfo;
 
+export function createNewEmptyIdentity(): ClientInfo {
+  const privKey = ed.utils.randomPrivateKey();
+  const pubKey = ed.getPublicKey(privKey);
+
+  const newIdentity: ClientInfo = {
+    synthientId: ed.etc.bytesToHex(pubKey),
+    synthientPrivKey: ed.etc.bytesToHex(privKey),
+    chainIds: [],
+  };
+
+  return newIdentity;
+}
+
 export async function initClientInfo(
   password: string,
   overwrite: boolean = false
@@ -44,14 +57,7 @@ export async function initClientInfo(
   } else {
     // Create new identity and store it
 
-    const privKey = ed.utils.randomPrivateKey();
-    const pubKey = ed.getPublicKey(privKey);
-
-    const newIdentity: ClientInfo = {
-      synthientId: ed.etc.bytesToHex(pubKey),
-      synthientPrivKey: ed.etc.bytesToHex(privKey),
-      chainIds: [],
-    };
+    const newIdentity: ClientInfo = createNewEmptyIdentity();
 
     // Encrypt and save
     const encryptedIdentity: string = await encryptData(newIdentity, password);

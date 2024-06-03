@@ -1,6 +1,39 @@
 // This is just a stub implementation, definitely not properly fuzz tested so please don't borrow this. NEVER ROLL YOUR OWN CRYPTO, unless you're pressed for time.
 
 import { Buffer } from "buffer";
+import * as ed from "@noble/ed25519";
+import { sha512 } from "@noble/hashes/sha512";
+ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+
+export function verifySignatureOnJSONObject(
+  pubKey: string,
+  signature: string,
+  obj: any
+) {
+  const message = JSON.stringify(obj);
+
+  const encoder = new TextEncoder();
+  const messageBytes = new Uint8Array(encoder.encode(message));
+
+  const toBeVerified = messageBytes;
+
+  // const signatureBytes = Buffer.from(signature, "hex");
+
+  return ed.verify(signature, toBeVerified, pubKey);
+}
+
+export function signJSONObject(pKey: string, obj: any) {
+  const message = JSON.stringify(obj);
+
+  const encoder = new TextEncoder();
+  const messageBytes = new Uint8Array(encoder.encode(message));
+
+  const toBeSigned = messageBytes;
+
+  const signature = ed.sign(toBeSigned, pKey);
+
+  return ed.etc.bytesToHex(signature);
+}
 
 // Function to encrypt the JSON object
 export async function encryptData(

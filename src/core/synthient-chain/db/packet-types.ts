@@ -35,12 +35,11 @@ export type ReceivedPeerPacket = TransmittedPeerPacket & {
 
 export type TransmittedPeerPacket = {
   synthientId: string; // Public key identifying the peer
-  peerTime: Date; // timezoned time of the packet from the peer
   signature: string; // Signature for this packet signed by the synthientId associated Private Key
   packet: PeerPacket;
 };
 
-export type PeerPacket =
+export type PeerPacket = (
   | PeerStatusUpdate
   | PeerHeart
   | PeerInfo
@@ -49,7 +48,10 @@ export type PeerPacket =
   | InferenceRevealRequest
   | InferenceReveal
   | InferenceRevealRejected
-  | InferenceQuorumComputed;
+  | InferenceQuorumComputed
+) & {
+  createdAt: Date; // Local time the packet was created at
+};
 
 type PeerStatusUpdate = (
   | {
