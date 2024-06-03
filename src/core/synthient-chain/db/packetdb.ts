@@ -12,6 +12,8 @@ ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 type SendPacketOverP2PFunc = (packet: TransmittedPeerPacket) => Promise<void>;
 
+// TODO: Consider keeping createdAt time as a separate date field on the outside, as a Date object in the db for better indexing
+
 // Define the database schema
 class PacketDatabase extends Dexie {
   packets!: Dexie.Table<ReceivedPeerPacket, string>;
@@ -60,7 +62,12 @@ export class PacketDB {
     });
 
     console.log("PacketDB: Transmitting packet:", transmittedPacket);
-    console.log("Signature:", transmittedPacket.signature, "Packet:", packet);
+    console.log(
+      "Signature:",
+      transmittedPacket.signature,
+      "Packet:",
+      JSON.stringify(packet)
+    );
 
     // Send the packet over the P2P network
     await this.sendPacketOverP2P(transmittedPacket);
@@ -103,7 +110,7 @@ export class PacketDB {
           "PacketDB: Signature ",
           receivedPacket.signature,
           " is invalid for packet ",
-          receivedPacket.packet
+          JSON.stringify(receivedPacket.packet)
         );
         return false;
       }

@@ -14,6 +14,7 @@ import {
 } from "../../core/synthient-chain/db/packet-types";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
+import { stringifyDateWithOffset } from "../../core/synthient-chain/utils";
 
 const Heart = ({ x, y }: { x: number; y: number }) => {
   const [visible, setVisible] = useState(true);
@@ -118,7 +119,7 @@ const Home = () => {
         type: "peerHeart",
         windowX: e.clientX,
         windowY: e.clientY,
-        createdAt: new Date(),
+        createdAt: stringifyDateWithOffset(new Date()),
       };
       console.log("Sending heart:", heart);
       await packetDB.transmitPacket(heart);

@@ -54,10 +54,7 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
     const serializedPacket: GunInternalTransmissionPacket = {
       ...packet,
       // TODO: Properly type this for both sides
-      packet: JSON.stringify({
-        ...packet.packet,
-        createdAt: stringifyDateWithOffset(packet.packet.createdAt),
-      }),
+      packet: JSON.stringify(packet.packet),
     };
 
     console.log("Transmitting through gun: ", serializedPacket);
@@ -97,9 +94,6 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
         receivedTime: new Date(),
         packet: JSON.parse(data.packet),
       };
-
-      if (packet.packet.createdAt)
-        packet.packet.createdAt = new Date(packet.packet.createdAt);
 
       callback(packet, {});
     };
