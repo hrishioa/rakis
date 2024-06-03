@@ -118,13 +118,14 @@ const Home = () => {
                 nostr.broadcastPacket(packet);
                 break;
             }
-            // gun.broadcastPacket(packet);
-            // nkn.broadcastPacket(packet);
-            // nostr.broadcastPacket(packet);
           }
         );
         setPacketDB(packetdb);
         console.log("PacketDB initialized.");
+
+        if (typeof window !== "undefined") {
+          (window as any).packetDB = packetdb;
+        }
 
         initInstancesMutex.current = false;
       }
