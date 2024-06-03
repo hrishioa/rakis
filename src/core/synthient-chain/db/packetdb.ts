@@ -41,8 +41,6 @@ export class PacketDB {
   }
 
   async transmitPacket(packet: PeerPacket): Promise<void> {
-    console.log("Transmitting packet:", packet);
-
     // Create the transmitted packet
     const transmittedPacket: TransmittedPeerPacket = {
       synthientId: this.clientInfo.synthientId,
@@ -61,6 +59,9 @@ export class PacketDB {
       // receivedTime: undefined, // Set as undefined since it's our own packet
     });
 
+    console.log("PacketDB: Transmitting packet:", transmittedPacket);
+    console.log("Signature:", transmittedPacket.signature, "Packet:", packet);
+
     // Send the packet over the P2P network
     await this.sendPacketOverP2P(transmittedPacket);
   }
@@ -74,7 +75,7 @@ export class PacketDB {
     return await this.db.packets.get({ synthientId, signature });
   }
 
-  async receivePacket(receivedPacket: ReceivedPeerPacket): Promise<void> {
+  async receivePacket(receivedPacket: ReceivedPeerPacket): Promise<boolean> {
     console.log("Received packet:", receivedPacket);
 
     // Check if the packet already exists in the database
@@ -85,7 +86,7 @@ export class PacketDB {
 
     if (existingPacket) {
       console.log("Packet already exists in the database. Dropping.");
-      return;
+      return false;
     }
 
     try {
@@ -98,7 +99,13 @@ export class PacketDB {
 
       if (!signatureValid) {
         console.log("Invalid signature. Dropping packet.");
-        return;
+        console.log(
+          "PacketDB: Signature ",
+          receivedPacket.signature,
+          " is invalid for packet ",
+          receivedPacket.packet
+        );
+        return false;
       }
     } catch (err) {
       console.error(
@@ -106,14 +113,17 @@ export class PacketDB {
         receivedPacket,
         err
       );
-      return;
+      return false;
     }
 
+    console.log("Actually adding packet!");
     // Add the packet to the database
     await this.db.packets.add({
       ...receivedPacket,
       // receivedTime: new Date(), // Set the receivedTime to the current timestamp
     });
+
+    return true;
   }
 
   async printPackets(): Promise<void> {

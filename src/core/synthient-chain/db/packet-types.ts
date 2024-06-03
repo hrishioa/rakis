@@ -50,7 +50,7 @@ export type PeerPacket = (
   | InferenceRevealRejected
   | InferenceQuorumComputed
 ) & {
-  createdAt: Date; // Local time the packet was created at
+  createdAt: Date; // Local time the packet was created at with the timezone
 };
 
 type PeerStatusUpdate = (
