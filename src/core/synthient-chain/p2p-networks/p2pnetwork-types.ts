@@ -16,13 +16,13 @@ export type ListenForPacketFunc<AvailablePeerInfo> = (
 ) => UnregisterCallback;
 
 export type RegisterErrorHandler = (
-  errorHandler: (error: Error) => void
+  errorHandler: (error: Error, restartRecommended: boolean) => void
 ) => void;
 
 export abstract class P2PNetworkInstance<BootstrapOptions, AvailablePeerInfo> {
   protected constructor(
-    private synthientId: string,
-    private options: BootstrapOptions
+    protected synthientId: string,
+    protected options: BootstrapOptions
   ) {}
 
   abstract waitForReady(): Promise<boolean>;

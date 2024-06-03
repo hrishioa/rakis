@@ -8,7 +8,6 @@ import type {
 import { ReceivedPeerPacket, TransmittedPeerPacket } from "../db/packet-types";
 import { P2PNetworkInstance, PacketReceivedCallback } from "./p2pnetwork-types";
 import { DeferredPromise } from "../../utils/deferredpromise";
-import { stringifyDateWithOffset } from "../utils";
 
 export type GunBootstrapOptions = {
   gunPeers: string[];
@@ -38,6 +37,7 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
 
     this.gun = Gun({
       peers: options.gunPeers,
+      localStorage: false,
     });
 
     setTimeout(() => {
@@ -107,7 +107,9 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
     };
   }
 
-  registerErrorHandler(errorHandler: (error: Error) => void): void {
+  registerErrorHandler(
+    errorHandler: (error: Error, shutdownRecommended: boolean) => void
+  ): void {
     // Gun doesn't provide a direct way to handle errors
     // You can implement your own error handling mechanism if needed
     // TODO: Long term we want to shuttle the errors out so replace the console errors with a call to the error handler

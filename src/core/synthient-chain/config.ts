@@ -14,3 +14,8 @@ export const GUNDB_CONFIG = {
     "https://plankton-app-6qfp3.ondigitalocean.app/",
   ],
 };
+
+export const NKN_CONFIG = {
+  maxSendErrorsBeforeRestart: 5,
+  topic: "zensu5",
+};

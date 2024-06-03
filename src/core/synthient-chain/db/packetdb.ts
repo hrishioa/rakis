@@ -83,7 +83,7 @@ export class PacketDB {
   }
 
   async receivePacket(receivedPacket: ReceivedPeerPacket): Promise<boolean> {
-    console.log("Received packet:", receivedPacket);
+    console.log("PacketDB: Received packet:", receivedPacket);
 
     // Check if the packet already exists in the database
     const existingPacket = await this.db.packets.get({
