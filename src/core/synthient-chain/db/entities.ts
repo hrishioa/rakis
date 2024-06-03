@@ -6,12 +6,15 @@ export type SupportedP2PDeliveryNetwork =
   | "torrent"
   | "nkn";
 
+export type SupportedChains = "eth" | "arbitrum";
+// | "solana"; // Coming soon?
+
 export type ChainIdentity = {
-  chain: "eth" | "arbitrum" | "solana";
+  chain: SupportedChains;
   address: string;
   // Signature of the synthientId from this node with the chain address
   synthientIdSignature: string;
-  signedWithWallet: string; // TODO: Change to a proper enum later
+  signedWithWallet: "metamask"; // TODO: Change to a proper enum later, like metamask, phantom, etc
 };
 
 export type Peer = {
