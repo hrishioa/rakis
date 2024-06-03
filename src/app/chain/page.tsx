@@ -22,7 +22,7 @@ import { stringifyDateWithOffset } from "../../core/synthient-chain/utils";
 import { NknP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/nkn";
 import { TrysteroP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/trystero";
 
-const Heart = ({ x, y }: { x: number; y: number }) => {
+const Heart = ({ x, y, source }: { x: number; y: number; source: string }) => {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
@@ -40,11 +40,10 @@ const Heart = ({ x, y }: { x: number; y: number }) => {
   }
 
   return (
-    <span
-      className="absolute text-4xl animate-fade-out"
-      style={{ left: x, top: y }}
-    >
-      ❤️
+    <span className="absolute animate-pulse" style={{ left: x, top: y }}>
+      <span className="text-4xl">❤️</span>
+      <br />
+      <span className="absolute text-sm">{source}</span>
     </span>
   );
 };
@@ -61,9 +60,9 @@ const Home = () => {
   const [nostrInstance, setNostrInstance] =
     useState<TrysteroP2PNetworkInstance | null>(null);
   const [packetDB, setPacketDB] = useState<PacketDB | null>(null);
-  const [hearts, setHearts] = useState<{ x: number; y: number; id: string }[]>(
-    []
-  );
+  const [hearts, setHearts] = useState<
+    { x: number; y: number; source: string; id: string }[]
+  >([]);
 
   const initInstancesMutex = useRef(false);
 
@@ -107,9 +106,21 @@ const Home = () => {
         const packetdb = new PacketDB(
           clientInfo,
           async (packet: TransmittedPeerPacket) => {
+            const selectedNetwork = Math.floor(Math.random() * 3);
+            switch (selectedNetwork) {
+              case 0:
+                gun.broadcastPacket(packet);
+                break;
+              case 1:
+                nkn.broadcastPacket(packet);
+                break;
+              case 2:
+                nostr.broadcastPacket(packet);
+                break;
+            }
             // gun.broadcastPacket(packet);
             // nkn.broadcastPacket(packet);
-            nostr.broadcastPacket(packet);
+            // nostr.broadcastPacket(packet);
           }
         );
         setPacketDB(packetdb);
@@ -131,7 +142,12 @@ const Home = () => {
           const heart = packet.packet;
           setHearts((prevHearts) => [
             ...prevHearts,
-            { x: heart.windowX, y: heart.windowY, id: packet.signature },
+            {
+              x: heart.windowX,
+              y: heart.windowY,
+              id: packet.signature,
+              source: packet.deliveredThrough || "unknown",
+            },
           ]);
         }
       });
@@ -148,7 +164,12 @@ const Home = () => {
           const heart = packet.packet;
           setHearts((prevHearts) => [
             ...prevHearts,
-            { x: heart.windowX, y: heart.windowY, id: packet.signature },
+            {
+              x: heart.windowX,
+              y: heart.windowY,
+              id: packet.signature,
+              source: packet.deliveredThrough || "unknown",
+            },
           ]);
         }
       });
@@ -165,7 +186,12 @@ const Home = () => {
           const heart = packet.packet;
           setHearts((prevHearts) => [
             ...prevHearts,
-            { x: heart.windowX, y: heart.windowY, id: packet.signature },
+            {
+              x: heart.windowX,
+              y: heart.windowY,
+              id: packet.signature,
+              source: packet.deliveredThrough || "unknown",
+            },
           ]);
         }
       });
@@ -214,7 +240,7 @@ const Home = () => {
         </Card>
       )}
       {hearts.map((heart) => (
-        <Heart key={heart.id} x={heart.x} y={heart.y} />
+        <Heart key={heart.id} x={heart.x} y={heart.y} source={heart.source} />
       ))}
     </div>
   );
