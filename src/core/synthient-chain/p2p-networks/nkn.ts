@@ -1,4 +1,4 @@
-import { MultiClient, Wallet } from "nkn-sdk-temp-patch";
+import { MultiClient, Wallet } from "nkn-sdk";
 import { ReceivedPeerPacket, TransmittedPeerPacket } from "../db/packet-types";
 import {
   P2PNetworkInstance,

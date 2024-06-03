@@ -42,7 +42,6 @@
     "lucide-react": "^0.379.0",
     "next": "14.2.3",
     "nkn-sdk": "^1.3.2",
-    "nkn-sdk-temp-patch": "^1.3.2",
     "plotly.js": "^2.32.0",
     "protobufjs": "^7.3.0",
     "react": "^18",
