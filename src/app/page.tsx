@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { initClientInfo } from "../core/synthient-chain/identity";
-import { startTheDomain } from "../core/synthient-chain/thedomain/bootup";
+import { TheDomain } from "../core/synthient-chain/thedomain/bootup";
 export default function Home() {
   const domainMutex = useRef(false);
 
   useEffect(() => {
     if (domainMutex.current) return;
     domainMutex.current = true;
-    startTheDomain({
+    TheDomain.bootup({
       identityPassword: "test-password",
       overwriteIdentity: true,
     });

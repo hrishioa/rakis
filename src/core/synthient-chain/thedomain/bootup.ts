@@ -14,14 +14,128 @@ import { TrysteroP2PNetworkInstance } from "../p2p-networks/trystero";
 import { timeoutPromise } from "../utils/utils";
 import { THEDOMAIN_SETTINGS } from "./settings";
 
-let theDomainInstance: TheDomain | null = null;
+export type DomainStartOptions = {
+  identityPassword: string;
+  overwriteIdentity?: boolean;
+};
 
 export class TheDomain {
+  private static instance: TheDomain;
+
   private packetDB: PacketDB;
   private peerDB: PeerDB;
   private shutdownListeners: (() => void)[] = [];
 
-  constructor(
+  public static async bootup({
+    identityPassword,
+    overwriteIdentity,
+  }: DomainStartOptions) {
+    if (TheDomain.instance) return TheDomain.instance;
+
+    console.log("Booting up the the domain...");
+
+    // Initialize client info
+
+    // TODO: We probably want things to emit events we can save to the logs
+    const clientInfo = await initClientInfo(
+      identityPassword,
+      overwriteIdentity
+    );
+
+    console.log("Identity retrieved/created successfully.");
+
+    const p2pNetworkInstances: P2PNetworkInstance<any, any>[] = [];
+
+    for (const network of P2PDeliveryNetworks) {
+      if (THEDOMAIN_SETTINGS.enabledP2PNetworks.includes(network)) {
+        console.log("Loading ", network, " network...");
+        switch (network as SupportedP2PDeliveryNetwork) {
+          case "gun":
+            console.log("Initializing pewpewdb...");
+            p2pNetworkInstances.push(
+              new GunP2PNetworkInstance(clientInfo.synthientId, {
+                gunPeers: GUNDB_CONFIG.bootstrapPeers,
+                gunTopic: GUNDB_CONFIG.topic,
+                startupDelayMs: GUNDB_CONFIG.bootFixedDelayMs,
+              })
+            );
+            break;
+          case "nkn":
+            p2pNetworkInstances.push(
+              new NknP2PNetworkInstance(clientInfo.synthientId, {
+                nknTopic: NKN_CONFIG.topic,
+                nknWalletPassword: "password",
+              })
+            );
+            break;
+          case "nostr":
+            p2pNetworkInstances.push(
+              new TrysteroP2PNetworkInstance(clientInfo.synthientId, {
+                relayRedundancy: TRYSTERO_CONFIG.relayRedundancy,
+                rtcConfig: TRYSTERO_CONFIG.rtcConfig,
+                trysteroTopic: TRYSTERO_CONFIG.topic,
+                trysteroAppId: TRYSTERO_CONFIG.appId,
+                trysteroType: "nostr",
+              })
+            );
+            break;
+          case "torrent":
+            p2pNetworkInstances.push(
+              new TrysteroP2PNetworkInstance(clientInfo.synthientId, {
+                relayRedundancy: TRYSTERO_CONFIG.relayRedundancy,
+                rtcConfig: TRYSTERO_CONFIG.rtcConfig,
+                trysteroTopic: TRYSTERO_CONFIG.topic,
+                trysteroAppId: TRYSTERO_CONFIG.appId,
+                trysteroType: "torrent",
+              })
+            );
+            break;
+          case "waku":
+            console.log(
+              "Waku attempted to load, but left unimplemented due to complexity and size."
+            );
+            break;
+        }
+      }
+    }
+
+    console.log("Initialized p2p networks, waiting for bootup...");
+
+    const p2pLoadingResults: boolean[] = p2pNetworkInstances.map((p) => false);
+
+    const waitingResult = await Promise.race([
+      timeoutPromise(THEDOMAIN_SETTINGS.waitForP2PBootupMs),
+      Promise.all(
+        p2pNetworkInstances.map((p, index) =>
+          p.waitForReady().then(() => (p2pLoadingResults[index] = true))
+        )
+      ),
+    ]);
+
+    if (waitingResult === "timeout") {
+      console.log("Timed out waiting for all networks to load.");
+      const unloadedNetworks = p2pNetworkInstances.filter(
+        (_, index) => !p2pLoadingResults[index]
+      );
+
+      if (unloadedNetworks.length >= p2pNetworkInstances.length) {
+        throw new Error(
+          "No p2p networks could be loaded in time. Please check logs for errors."
+        );
+      }
+    }
+
+    console.log("Connecting up working networks.");
+
+    this.instance = new TheDomain(
+      clientInfo,
+      p2pNetworkInstances.filter((_, index) => p2pLoadingResults[index])
+    );
+
+    return this.instance;
+  }
+
+  private constructor(
     private clientInfo: ClientInfo,
     private p2pNetworkInstances: P2PNetworkInstance<any, any>[]
   ) {
@@ -32,6 +146,10 @@ export class TheDomain {
     this.connectP2PToPacketDB();
     this.connectPacketDBToPeerDB();
   }
+
+  // TODOs:
+  // 1. Register error handlers for the p2p networks, and restart them (some finite number of times) if they error out
+  // 2. Expose a packet subscriber to the outside in case someone wants to listen in
 
   private connectP2PToPacketDB() {
     for (const p2pNetwork of this.p2pNetworkInstances) {
@@ -68,117 +186,4 @@ export class TheDomain {
       listener();
     }
   }
-}
-
-export type theDomainStartOptions = {
-  identityPassword: string;
-  overwriteIdentity?: boolean;
-};
-
-export async function startTheDomain({
-  identityPassword,
-  overwriteIdentity,
-}: theDomainStartOptions) {
-  if (theDomainInstance) {
-    return theDomainInstance;
-  }
-
-  console.log("Booting up the the domain...");
-
-  // Initialize client info
-
-  // TODO: We probably want things to emit events we can save to the logs
-  const clientInfo = await initClientInfo(identityPassword, overwriteIdentity);
-
-  console.log("Identity retrieved/created successfully.");
-
-  const p2pNetworkInstances: P2PNetworkInstance<any, any>[] = [];
-
-  for (const network of P2PDeliveryNetworks) {
-    if (THEDOMAIN_SETTINGS.enabledP2PNetworks.includes(network)) {
-      console.log("Loading ", network, " network...");
-      switch (network as SupportedP2PDeliveryNetwork) {
-        case "gun":
-          console.log("Initializing pewpewdb...");
-          p2pNetworkInstances.push(
-            new GunP2PNetworkInstance(clientInfo.synthientId, {
-              gunPeers: GUNDB_CONFIG.bootstrapPeers,
-              gunTopic: GUNDB_CONFIG.topic,
-              startupDelayMs: GUNDB_CONFIG.bootFixedDelayMs,
-            })
-          );
-          break;
-        case "nkn":
-          p2pNetworkInstances.push(
-            new NknP2PNetworkInstance(clientInfo.synthientId, {
-              nknTopic: NKN_CONFIG.topic,
-              nknWalletPassword: "password",
-            })
-          );
-          break;
-        case "nostr":
-          p2pNetworkInstances.push(
-            new TrysteroP2PNetworkInstance(clientInfo.synthientId, {
-              relayRedundancy: TRYSTERO_CONFIG.relayRedundancy,
-              rtcConfig: TRYSTERO_CONFIG.rtcConfig,
-              trysteroTopic: TRYSTERO_CONFIG.topic,
-              trysteroAppId: TRYSTERO_CONFIG.appId,
-              trysteroType: "nostr",
-            })
-          );
-          break;
-        case "torrent":
-          p2pNetworkInstances.push(
-            new TrysteroP2PNetworkInstance(clientInfo.synthientId, {
-              relayRedundancy: TRYSTERO_CONFIG.relayRedundancy,
-              rtcConfig: TRYSTERO_CONFIG.rtcConfig,
-              trysteroTopic: TRYSTERO_CONFIG.topic,
-              trysteroAppId: TRYSTERO_CONFIG.appId,
-              trysteroType: "torrent",
-            })
-          );
-          break;
-        case "waku":
-          console.log(
-            "Waku attempted to load, but left unimplemented due to complexity and size."
-          );
-          break;
-      }
-    }
-  }
-
-  console.log("Initialized p2p networks, waiting for bootup...");
-
-  const p2pLoadingResults: boolean[] = p2pNetworkInstances.map((p) => false);
-
-  const waitingResult = await Promise.race([
-    timeoutPromise(THEDOMAIN_SETTINGS.waitForP2PBootupMs),
-    Promise.all(
-      p2pNetworkInstances.map((p, index) =>
-        p.waitForReady().then(() => (p2pLoadingResults[index] = true))
-      )
-    ),
-  ]);
-
-  if (waitingResult === "timeout") {
-    console.log("Timed out waiting for all networks to load.");
-    const unloadedNetworks = p2pNetworkInstances.filter(
-      (_, index) => !p2pLoadingResults[index]
-    );
-
-    if (unloadedNetworks.length >= p2pNetworkInstances.length) {
-      throw new Error(
-        "No p2p networks could be loaded in time. Please check logs for errors."
-      );
-    }
-  }
-
-  console.log("Connecting up working networks.");
-
-  theDomainInstance = new TheDomain(
-    clientInfo,
-    p2pNetworkInstances.filter((_, index) => p2pLoadingResults[index])
-  );
-
-  return theDomainInstance;
 }

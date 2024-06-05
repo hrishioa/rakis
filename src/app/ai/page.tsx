@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   loadWorker,
@@ -35,20 +35,17 @@ import {
 } from "../../components/ui/collapsible";
 import { ChevronsUpDown, X } from "lucide-react";
 import {
-  addEmbeddingWorker,
-  deleteEmbeddingWorker,
-  embedText,
-  getEmbeddingEngineLogs,
-} from "../../core/embeddings/embedding-engine";
-import {
   EmbeddingEngineLogEntry,
   EmbeddingResult,
 } from "../../core/embeddings/types";
 import { modelColors } from "./colors";
+import { EmbeddingEngine } from "../../core/embeddings/embedding-engine";
 
 const EmbeddingChart = dynamic(() => import("./embedding-chart"), {
   ssr: false,
 });
+
+const embeddingEngine = new EmbeddingEngine();
 
 const LLMTestingPage: React.FC = () => {
   const [workerIds, setWorkerIds] = useState<string[]>([]);
@@ -103,7 +100,7 @@ const LLMTestingPage: React.FC = () => {
         ) {
           const workerId = `embedding-worker-${i}`;
           console.log("Removing ", workerId);
-          await deleteEmbeddingWorker(workerId);
+          await embeddingEngine.deleteEmbeddingWorker(workerId);
         }
       };
 
@@ -125,7 +122,10 @@ const LLMTestingPage: React.FC = () => {
         ) {
           const workerId = `embedding-worker-${i}`;
           console.log("Creating new embedding worker ", workerId);
-          await addEmbeddingWorker("nomic-ai/nomic-embed-text-v1.5", workerId);
+          await embeddingEngine.addEmbeddingWorker(
+            "nomic-ai/nomic-embed-text-v1.5",
+            workerId
+          );
           console.log("Added embedding worker", i);
         }
       };
@@ -155,7 +155,7 @@ const LLMTestingPage: React.FC = () => {
   const pollEngineLogs = async () => {
     try {
       const newLogs = await getEngineLogs(50);
-      const latestEmbeddingLogs = getEmbeddingEngineLogs(50);
+      const latestEmbeddingLogs = embeddingEngine.getEmbeddingEngineLogs(50);
 
       const joinedLogs = [...newLogs, ...latestEmbeddingLogs].sort(
         (a, b) => a.at!.getTime() - b.at!.getTime()
@@ -248,7 +248,7 @@ const LLMTestingPage: React.FC = () => {
     }
 
     // Embed the output and update the embeddingHash
-    const embeddingResult = await embedText(
+    const embeddingResult = await embeddingEngine.embedText(
       [outputText],
       "nomic-ai/nomic-embed-text-v1.5"
     );
@@ -309,7 +309,7 @@ const LLMTestingPage: React.FC = () => {
         }
 
         // Embed the output and update the embeddingHash
-        const embeddingResult = await embedText(
+        const embeddingResult = await embeddingEngine.embedText(
           [outputText],
           "nomic-ai/nomic-embed-text-v1.5"
         );
