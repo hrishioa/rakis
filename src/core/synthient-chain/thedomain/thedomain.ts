@@ -1,4 +1,5 @@
 import { EmbeddingEngine } from "../../embeddings/embedding-engine";
+import { EmbeddingModelName } from "../../embeddings/types";
 import { LLMEngine } from "../../llm/llm-engine";
 import { LLMModelName } from "../../llm/types";
 import { GUNDB_CONFIG, NKN_CONFIG, TRYSTERO_CONFIG } from "../config";
@@ -21,6 +22,14 @@ import { THEDOMAIN_SETTINGS } from "./settings";
 export type DomainStartOptions = {
   identityPassword: string;
   overwriteIdentity?: boolean;
+  initialEmbeddingWorkers: {
+    modelName: EmbeddingModelName;
+    count: number;
+  }[];
+  initialLLMWorkers: {
+    modelName: LLMModelName;
+    count: number;
+  }[];
 };
 
 export class TheDomain {
@@ -35,7 +44,9 @@ export class TheDomain {
 
   private constructor(
     private clientInfo: ClientInfo,
-    private p2pNetworkInstances: P2PNetworkInstance<any, any>[]
+    private p2pNetworkInstances: P2PNetworkInstance<any, any>[],
+    initialEmbeddingWorkers: { modelName: EmbeddingModelName; count: number }[],
+    initialLLMWorkers: { modelName: LLMModelName; count: number }[]
   ) {
     this.packetDB = new PacketDB(clientInfo, this.broadcastPacket);
     this.peerDB = new PeerDB();
@@ -47,6 +58,22 @@ export class TheDomain {
 
     this.embeddingEngine = new EmbeddingEngine();
     this.llmEngine = new LLMEngine();
+
+    console.log("Starting workers...");
+
+    const workerStartPromises: Promise<any>[] = [];
+    for (const worker of initialEmbeddingWorkers) {
+      workerStartPromises.push(
+        this.updateEmbeddingWorkers(worker.modelName, worker.count)
+      );
+    }
+    for (const worker of initialLLMWorkers) {
+      workerStartPromises.push(
+        this.updateLLMWorkers(worker.modelName, worker.count)
+      );
+    }
+
+    // Await the promise if we want to block, but we're fine without I think
 
     if (typeof window !== "undefined") {
       (window as any).theDomain = {
@@ -87,6 +114,58 @@ export class TheDomain {
   // TODOs:
   // 1. Register error handlers for the p2p networks, and restart them (some finite number of times) if they error out
   // 2. Expose a packet subscriber to the outside in case someone wants to listen in
+
+  async updateEmbeddingWorkers(
+    modelName: EmbeddingModelName,
+    count: number,
+    abruptKill: boolean = false
+  ) {
+    const numberOfExistingWorkers = Object.values(
+      this.embeddingEngine.embeddingWorkers
+    ).filter((worker) => worker.modelName === modelName).length;
+
+    if (numberOfExistingWorkers === count) return;
+
+    if (numberOfExistingWorkers < count) {
+      console.log(
+        "Scaling up number of embedding workers for ",
+        modelName,
+        " to ",
+        count
+      );
+      for (let i = 0; i < count - numberOfExistingWorkers; i++) {
+        const workerId = `embedding-${modelName}-${generateRandomString()}`;
+        this.embeddingEngine.addEmbeddingWorker(modelName, workerId);
+      }
+    } else {
+      console.log(
+        "Scaling down number of embedding workers for ",
+        modelName,
+        " to ",
+        count
+      );
+
+      const workerIdsByLoad = Object.keys(
+        this.embeddingEngine.embeddingWorkers
+      ).sort((a, b) =>
+        this.embeddingEngine.embeddingWorkers[a].busy ===
+        this.embeddingEngine.embeddingWorkers[b].busy
+          ? 0
+          : this.embeddingEngine.embeddingWorkers[a].busy
+          ? -1
+          : 1
+      );
+
+      const workerIdsToScaleDown = workerIdsByLoad.slice(
+        0,
+        numberOfExistingWorkers - count
+      );
+
+      for (const workerId of workerIdsToScaleDown) {
+        this.embeddingEngine.deleteEmbeddingWorker(workerId);
+      }
+    }
+  }
 
   async updateLLMWorkers(
     modelName: LLMModelName,
@@ -188,6 +267,8 @@ export class TheDomain {
   public static async bootup({
     identityPassword,
     overwriteIdentity,
+    initialEmbeddingWorkers,
+    initialLLMWorkers,
   }: DomainStartOptions) {
     if (TheDomain.instance) return TheDomain.instance;
 
@@ -288,7 +369,9 @@ export class TheDomain {
 
     this.instance = new TheDomain(
       clientInfo,
-      p2pNetworkInstances.filter((_, index) => p2pLoadingResults[index])
+      p2pNetworkInstances.filter((_, index) => p2pLoadingResults[index]),
+      initialEmbeddingWorkers,
+      initialLLMWorkers
     );
 
     return this.instance;

@@ -11,7 +11,7 @@ export class EmbeddingEngine {
   private embeddingEngineLog: EmbeddingEngineLogEntry[] = [];
   private embeddingBatchCounter = 0;
   private queuesRunning = 0;
-  private embeddingWorkers: Record<
+  public embeddingWorkers: Record<
     string,
     {
       worker: Worker;

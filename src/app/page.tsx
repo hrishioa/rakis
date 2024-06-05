@@ -11,6 +11,18 @@ export default function Home() {
     TheDomain.bootup({
       identityPassword: "test-password",
       overwriteIdentity: true,
+      initialLLMWorkers: [
+        {
+          modelName: "gemma-2b-it-q4f16_1",
+          count: 2,
+        },
+      ],
+      initialEmbeddingWorkers: [
+        {
+          modelName: "nomic-ai/nomic-embed-text-v1.5",
+          count: 2,
+        },
+      ],
     });
   });
 
