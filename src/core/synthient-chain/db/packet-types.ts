@@ -1,5 +1,5 @@
 import { EmbeddingModelName } from "../../embeddings/types";
-import { LLMModelName } from "../../llm/types";
+import { InferenceFullResult, LLMModelName } from "../../llm/types";
 import {
   ChainIdentity,
   SupportedChains,
@@ -7,6 +7,14 @@ import {
 } from "./entities";
 
 // Things from chain to client
+
+export type InferenceResult = {
+  requestId: string;
+  inferenceId: string;
+  startedAt: string; // timezoned date
+  completedAt: string; // timezoned date
+  result: InferenceFullResult;
+};
 
 export type InferenceRequest = Required<UnprocessedInferenceRequest>;
 

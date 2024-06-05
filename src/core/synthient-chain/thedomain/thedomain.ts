@@ -8,7 +8,7 @@ import {
   SupportedP2PDeliveryNetwork,
 } from "../db/entities";
 import { InferenceDB } from "../db/inferencedb";
-import { TransmittedPeerPacket } from "../db/packet-types";
+import { InferenceRequest, TransmittedPeerPacket } from "../db/packet-types";
 import { PacketDB } from "../db/packetdb";
 import { PeerDB } from "../db/peerdb";
 import { ClientInfo, initClientInfo } from "../identity";
@@ -16,7 +16,11 @@ import { NknP2PNetworkInstance } from "../p2p-networks/nkn";
 import { P2PNetworkInstance } from "../p2p-networks/p2pnetwork-types";
 import { GunP2PNetworkInstance } from "../p2p-networks/pewpewdb";
 import { TrysteroP2PNetworkInstance } from "../p2p-networks/trystero";
-import { generateRandomString, timeoutPromise } from "../utils/utils";
+import {
+  generateRandomString,
+  stringifyDateWithOffset,
+  timeoutPromise,
+} from "../utils/utils";
 import { THEDOMAIN_SETTINGS } from "./settings";
 
 export type DomainStartOptions = {
@@ -41,6 +45,9 @@ export class TheDomain {
   private embeddingEngine: EmbeddingEngine;
   private llmEngine: LLMEngine;
   private inferenceDB: InferenceDB;
+  private inferenceIdsInProcess: string[] = [];
+  private inferenceCompletionInterval: NodeJS.Timeout | null = null;
+  private inferenceRequestSubscription: null | (() => void) = null;
 
   private constructor(
     private clientInfo: ClientInfo,
@@ -72,6 +79,8 @@ export class TheDomain {
         this.updateLLMWorkers(worker.modelName, worker.count)
       );
     }
+
+    this.updateInferenceSubscription();
 
     // Await the promise if we want to block, but we're fine without I think
 
@@ -108,6 +117,133 @@ export class TheDomain {
       };
 
       console.log("Inference request function exposed.");
+    }
+  }
+
+  private updateInferenceSubscription() {
+    if (this.inferenceRequestSubscription) {
+      this.inferenceRequestSubscription();
+    }
+
+    this.inferenceRequestSubscription = this.inferenceDB.subscribeToInferences(
+      {
+        endingAfter: new Date(),
+        models: Array.from(
+          new Set(
+            Object.values(this.llmEngine.llmWorkers).map(
+              (worker) => worker.modelName
+            )
+          )
+        ),
+      },
+      (packet) => {
+        this.checkAndRunInference();
+      }
+    );
+  }
+
+  checkAndRunInference() {
+    console.log("Checking and running inference...");
+
+    const llmWorkerAvailability = Object.values(
+      this.llmEngine.llmWorkers
+    ).reduce(
+      (acc, cur) => {
+        acc[cur.modelName] = acc[cur.modelName] || 0;
+        acc[cur.modelName] += cur.inferenceInProgress ? 0 : 1;
+        return acc;
+      },
+      {} as {
+        [modelName: string]: number;
+      }
+    );
+
+    console.log("LLM Worker availability: ", llmWorkerAvailability);
+
+    const possibleInferences = this.inferenceDB.activeInferenceRequests.filter(
+      (inferenceRequest) =>
+        inferenceRequest.endingAt > new Date() &&
+        inferenceRequest.payload.acceptedModels.some(
+          (model) => llmWorkerAvailability[model] > 0
+        ) &&
+        !this.inferenceIdsInProcess.includes(inferenceRequest.requestId)
+    );
+
+    console.log("Possible inferences: ", possibleInferences);
+
+    // TODO: IMPORTANT
+    // Key code for selecting which inference requests to prioritize goes here - for now we're just picking the ones that have the longest to go
+
+    if (possibleInferences.length > 0) {
+      const selectedInference = possibleInferences.sort((a, b) => {
+        return b.endingAt.getTime() - a.endingAt.getTime();
+      })[0];
+
+      this.inferenceIdsInProcess.push(selectedInference.requestId);
+
+      const possibleModelsToSelect =
+        selectedInference.payload.acceptedModels.filter(
+          (modelName) => llmWorkerAvailability[modelName] > 0
+        );
+
+      const selectedModel =
+        possibleModelsToSelect[
+          Math.floor(Math.random() * possibleModelsToSelect.length)
+        ];
+
+      console.log(
+        "Running inference request ",
+        selectedInference.requestId,
+        " on model ",
+        selectedModel
+      );
+
+      const inferenceStartedAt = new Date();
+
+      this.llmEngine
+        .runInferenceNonStreaming({
+          modelName: selectedModel,
+          messages: [
+            { role: "user", content: selectedInference.payload.prompt },
+          ],
+          // TODO: Drill temperature and other parameters through here
+        })
+        .then((response) => {
+          console.log(
+            "Inference completed for ",
+            selectedInference.requestId,
+            " - ",
+            response
+          );
+
+          this.inferenceDB.saveInferenceResult({
+            requestId: selectedInference.requestId,
+            // TODO: Secure this more by using a hash
+            inferenceId:
+              selectedInference.requestId + "." + generateRandomString(),
+            startedAt: stringifyDateWithOffset(inferenceStartedAt),
+            completedAt: stringifyDateWithOffset(new Date()),
+            result: response,
+          });
+        });
+    }
+
+    if (this.inferenceCompletionInterval)
+      clearInterval(this.inferenceCompletionInterval);
+    const workerPromises = Object.values(this.llmEngine.llmWorkers)
+      .filter((worker) => worker.inferenceInProgress && worker.inferencePromise)
+      .map((worker) => worker.inferencePromise);
+
+    if (workerPromises.length) {
+      console.log("Running when workers are free");
+      Promise.any(workerPromises).then(() => {
+        this.checkAndRunInference();
+      });
+    } else {
+      console.log("Setting interval");
+      this.inferenceCompletionInterval = setInterval(() => {
+        this.checkAndRunInference();
+      }, 5000);
     }
   }
 
@@ -172,60 +308,64 @@ export class TheDomain {
     count: number,
     abruptKill: boolean = false
   ) {
-    const numberOfExistingWorkers = Object.values(
-      this.llmEngine.llmWorkers
-    ).filter((worker) => worker.modelName === modelName).length;
+    try {
+      const numberOfExistingWorkers = Object.values(
+        this.llmEngine.llmWorkers
+      ).filter((worker) => worker.modelName === modelName).length;
 
-    if (numberOfExistingWorkers === count) return;
+      if (numberOfExistingWorkers === count) return;
 
-    if (numberOfExistingWorkers < count) {
-      console.log(
-        "Scaling up number of llm workers for ",
-        modelName,
-        " to ",
-        count
-      );
-      const scaleUpPromises: Promise<any>[] = [];
-      for (let i = 0; i < count - numberOfExistingWorkers; i++) {
-        const workerId = `llm-${modelName}-${generateRandomString()}`;
-        scaleUpPromises.push(this.llmEngine.loadWorker(modelName, workerId));
-      }
-
-      const results = await Promise.all(scaleUpPromises);
-      return results;
-    } else {
-      console.log(
-        "Scaling down number of llm workers for ",
-        modelName,
-        " to ",
-        count
-      );
-
-      const workerIdsByLoad = Object.keys(this.llmEngine.llmWorkers).sort(
-        (a, b) =>
-          this.llmEngine.llmWorkers[a].inferenceInProgress ===
-          this.llmEngine.llmWorkers[b].inferenceInProgress
-            ? 0
-            : this.llmEngine.llmWorkers[a].inferenceInProgress
-            ? -1
-            : 1
-      );
-
-      const workerIdsToScaleDown = workerIdsByLoad.slice(
-        0,
-        numberOfExistingWorkers - count
-      );
-
-      const scaleDownPromises: Promise<any>[] = [];
-      for (const workerId of workerIdsToScaleDown) {
-        scaleDownPromises.push(
-          this.llmEngine.unloadWorker(workerId, abruptKill)
+      if (numberOfExistingWorkers < count) {
+        console.log(
+          "Scaling up number of llm workers for ",
+          modelName,
+          " to ",
+          count
         );
-      }
+        const scaleUpPromises: Promise<any>[] = [];
+        for (let i = 0; i < count - numberOfExistingWorkers; i++) {
+          const workerId = `llm-${modelName}-${generateRandomString()}`;
+          scaleUpPromises.push(this.llmEngine.loadWorker(modelName, workerId));
+        }
 
-      const results = await Promise.all(scaleDownPromises);
-      return results;
+        // TODO: Process errors
+      } else {
+        console.log(
+          "Scaling down number of llm workers for ",
+          modelName,
+          " to ",
+          count
+        );
+
+        const workerIdsByLoad = Object.keys(this.llmEngine.llmWorkers).sort(
+          (a, b) =>
+            this.llmEngine.llmWorkers[a].inferenceInProgress ===
+            this.llmEngine.llmWorkers[b].inferenceInProgress
+              ? 0
+              : this.llmEngine.llmWorkers[a].inferenceInProgress
+              ? -1
+              : 1
+        );
+
+        const workerIdsToScaleDown = workerIdsByLoad.slice(
+          0,
+          numberOfExistingWorkers - count
+        );
+
+        const scaleDownPromises: Promise<any>[] = [];
+        for (const workerId of workerIdsToScaleDown) {
+          scaleDownPromises.push(
+            this.llmEngine.unloadWorker(workerId, abruptKill)
+          );
+        }
+
+        // TODO: Process errors
+      }
+    } catch (err) {
+      console.error("Domain: Error updating LLM workers", err);
     }
+
+    this.updateInferenceSubscription();
   }
 
   private connectP2PToPacketDB() {

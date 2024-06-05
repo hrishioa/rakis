@@ -1,19 +1,19 @@
 import Dexie, { type DexieOptions } from "dexie";
-import { Peer, SupportedChains } from "./entities";
+import { SupportedChains } from "./entities";
 import {
   InferenceRequest,
-  ReceivedPeerPacket,
+  InferenceResult,
   UnprocessedInferenceRequest,
 } from "./packet-types";
 import { sha256 } from "@noble/hashes/sha256";
 import * as ed from "@noble/ed25519";
 import { LLMModelName } from "../../llm/types";
 
-class InferenceDatabase extends Dexie {
+class InferenceRequestDatabase extends Dexie {
   inferenceRequests!: Dexie.Table<InferenceRequest, string>;
 
   constructor(options: DexieOptions = {}) {
-    super("InferenceDB", options);
+    super("InferenceRequestDB", options);
     this.version(1).stores({
       inferenceRequests:
         "requestId, fromChain, endingAt, payload.acceptedModels",
@@ -21,16 +21,29 @@ class InferenceDatabase extends Dexie {
   }
 }
 
+class InferenceResultDatabase extends Dexie {
+  inferenceResults!: Dexie.Table<InferenceResult, string>;
+
+  constructor(options: DexieOptions = {}) {
+    super("InferenceResultDB", options);
+    this.version(1).stores({
+      inferenceResults: "inferenceId, requestId, startedAt, completedAt",
+    });
+  }
+}
+
 export type InferenceSelector = {
   requestId?: string;
   fromChains?: SupportedChains[];
-  endingBefore?: Date;
+  endingAfter?: Date;
   models?: LLMModelName[];
   active?: boolean; // Is this inference currently active, i.e are we before its endtime
 };
 
 export class InferenceDB {
-  private db: InferenceDatabase;
+  private inferenceRequestDb: InferenceRequestDatabase;
+  private inferenceResultDb: InferenceResultDatabase;
+  // This should ideally be part of the db or a live query once the network is larger, has a chance of becoming problematic
   public activeInferenceRequests: InferenceRequest[] = [];
   private cleanupTimeout: NodeJS.Timeout | null = null;
   private inferenceSubscriptions: {
@@ -39,7 +52,8 @@ export class InferenceDB {
   }[] = [];
 
   constructor(dbOptions: DexieOptions = {}) {
-    this.db = new InferenceDatabase(dbOptions);
+    this.inferenceRequestDb = new InferenceRequestDatabase(dbOptions);
+    this.inferenceResultDb = new InferenceResultDatabase(dbOptions);
   }
 
   private refreshCleanupTimeout() {
@@ -68,8 +82,21 @@ export class InferenceDB {
   private async cleanupExpiredInferences() {
     const now = new Date();
 
+    const matchingResults = (
+      await this.inferenceResultDb.inferenceResults
+        .where("requestId")
+        .anyOf(
+          this.activeInferenceRequests.map((inference) => inference.requestId)
+        )
+        .toArray()
+    ).map((result) => result.requestId);
+
+    console.log("Got matching results ", matchingResults);
+
     this.activeInferenceRequests = this.activeInferenceRequests.filter(
-      (inference) => !(inference.endingAt <= now)
+      (inference) =>
+        !(inference.endingAt <= now) &&
+        !matchingResults.includes(inference.requestId)
     );
 
     console.log(
@@ -82,10 +109,18 @@ export class InferenceDB {
     }
   }
 
-  async subscribeToInferences(
+  saveInferenceResult(inferenceResult: InferenceResult): void {
+    this.activeInferenceRequests = this.activeInferenceRequests.filter(
+      (inference) => inference.requestId !== inferenceResult.requestId
+    );
+
+    this.inferenceResultDb.inferenceResults.put(inferenceResult);
+  }
+
+  subscribeToInferences(
     selector: InferenceSelector,
     callback: (inferences: InferenceRequest[]) => void
-  ): Promise<() => void> {
+  ): () => void {
     const subscription = { filter: selector, callback };
     this.inferenceSubscriptions.push(subscription);
 
@@ -100,6 +135,8 @@ export class InferenceDB {
 
   private async notifySubscriptions(newInferences: InferenceRequest[]) {
     for (const subscription of this.inferenceSubscriptions) {
+      console.log("Checking subscription ", subscription.filter, newInferences);
+
       const matchingInferences = newInferences.filter((inference) => {
         return (
           (!subscription.filter.requestId ||
@@ -108,8 +145,8 @@ export class InferenceDB {
             subscription.filter.fromChains.includes(
               inference.payload.fromChain
             )) &&
-          (!subscription.filter.endingBefore ||
-            inference.endingAt < subscription.filter.endingBefore) &&
+          (!subscription.filter.endingAfter ||
+            inference.endingAt > subscription.filter.endingAfter) &&
           (!subscription.filter.models ||
             subscription.filter.models.some((model) =>
               inference.payload.acceptedModels.includes(model)
@@ -135,7 +172,7 @@ export class InferenceDB {
     request.requestId = requestId;
 
     // Check if the request already exists in the database
-    const existingRequest = await this.db.inferenceRequests.get(
+    const existingRequest = await this.inferenceRequestDb.inferenceRequests.get(
       request.requestId
     );
     if (existingRequest) {
@@ -156,8 +193,10 @@ export class InferenceDB {
       requestId,
     };
 
+    console.log("Saving ", processedRequest);
+
     // Save the request to the database
-    await this.db.inferenceRequests.put(processedRequest);
+    await this.inferenceRequestDb.inferenceRequests.put(processedRequest);
 
     // Update the activeInferenceRequests array
     if (endingAt > new Date()) {
@@ -172,6 +211,8 @@ export class InferenceDB {
     }
 
     // Notify subscribers of the new inference request
+    // TODO: See if we can't make this an array, or just switch to
+    // individual objects like in packetdb
     await this.notifySubscriptions([processedRequest]);
   }
 }

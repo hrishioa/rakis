@@ -3,6 +3,7 @@ import { DeferredPromise } from "../utils/deferredpromise";
 import * as webllm from "@mlc-ai/web-llm";
 import {
   availableModels,
+  InferenceFullResult,
   InferencePacket,
   InferenceParams,
   LLMEngineLogEntry,
@@ -176,7 +177,39 @@ export class LLMEngine {
     return matchingWorkers;
   }
 
-  public runInference(
+  public async runInferenceNonStreaming(
+    params: InferenceParams
+  ): Promise<InferenceFullResult> {
+    const response = await this.runInference(params);
+
+    let fullMessage = "";
+    let tokenCount = 0;
+
+    for await (const packet of response) {
+      if (packet.type === "fullMessage") {
+        fullMessage = packet.message;
+      } else if (packet.type === "error") {
+        return {
+          success: false,
+          error: packet.error,
+        };
+      } else if (packet.type === "tokenCount") {
+        tokenCount = packet.tokenCount;
+      } else if (packet.type === "token") {
+        fullMessage += packet.token;
+        tokenCount++;
+      }
+    }
+
+    // TODO: This could use more work streamlining, just tired tonight
+    return {
+      success: true,
+      fullMessage,
+      outputTokenCount: tokenCount,
+    };
+  }
+
+  public async *runInference(
     params: InferenceParams,
     abortSignal?: AbortSignal
   ): AsyncGenerator<InferencePacket, void, unknown> {
@@ -190,11 +223,16 @@ export class LLMEngine {
       Object.keys(freeWorkers)[
         Math.floor(Math.random() * Object.keys(freeWorkers).length)
       ];
-    return this.runInferenceOnWorker(
+
+    const res = await this.runInferenceOnWorker(
       params,
       selectedRandomWorkerId,
       abortSignal
     );
+
+    for await (const packet of res) {
+      yield packet;
+    }
   }
 
   public abortWorkerInference(workerId: string) {
