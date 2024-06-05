@@ -14,7 +14,7 @@ export default function Home() {
       initialLLMWorkers: [
         {
           modelName: "gemma-2b-it-q4f16_1",
-          count: 1,
+          count: 5,
         },
       ],
       initialEmbeddingWorkers: [

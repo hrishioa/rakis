@@ -8,6 +8,7 @@ import {
 import { sha256 } from "@noble/hashes/sha256";
 import * as ed from "@noble/ed25519";
 import { LLMModelName } from "../../llm/types";
+import { generateRandomString } from "../utils/utils";
 
 class InferenceRequestDatabase extends Dexie {
   inferenceRequests!: Dexie.Table<InferenceRequest, string>;
@@ -168,7 +169,9 @@ export class InferenceDB {
   ): Promise<void> {
     // Calculate a hash of the object values to use as the requestId
     const objectValues = Object.values(request.payload).join("");
-    const requestId = ed.etc.bytesToHex(sha256(objectValues));
+    // TODO: Use a different source of randomness here, probably the txhash
+    const requestId =
+      ed.etc.bytesToHex(sha256(objectValues)) + "." + generateRandomString(8);
     request.requestId = requestId;
 
     // Check if the request already exists in the database

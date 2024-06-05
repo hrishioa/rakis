@@ -45,8 +45,17 @@ export class TheDomain {
   private embeddingEngine: EmbeddingEngine;
   private llmEngine: LLMEngine;
   private inferenceDB: InferenceDB;
-  private inferenceIdsInProcess: string[] = [];
-  private inferenceCompletionInterval: NodeJS.Timeout | null = null;
+  private inferenceStatus: {
+    inferenceIdsInProcess: string[];
+    inferenceCompletionInterval: NodeJS.Timeout | null;
+    waitingForWorker: boolean;
+  } = {
+    inferenceIdsInProcess: [],
+    inferenceCompletionInterval: null,
+    waitingForWorker: false,
+  };
+  // private inferenceIdsInProcess: string[] = [];
+  // private inferenceCompletionInterval: NodeJS.Timeout | null = null;
   private inferenceRequestSubscription: null | (() => void) = null;
 
   private constructor(
@@ -82,6 +91,10 @@ export class TheDomain {
 
     this.updateInferenceSubscription();
 
+    // this.inferenceStatus.inferenceCompletionInterval = setInterval(() => {
+    //   this.checkAndRunInference();
+    // });
+
     // Await the promise if we want to block, but we're fine without I think
 
     if (typeof window !== "undefined") {
@@ -113,7 +126,7 @@ export class TheDomain {
         updateLLMWorkers: (modelName: LLMModelName, count: number) => {
           this.updateLLMWorkers(modelName, count);
         },
-        llmWorkers: this.llmEngine.llmWorkers,
+        llmEngine: this.llmEngine,
       };
 
       console.log("Inference request function exposed.");
@@ -137,7 +150,9 @@ export class TheDomain {
         ),
       },
       (packet) => {
-        this.checkAndRunInference();
+        // console.log("Starting new inference loop because of incoming packet.");
+        setTimeout(() => this.checkAndRunInference(), 0);
+        // this.checkAndRunInference();
       }
     );
   }
@@ -149,12 +164,21 @@ export class TheDomain {
       this.llmEngine.llmWorkers
     ).reduce(
       (acc, cur) => {
-        acc[cur.modelName] = acc[cur.modelName] || 0;
-        acc[cur.modelName] += cur.inferenceInProgress ? 0 : 1;
+        acc[cur.modelName] ??= {
+          count: 0,
+          free: 0,
+        };
+
+        acc[cur.modelName].count++;
+        if (!cur.inferenceInProgress) acc[cur.modelName].free++;
+
         return acc;
       },
       {} as {
-        [modelName: string]: number;
+        [modelName: string]: {
+          count: number;
+          free: number;
+        };
       }
     );
 
@@ -164,9 +188,11 @@ export class TheDomain {
       (inferenceRequest) =>
         inferenceRequest.endingAt > new Date() &&
         inferenceRequest.payload.acceptedModels.some(
-          (model) => llmWorkerAvailability[model] > 0
+          (model) => llmWorkerAvailability[model].free > 0
         ) &&
-        !this.inferenceIdsInProcess.includes(inferenceRequest.requestId)
+        !this.inferenceStatus.inferenceIdsInProcess.includes(
+          inferenceRequest.requestId
+        )
     );
 
     console.log("Possible inferences: ", possibleInferences);
@@ -179,11 +205,13 @@ export class TheDomain {
         return b.endingAt.getTime() - a.endingAt.getTime();
       })[0];
 
-      this.inferenceIdsInProcess.push(selectedInference.requestId);
+      this.inferenceStatus.inferenceIdsInProcess.push(
+        selectedInference.requestId
+      );
 
       const possibleModelsToSelect =
         selectedInference.payload.acceptedModels.filter(
-          (modelName) => llmWorkerAvailability[modelName] > 0
+          (modelName) => llmWorkerAvailability[modelName].free > 0
         );
 
       const selectedModel =
@@ -228,22 +256,52 @@ export class TheDomain {
         });
     }
 
-    if (this.inferenceCompletionInterval)
-      clearInterval(this.inferenceCompletionInterval);
-    const workerPromises = Object.values(this.llmEngine.llmWorkers)
-      .filter((worker) => worker.inferenceInProgress && worker.inferencePromise)
-      .map((worker) => worker.inferencePromise);
+    if (possibleInferences.length < 2) {
+      const possibleInferencesIfWorkersWereFree =
+        this.inferenceDB.activeInferenceRequests.filter(
+          (inferenceRequest) =>
+            inferenceRequest.endingAt > new Date() &&
+            inferenceRequest.payload.acceptedModels.some(
+              (model) => llmWorkerAvailability[model].count > 0
+            ) &&
+            !this.inferenceStatus.inferenceIdsInProcess.includes(
+              inferenceRequest.requestId
+            )
+        );
 
-    if (workerPromises.length) {
-      console.log("Running when workers are free");
-      Promise.any(workerPromises).then(() => {
-        this.checkAndRunInference();
-      });
+      if (possibleInferencesIfWorkersWereFree.length > 0) {
+        const workerPromises = Object.values(this.llmEngine.llmWorkers)
+          .filter(
+            (worker) => worker.inferenceInProgress && worker.inferencePromise
+          )
+          .map((worker) => worker.inferencePromise!.promise);
+
+        if (workerPromises.length) {
+          console.log("Running when workers are free");
+          if (!this.inferenceStatus.waitingForWorker) {
+            this.inferenceStatus.waitingForWorker = true;
+            Promise.any(workerPromises).then(() => {
+              this.inferenceStatus.waitingForWorker = false;
+              console.log(
+                "Running again because an actual worker promise completed"
+              );
+              setTimeout(() => this.checkAndRunInference(), 0);
+            });
+          }
+        }
+      } else {
+        console.log(
+          "No inferences left to run, leaving us on a timeout to be sure."
+        );
+        if (this.inferenceStatus.inferenceCompletionInterval)
+          clearInterval(this.inferenceStatus.inferenceCompletionInterval);
+
+        this.inferenceStatus.inferenceCompletionInterval = setInterval(() => {
+          this.checkAndRunInference();
+        }, 5000);
+      }
     } else {
-      console.log("Setting interval");
-      this.inferenceCompletionInterval = setInterval(() => {
-        this.checkAndRunInference();
-      }, 5000);
+      setTimeout(() => this.checkAndRunInference(), 0);
     }
   }
 
