@@ -1,8 +1,32 @@
 import { EmbeddingModelName } from "../../embeddings/types";
 import { LLMModelName } from "../../llm/types";
-import { ChainIdentity, SupportedP2PDeliveryNetwork } from "./entities";
+import {
+  ChainIdentity,
+  SupportedChains,
+  SupportedP2PDeliveryNetwork,
+} from "./entities";
 
 // Things from chain to client
+
+export type InferenceRequest = Required<UnprocessedInferenceRequest>;
+
+export type UnprocessedInferenceRequest = {
+  requestId?: string; // Could just be a hash of known-to-be-unique values
+  payload: InferenceRequestPayload;
+  endingAt?: Date; // Computed from the securityframe
+  fetchedAt: Date;
+};
+
+type InferenceRequestPayload = {
+  fromChain: SupportedChains;
+  blockNumber: number;
+  createdAt: Date;
+  prompt: string;
+  acceptedModels: LLMModelName[];
+  temperature: number;
+  maxTokens: number;
+  securityFrame: InferenceSecurityFrame;
+};
 
 type InferenceSecurityFrame = {
   quorum: number; // Number of inferences that need to happen for a quorum
@@ -11,14 +35,7 @@ type InferenceSecurityFrame = {
   secPercentage: number; // Percentage of quorum that needs to be within secDistance embedding distance
 };
 
-type FromChainInferenceRequest = {
-  requestId: string; // Either the event id or some kind of unique Id
-  blockNumber: number; // Block number of the event
-  prompt: string;
-  model: LLMModelName;
-  temperature: number;
-  maxTokens: number;
-};
+// Unused for now, to set consensus thresholds and update those on the fly
 
 type NetworkHyperParameterUpdate = {
   hyperParams: {

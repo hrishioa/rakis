@@ -1,8 +1,12 @@
+import { EmbeddingEngine } from "../../embeddings/embedding-engine";
+import { LLMEngine } from "../../llm/llm-engine";
+import { LLMModelName } from "../../llm/types";
 import { GUNDB_CONFIG, NKN_CONFIG, TRYSTERO_CONFIG } from "../config";
 import {
   P2PDeliveryNetworks,
   SupportedP2PDeliveryNetwork,
 } from "../db/entities";
+import { InferenceDB } from "../db/inferencedb";
 import { TransmittedPeerPacket } from "../db/packet-types";
 import { PacketDB } from "../db/packetdb";
 import { PeerDB } from "../db/peerdb";
@@ -25,6 +29,94 @@ export class TheDomain {
   private packetDB: PacketDB;
   private peerDB: PeerDB;
   private shutdownListeners: (() => void)[] = [];
+  private embeddingEngine: EmbeddingEngine;
+  private llmEngine: LLMEngine;
+  private inferenceDB: InferenceDB;
+
+  private constructor(
+    private clientInfo: ClientInfo,
+    private p2pNetworkInstances: P2PNetworkInstance<any, any>[]
+  ) {
+    this.packetDB = new PacketDB(clientInfo, this.broadcastPacket);
+    this.peerDB = new PeerDB();
+    this.inferenceDB = new InferenceDB();
+
+    console.log("Databases created.");
+    this.connectP2PToPacketDB();
+    this.connectPacketDBToPeerDB();
+
+    this.embeddingEngine = new EmbeddingEngine();
+    this.llmEngine = new LLMEngine();
+
+    if (typeof window !== "undefined") {
+      (window as any).logInferenceRequest = (
+        prompt: string,
+        model: LLMModelName,
+        maxTimeMs: number
+      ) => {
+        this.inferenceDB.saveInferenceRequest({
+          payload: {
+            fromChain: "eth",
+            blockNumber: 0,
+            createdAt: new Date(),
+            prompt,
+            acceptedModels: [model],
+            temperature: 1,
+            maxTokens: 2048,
+            securityFrame: {
+              quorum: 10,
+              maxTimeMs,
+              secDistance: 0.9,
+              secPercentage: 0.5,
+            },
+          },
+          fetchedAt: new Date(),
+        });
+      };
+
+      console.log("Inference request function exposed.");
+    }
+  }
+
+  // TODOs:
+  // 1. Register error handlers for the p2p networks, and restart them (some finite number of times) if they error out
+  // 2. Expose a packet subscriber to the outside in case someone wants to listen in
+
+  private connectP2PToPacketDB() {
+    for (const p2pNetwork of this.p2pNetworkInstances) {
+      const listener = p2pNetwork.listenForPacket(async (packet) => {
+        await this.packetDB.receivePacket(packet);
+      });
+
+      this.shutdownListeners.push(() => listener());
+    }
+  }
+
+  private connectPacketDBToPeerDB() {
+    const listener = this.packetDB.subscribeToNewPackets(
+      {
+        receivedTimeAfter: new Date(),
+      },
+      (packet) => {
+        console.log("Processing packet for peerdb ", packet);
+        this.peerDB.processPacket(packet);
+      }
+    );
+
+    this.shutdownListeners.push(() => listener());
+  }
+
+  private async broadcastPacket(packet: TransmittedPeerPacket): Promise<void> {
+    await Promise.all(
+      this.p2pNetworkInstances.map((p) => p.broadcastPacket(packet))
+    );
+  }
+
+  async shutdownDomain() {
+    for (const listener of this.shutdownListeners) {
+      listener();
+    }
+  }
 
   public static async bootup({
     identityPassword,
@@ -133,57 +225,5 @@ export class TheDomain {
     );
 
     return this.instance;
-  }
-
-  private constructor(
-    private clientInfo: ClientInfo,
-    private p2pNetworkInstances: P2PNetworkInstance<any, any>[]
-  ) {
-    this.packetDB = new PacketDB(clientInfo, this.broadcastPacket);
-    this.peerDB = new PeerDB();
-
-    console.log("Databases created.");
-    this.connectP2PToPacketDB();
-    this.connectPacketDBToPeerDB();
-  }
-
-  // TODOs:
-  // 1. Register error handlers for the p2p networks, and restart them (some finite number of times) if they error out
-  // 2. Expose a packet subscriber to the outside in case someone wants to listen in
-
-  private connectP2PToPacketDB() {
-    for (const p2pNetwork of this.p2pNetworkInstances) {
-      const listener = p2pNetwork.listenForPacket(async (packet) => {
-        await this.packetDB.receivePacket(packet);
-      });
-
-      this.shutdownListeners.push(() => listener());
-    }
-  }
-
-  private connectPacketDBToPeerDB() {
-    const listener = this.packetDB.subscribeToNewPackets(
-      {
-        receivedTimeAfter: new Date(),
-      },
-      (packet) => {
-        console.log("Processing packet for peerdb ", packet);
-        this.peerDB.processPacket(packet);
-      }
-    );
-
-    this.shutdownListeners.push(() => listener());
-  }
-
-  private async broadcastPacket(packet: TransmittedPeerPacket): Promise<void> {
-    await Promise.all(
-      this.p2pNetworkInstances.map((p) => p.broadcastPacket(packet))
-    );
-  }
-
-  async shutdownDomain() {
-    for (const listener of this.shutdownListeners) {
-      listener();
-    }
   }
 }
