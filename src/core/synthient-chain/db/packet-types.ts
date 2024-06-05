@@ -1,5 +1,6 @@
 import { EmbeddingModelName } from "../../embeddings/types";
 import { LLMModelName } from "../../llm/types";
+import { ChainIdentity, SupportedP2PDeliveryNetwork } from "./entities";
 
 // Things from chain to client
 
@@ -31,7 +32,7 @@ type NetworkHyperParameterUpdate = {
 
 export type ReceivedPeerPacket = TransmittedPeerPacket & {
   receivedTime?: Date; // Time that the packet was received, undefined if this was our own packet
-  deliveredThrough?: string; // The network that this packet was delivered through
+  deliveredThrough?: SupportedP2PDeliveryNetwork; // The network that this packet was delivered through
 };
 
 export type TransmittedPeerPacket = {
@@ -44,7 +45,7 @@ export type PeerPacket = (
   | PeerStatusUpdate
   | PeerHeart
   | PeerInfo
-  | PeerJoined
+  | PeerConnectedChain
   | InferenceCommit
   | InferenceRevealRequest
   | InferenceReveal
@@ -93,11 +94,18 @@ type PeerInfo = {
   // benchmarkResuts?: any; // To be defined, mostly about what kind of models they can run and at what TPS
 };
 
-type PeerJoined = {
-  type: "peerJoined";
-  underlyingAddress: string; // ETH or other chain address they want to associate the synthientId to
-  signedsynthientId: string; // synthientId signed by the underlying address
+type PeerConnectedChain = {
+  type: "peerConnectedChain";
+  identities: ChainIdentity[];
 };
+
+export const RequestIdPacketTypes = [
+  "inferenceCommit",
+  "inferenceRevealRequest",
+  "inferenceReveal",
+  "inferenceRevealRejected",
+  "inferenceQuorumComputed",
+] as const;
 
 type InferenceCommit = {
   type: "inferenceCommit";

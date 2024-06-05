@@ -1,18 +1,34 @@
-import Dexie, { DexieOptions } from "dexie";
+import Dexie, { Collection, DexieOptions, liveQuery } from "dexie";
 import * as ed from "@noble/ed25519";
-import type {
-  PeerPacket,
-  ReceivedPeerPacket,
-  TransmittedPeerPacket,
+import {
+  RequestIdPacketTypes,
+  type PeerPacket,
+  type ReceivedPeerPacket,
+  type TransmittedPeerPacket,
 } from "./packet-types";
 import type { ClientInfo } from "../identity";
 import { sha512 } from "@noble/hashes/sha512";
-import { signJSONObject, verifySignatureOnJSONObject } from "../simple-crypto";
+import {
+  signJSONObject,
+  verifySignatureOnJSONObject,
+} from "../utils/simple-crypto";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 type SendPacketOverP2PFunc = (packet: TransmittedPeerPacket) => Promise<void>;
 
 // TODO: Consider keeping createdAt time as a separate date field on the outside, as a Date object in the db for better indexing
+
+export type PacketSelector = Partial<{
+  synthientId: string;
+  signature: string;
+  types: string[];
+  inferenceId: string;
+  receivedTimeAfter: Date;
+  receivedTimeBefore: Date;
+  requestId: string;
+}>;
+
+export type PacketSubscriber = (packets: ReceivedPeerPacket) => void;
 
 // Define the database schema
 class PacketDatabase extends Dexie {
@@ -31,6 +47,10 @@ export class PacketDB {
   private db: PacketDatabase;
   private clientInfo: ClientInfo;
   private sendPacketOverP2P: SendPacketOverP2PFunc;
+  private newPacketSubscriptions: {
+    filters: PacketSelector;
+    callback: PacketSubscriber;
+  }[] = [];
 
   constructor(
     clientInfo: ClientInfo,
@@ -40,6 +60,53 @@ export class PacketDB {
     this.db = new PacketDatabase(dbOptions);
     this.clientInfo = clientInfo;
     this.sendPacketOverP2P = sendPacketOverP2P;
+  }
+
+  notifySubscriptions(newPacket: ReceivedPeerPacket) {
+    for (const subscription of this.newPacketSubscriptions) {
+      console.log("Checking subscription", subscription, newPacket);
+      try {
+        if (
+          (!subscription.filters.synthientId ||
+            subscription.filters.synthientId === newPacket.synthientId) &&
+          (!subscription.filters.signature ||
+            subscription.filters.signature === newPacket.signature) &&
+          (!subscription.filters.types ||
+            subscription.filters.types.includes(newPacket.packet.type)) &&
+          (!subscription.filters.inferenceId ||
+            subscription.filters.inferenceId ===
+              (newPacket.packet as any).inferenceId) &&
+          // TODO: Find a better way to do this and segregate packets, don't love losing type safety
+          (!subscription.filters.requestId ||
+            subscription.filters.requestId ===
+              (newPacket.packet as any).requestId) &&
+          (!subscription.filters.receivedTimeAfter ||
+            newPacket.receivedTime! > subscription.filters.receivedTimeAfter) &&
+          (!subscription.filters.receivedTimeBefore ||
+            newPacket.receivedTime! < subscription.filters.receivedTimeBefore)
+        ) {
+          console.log("Notifying subscription", subscription);
+          subscription.callback(newPacket);
+        }
+      } catch (err) {
+        console.error("Error notifying subscription", err);
+      }
+    }
+  }
+
+  subscribeToNewPackets(
+    filters: PacketSelector,
+    callback: PacketSubscriber
+  ): () => void {
+    const subscription = { filters, callback };
+    this.newPacketSubscriptions.push(subscription);
+
+    return () => {
+      const index = this.newPacketSubscriptions.indexOf(subscription);
+      if (index !== -1) {
+        this.newPacketSubscriptions.splice(index, 1);
+      }
+    };
   }
 
   async transmitPacket(packet: PeerPacket): Promise<void> {
@@ -85,17 +152,6 @@ export class PacketDB {
   async receivePacket(receivedPacket: ReceivedPeerPacket): Promise<boolean> {
     console.log("PacketDB: Received packet:", receivedPacket);
 
-    // Check if the packet already exists in the database
-    const existingPacket = await this.db.packets.get({
-      synthientId: receivedPacket.synthientId,
-      signature: receivedPacket.signature,
-    });
-
-    if (existingPacket) {
-      console.log("Packet already exists in the database. Dropping.");
-      return false;
-    }
-
     try {
       // Validate the signature
       const signatureValid = verifySignatureOnJSONObject(
@@ -123,12 +179,40 @@ export class PacketDB {
       return false;
     }
 
+    // Check if the packet already exists in the database
+    const existingPacket = await this.db.packets.get({
+      synthientId: receivedPacket.synthientId,
+      signature: receivedPacket.signature,
+    });
+
+    if (existingPacket) {
+      console.log("Packet already exists in the database. Dropping.");
+      return false;
+    }
+
     console.log("Actually adding packet!");
     // Add the packet to the database
-    await this.db.packets.add({
-      ...receivedPacket,
-      // receivedTime: new Date(), // Set the receivedTime to the current timestamp
-    });
+    try {
+      await this.db.packets.add({
+        ...receivedPacket,
+        // receivedTime: new Date(), // Set the receivedTime to the current timestamp
+      });
+    } catch (err) {
+      console.error("Error adding packet to the database", err);
+      // console.log(
+      //   "Checking for duplicate packets to ",
+      //   receivedPacket,
+      //   " - ",
+      //   await this.db.packets.get({
+      //     synthientId: receivedPacket.synthientId,
+      //     signature: receivedPacket.signature,
+      //   })
+      // );
+      return false;
+    }
+
+    // Notify subscriptions
+    this.notifySubscriptions(receivedPacket);
 
     return true;
   }

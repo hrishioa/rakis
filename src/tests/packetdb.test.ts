@@ -11,7 +11,7 @@ import {
 import { PacketDB } from "../core/synthient-chain/db/packetdb";
 
 import { indexedDB, IDBKeyRange } from "fake-indexeddb";
-import { signJSONObject } from "../core/synthient-chain/simple-crypto";
+import { signJSONObject } from "../core/synthient-chain/utils/simple-crypto";
 
 // Mock implementation of sendPacketOverP2P
 const sendPacketOverP2PMock = jest.fn();

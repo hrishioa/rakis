@@ -71,7 +71,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
         const packet: ReceivedPeerPacket = {
           ...data,
           receivedTime: new Date(),
-          deliveredThrough: `trystero-${this.options.trysteroType}`,
+          deliveredThrough: this.options.trysteroType,
         };
         this.packetReceivedCallbacks.forEach((callback) => {
           callback(packet, { peerId });

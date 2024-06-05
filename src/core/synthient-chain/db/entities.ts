@@ -1,10 +1,13 @@
 // TODO: Move this elsewhere
-export type SupportedP2PDeliveryNetwork =
-  | "nostr"
-  | "waku"
-  | "gundb"
-  | "torrent"
-  | "nkn";
+export const P2PDeliveryNetworks = [
+  "nostr",
+  "waku",
+  "gun",
+  "torrent",
+  "nkn",
+] as const;
+
+export type SupportedP2PDeliveryNetwork = (typeof P2PDeliveryNetworks)[number];
 
 export type SupportedChains = "eth" | "arbitrum";
 // | "solana"; // Coming soon?
@@ -22,5 +25,5 @@ export type Peer = {
   seenOn: SupportedP2PDeliveryNetwork[];
   lastSeen: Date;
   chainIds: ChainIdentity[];
-  deviceInfo: string;
+  deviceInfo?: string;
 };

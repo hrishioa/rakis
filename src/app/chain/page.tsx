@@ -18,7 +18,7 @@ import {
 } from "../../core/synthient-chain/db/packet-types";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
-import { stringifyDateWithOffset } from "../../core/synthient-chain/utils";
+import { stringifyDateWithOffset } from "../../core/synthient-chain/utils/utils";
 import { NknP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/nkn";
 import { TrysteroP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/trystero";
 
@@ -106,18 +106,24 @@ const Home = () => {
         const packetdb = new PacketDB(
           clientInfo,
           async (packet: TransmittedPeerPacket) => {
-            const selectedNetwork = Math.floor(Math.random() * 3);
-            switch (selectedNetwork) {
-              case 0:
-                gun.broadcastPacket(packet);
-                break;
-              case 1:
-                nkn.broadcastPacket(packet);
-                break;
-              case 2:
-                nostr.broadcastPacket(packet);
-                break;
-            }
+            await Promise.all([
+              gun.broadcastPacket(packet),
+              nkn.broadcastPacket(packet),
+              nostr.broadcastPacket(packet),
+            ]);
+
+            // const selectedNetwork = Math.floor(Math.random() * 3);
+            // switch (selectedNetwork) {
+            //   case 0:
+            //     gun.broadcastPacket(packet);
+            //     break;
+            //   case 1:
+            //     nkn.broadcastPacket(packet);
+            //     break;
+            //   case 2:
+            //     nostr.broadcastPacket(packet);
+            //     break;
+            // }
           }
         );
         setPacketDB(packetdb);

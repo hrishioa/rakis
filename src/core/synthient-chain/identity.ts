@@ -1,8 +1,9 @@
 import { ChainIdentity } from "./db/entities";
 import { IDENTITY_ENCRYPTED_KEY } from "./config";
-import { decryptData, encryptData } from "./simple-crypto";
+import { decryptData, encryptData } from "./utils/simple-crypto";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
+import { getDeviceInfo } from "./utils/utils";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 // Personal persisted information about this particular client
@@ -11,6 +12,7 @@ export type ClientInfo = {
   // Storing this in the browser for now, this is meant to be ephemeral anyway - actual incentives should ideally be connected to your chain address and claimed
   synthientPrivKey: string;
   chainIds: ChainIdentity[];
+  deviceInfo?: string; // To measure heterogeneity of the network, we'll likely disable this after the stability test
 };
 
 let clientInfo: ClientInfo;
@@ -23,7 +25,10 @@ export function createNewEmptyIdentity(): ClientInfo {
     synthientId: ed.etc.bytesToHex(pubKey),
     synthientPrivKey: ed.etc.bytesToHex(privKey),
     chainIds: [],
+    deviceInfo: getDeviceInfo(),
   };
+
+  console.log("Created identity: ", newIdentity);
 
   return newIdentity;
 }

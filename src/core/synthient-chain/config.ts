@@ -1,10 +1,6 @@
 // Starting place for network hyperparameters
 
-export const SYNTHIENT_NETWORK_CONFIG = {};
-
 export const IDENTITY_ENCRYPTED_KEY = "encSynthientId";
-
-export const ENABLED_NETWORKS = ["gundb", "nkn"] as const;
 
 export const GUNDB_CONFIG = {
   topic: "synthient-testnet5",
