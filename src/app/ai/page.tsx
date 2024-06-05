@@ -3,14 +3,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
-  loadWorker,
-  runInferenceOnWorker,
-  abortWorkerInference,
-  unloadWorker,
-  getEngineLogs,
-  getWorkerState,
-} from "../../core/llm/llm-engine";
-import {
   availableModels,
   InferenceParams,
   LLMEngineLogEntry,
@@ -40,12 +32,14 @@ import {
 } from "../../core/embeddings/types";
 import { modelColors } from "./colors";
 import { EmbeddingEngine } from "../../core/embeddings/embedding-engine";
+import { LLMEngine } from "../../core/llm/llm-engine";
 
 const EmbeddingChart = dynamic(() => import("./embedding-chart"), {
   ssr: false,
 });
 
 const embeddingEngine = new EmbeddingEngine();
+const llmEngine = new LLMEngine();
 
 const LLMTestingPage: React.FC = () => {
   const [workerIds, setWorkerIds] = useState<string[]>([]);
@@ -136,7 +130,7 @@ const LLMTestingPage: React.FC = () => {
 
   const pollWorkerState = async (workerId: string) => {
     try {
-      const state = await getWorkerState(workerId);
+      const state = await llmEngine.getWorkerState(workerId);
       if (state) {
         setWorkerStatus((prevStatus) => ({
           ...prevStatus,
@@ -154,7 +148,7 @@ const LLMTestingPage: React.FC = () => {
 
   const pollEngineLogs = async () => {
     try {
-      const newLogs = await getEngineLogs(50);
+      const newLogs = await llmEngine.getEngineLogs(50);
       const latestEmbeddingLogs = embeddingEngine.getEmbeddingEngineLogs(50);
 
       const joinedLogs = [...newLogs, ...latestEmbeddingLogs].sort(
@@ -199,7 +193,7 @@ const LLMTestingPage: React.FC = () => {
     const pollInterval = setInterval(() => pollWorkerState(workerId), 1000);
 
     try {
-      await loadWorker(selectedModel, workerId);
+      await llmEngine.loadWorker(selectedModel, workerId);
     } catch (error) {
       console.error(`Error loading worker ${workerId}:`, error);
       setWorkerStatus((prevStatus) => {
@@ -223,7 +217,7 @@ const LLMTestingPage: React.FC = () => {
       modelName: workerModels[workerId] as any,
       messages: [{ role: "user", content: prompt }],
     };
-    const inferenceIterable = runInferenceOnWorker(params, workerId);
+    const inferenceIterable = llmEngine.runInferenceOnWorker(params, workerId);
     let tokens = 0;
     let outputText = "";
     const startTime = Date.now();
@@ -283,7 +277,10 @@ const LLMTestingPage: React.FC = () => {
       };
 
       try {
-        const inferenceIterable = runInferenceOnWorker(params, workerId);
+        const inferenceIterable = llmEngine.runInferenceOnWorker(
+          params,
+          workerId
+        );
         let tokens = 0;
         let outputText = "";
         const startTime = Date.now();
@@ -342,11 +339,11 @@ const LLMTestingPage: React.FC = () => {
   };
 
   const handleAbortInference = (workerId: string) => {
-    abortWorkerInference(workerId);
+    llmEngine.abortWorkerInference(workerId);
   };
 
   const handleUnloadWorker = (workerId: string) => {
-    unloadWorker(workerId);
+    llmEngine.unloadWorker(workerId);
     setWorkerIds((prevWorkerIds) =>
       prevWorkerIds.filter((id) => id !== workerId)
     );
