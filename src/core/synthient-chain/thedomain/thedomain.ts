@@ -15,7 +15,7 @@ import { NknP2PNetworkInstance } from "../p2p-networks/nkn";
 import { P2PNetworkInstance } from "../p2p-networks/p2pnetwork-types";
 import { GunP2PNetworkInstance } from "../p2p-networks/pewpewdb";
 import { TrysteroP2PNetworkInstance } from "../p2p-networks/trystero";
-import { timeoutPromise } from "../utils/utils";
+import { generateRandomString, timeoutPromise } from "../utils/utils";
 import { THEDOMAIN_SETTINGS } from "./settings";
 
 export type DomainStartOptions = {
@@ -49,29 +49,35 @@ export class TheDomain {
     this.llmEngine = new LLMEngine();
 
     if (typeof window !== "undefined") {
-      (window as any).logInferenceRequest = (
-        prompt: string,
-        model: LLMModelName,
-        maxTimeMs: number
-      ) => {
-        this.inferenceDB.saveInferenceRequest({
-          payload: {
-            fromChain: "eth",
-            blockNumber: 0,
-            createdAt: new Date(),
-            prompt,
-            acceptedModels: [model],
-            temperature: 1,
-            maxTokens: 2048,
-            securityFrame: {
-              quorum: 10,
-              maxTimeMs,
-              secDistance: 0.9,
-              secPercentage: 0.5,
+      (window as any).theDomain = {
+        logInference: (
+          prompt: string,
+          model: LLMModelName,
+          maxTimeMs: number
+        ) => {
+          this.inferenceDB.saveInferenceRequest({
+            payload: {
+              fromChain: "eth",
+              blockNumber: 0,
+              createdAt: new Date(),
+              prompt,
+              acceptedModels: [model],
+              temperature: 1,
+              maxTokens: 2048,
+              securityFrame: {
+                quorum: 10,
+                maxTimeMs,
+                secDistance: 0.9,
+                secPercentage: 0.5,
+              },
             },
-          },
-          fetchedAt: new Date(),
-        });
+            fetchedAt: new Date(),
+          });
+        },
+        updateLLMWorkers: (modelName: LLMModelName, count: number) => {
+          this.updateLLMWorkers(modelName, count);
+        },
+        llmWorkers: this.llmEngine.llmWorkers,
       };
 
       console.log("Inference request function exposed.");
@@ -81,6 +87,67 @@ export class TheDomain {
   // TODOs:
   // 1. Register error handlers for the p2p networks, and restart them (some finite number of times) if they error out
   // 2. Expose a packet subscriber to the outside in case someone wants to listen in
+
+  async updateLLMWorkers(
+    modelName: LLMModelName,
+    count: number,
+    abruptKill: boolean = false
+  ) {
+    const numberOfExistingWorkers = Object.values(
+      this.llmEngine.llmWorkers
+    ).filter((worker) => worker.modelName === modelName).length;
+
+    if (numberOfExistingWorkers === count) return;
+
+    if (numberOfExistingWorkers < count) {
+      console.log(
+        "Scaling up number of llm workers for ",
+        modelName,
+        " to ",
+        count
+      );
+      const scaleUpPromises: Promise<any>[] = [];
+      for (let i = 0; i < count - numberOfExistingWorkers; i++) {
+        const workerId = `llm-${modelName}-${generateRandomString()}`;
+        scaleUpPromises.push(this.llmEngine.loadWorker(modelName, workerId));
+      }
+
+      const results = await Promise.all(scaleUpPromises);
+      return results;
+    } else {
+      console.log(
+        "Scaling down number of llm workers for ",
+        modelName,
+        " to ",
+        count
+      );
+
+      const workerIdsByLoad = Object.keys(this.llmEngine.llmWorkers).sort(
+        (a, b) =>
+          this.llmEngine.llmWorkers[a].inferenceInProgress ===
+          this.llmEngine.llmWorkers[b].inferenceInProgress
+            ? 0
+            : this.llmEngine.llmWorkers[a].inferenceInProgress
+            ? -1
+            : 1
+      );
+
+      const workerIdsToScaleDown = workerIdsByLoad.slice(
+        0,
+        numberOfExistingWorkers - count
+      );
+
+      const scaleDownPromises: Promise<any>[] = [];
+      for (const workerId of workerIdsToScaleDown) {
+        scaleDownPromises.push(
+          this.llmEngine.unloadWorker(workerId, abruptKill)
+        );
+      }
+
+      const results = await Promise.all(scaleDownPromises);
+      return results;
+    }
+  }
 
   private connectP2PToPacketDB() {
     for (const p2pNetwork of this.p2pNetworkInstances) {

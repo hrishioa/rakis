@@ -10,7 +10,7 @@ import {
 } from "./types";
 
 export class LLMEngine {
-  private llmWorkers: Record<string, LLMWorker> = {};
+  public llmWorkers: Record<string, LLMWorker> = {};
   private engineLog: LLMEngineLogEntry[] = [];
   private inferenceCounter: number = 0;
 
@@ -53,8 +53,11 @@ export class LLMEngine {
     }
   }
 
-  public async unloadWorker(workerId: string) {
+  public async unloadWorker(workerId: string, abruptKill: boolean = false) {
     if (this.llmWorkers[workerId]) {
+      if (!abruptKill)
+        await this.llmWorkers[workerId].inferencePromise?.promise;
+
       this.llmWorkers[workerId].llmEngine?.unload();
       delete this.llmWorkers[workerId];
       this.logEngineEvent({
