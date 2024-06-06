@@ -110,12 +110,12 @@ export class InferenceDB {
     }
   }
 
-  saveInferenceResult(inferenceResult: InferenceResult): void {
+  async saveInferenceResult(inferenceResult: InferenceResult) {
     this.activeInferenceRequests = this.activeInferenceRequests.filter(
       (inference) => inference.requestId !== inferenceResult.requestId
     );
 
-    this.inferenceResultDb.inferenceResults.put(inferenceResult);
+    await this.inferenceResultDb.inferenceResults.put(inferenceResult);
   }
 
   subscribeToInferences(

@@ -7,10 +7,23 @@ import {
   InferencePacket,
   InferenceParams,
   LLMEngineLogEntry,
+  LLMModelName,
   LLMWorker,
 } from "./types";
+import EventEmitter from "eventemitter3";
 
-export class LLMEngine {
+type LLMEngineEvents = {
+  workerLoadFailed: (data: {
+    modelName: LLMModelName;
+    workerId: string;
+    error: any;
+  }) => void;
+  workerLoaded: (data: { modelName: LLMModelName; workerId: string }) => void;
+  workerUnloaded: (data: { workerId: string }) => void;
+  workerFree: (data: { workerId: string }) => void;
+};
+
+export class LLMEngine extends EventEmitter<LLMEngineEvents> {
   public llmWorkers: Record<string, LLMWorker> = {};
   private engineLog: LLMEngineLogEntry[] = [];
   private inferenceCounter: number = 0;
@@ -54,6 +67,20 @@ export class LLMEngine {
     }
   }
 
+  public getWorkerAvailability(modelNames: LLMModelName[]): {
+    [modelName: string]: { count: number; free: number };
+  } {
+    return Object.values(this.llmWorkers).reduce((acc, cur) => {
+      if (modelNames.includes(cur.modelName)) {
+        acc[cur.modelName] ??= { count: 0, free: 0 };
+        acc[cur.modelName].count++;
+        if (!cur.inferenceInProgress && cur.modelLoadingProgress >= 1)
+          acc[cur.modelName].free++;
+      }
+      return acc;
+    }, {} as { [modelName: string]: { count: number; free: number } });
+  }
+
   public async unloadWorker(workerId: string, abruptKill: boolean = false) {
     if (this.llmWorkers[workerId]) {
       if (!abruptKill)
@@ -65,6 +92,8 @@ export class LLMEngine {
         type: "engine_unload",
         workerId,
       });
+
+      this.emit("workerUnloaded", { workerId });
     }
   }
 
@@ -138,14 +167,19 @@ export class LLMEngine {
                     modelName,
                     workerId,
                   });
+
+                this.emit("workerLoaded", { modelName, workerId });
                 this.llmWorkers[workerId].modelLoadingPromise?.resolve(
                   workerId
                 );
+                this.emit("workerFree", { workerId });
               }
             },
           }
         );
     } catch (err) {
+      this.emit("workerLoadFailed", { modelName, workerId, error: err });
+
       this.logEngineEvent({
         type: "engine_loading_error",
         modelName,
@@ -167,6 +201,7 @@ export class LLMEngine {
       .filter(
         (workerId) =>
           this.llmWorkers[workerId].modelName === params.modelName &&
+          this.llmWorkers[workerId].modelLoadingProgress >= 1 &&
           (!freeWorkersOnly || !this.llmWorkers[workerId].inferenceInProgress)
       )
       .reduce((acc, workerId) => {
@@ -374,5 +409,7 @@ export class LLMEngine {
         error: err,
       };
     }
+
+    this.emit("workerFree", { workerId });
   }
 }

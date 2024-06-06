@@ -74,6 +74,10 @@ export class TheDomain {
 
     this.embeddingEngine = new EmbeddingEngine();
     this.llmEngine = new LLMEngine();
+    this.llmEngine.on("workerFree", () => {
+      console.log("Worker free, checking for jobs");
+      setTimeout(() => this.processInferenceRequests(), 0);
+    });
 
     console.log("Starting workers...");
 
@@ -90,10 +94,6 @@ export class TheDomain {
     }
 
     this.updateInferenceSubscription();
-
-    // this.inferenceStatus.inferenceCompletionInterval = setInterval(() => {
-    //   this.checkAndRunInference();
-    // });
 
     // Await the promise if we want to block, but we're fine without I think
 
@@ -150,159 +150,123 @@ export class TheDomain {
         ),
       },
       (packet) => {
-        // console.log("Starting new inference loop because of incoming packet.");
-        setTimeout(() => this.checkAndRunInference(), 0);
-        // this.checkAndRunInference();
+        console.log("Starting new inference loop because of incoming packet.");
+        setTimeout(() => this.processInferenceRequests(), 0);
       }
     );
   }
 
-  checkAndRunInference() {
-    console.log("Checking and running inference...");
+  processInferenceRequests() {
+    const cycleId = generateRandomString(3);
 
-    const llmWorkerAvailability = Object.values(
-      this.llmEngine.llmWorkers
-    ).reduce(
-      (acc, cur) => {
-        acc[cur.modelName] ??= {
-          count: 0,
-          free: 0,
-        };
+    const availableInferenceRequests =
+      this.inferenceDB.activeInferenceRequests.filter(
+        (inferenceRequest) =>
+          inferenceRequest.endingAt > new Date() &&
+          !this.inferenceStatus.inferenceIdsInProcess.includes(
+            inferenceRequest.requestId
+          )
+      );
 
-        acc[cur.modelName].count++;
-        if (!cur.inferenceInProgress) acc[cur.modelName].free++;
-
-        return acc;
-      },
-      {} as {
-        [modelName: string]: {
-          count: number;
-          free: number;
-        };
-      }
+    console.log(
+      cycleId,
+      ": Found ",
+      availableInferenceRequests.length,
+      " available inference requests."
     );
 
-    console.log("LLM Worker availability: ", llmWorkerAvailability);
+    const neededModels = Array.from(
+      new Set(
+        availableInferenceRequests
+          .map((inferenceRequest) => inferenceRequest.payload.acceptedModels)
+          .flat()
+      )
+    );
 
-    const possibleInferences = this.inferenceDB.activeInferenceRequests.filter(
+    console.log(cycleId, ": Models needed - ", neededModels);
+
+    const llmWorkerAvailability =
+      this.llmEngine.getWorkerAvailability(neededModels);
+
+    console.log(cycleId, ": Worker availability - ", llmWorkerAvailability);
+
+    const possibleInferences = availableInferenceRequests.filter(
       (inferenceRequest) =>
-        inferenceRequest.endingAt > new Date() &&
         inferenceRequest.payload.acceptedModels.some(
           (model) => llmWorkerAvailability[model].free > 0
-        ) &&
-        !this.inferenceStatus.inferenceIdsInProcess.includes(
-          inferenceRequest.requestId
         )
     );
 
-    console.log("Possible inferences: ", possibleInferences);
+    console.log(cycleId, ": Possible inferences - ", possibleInferences);
 
-    // TODO: IMPORTANT
-    // Key code for selecting which inference requests to prioritize goes here - for now we're just picking the ones that have the longest to go
-
-    if (possibleInferences.length > 0) {
-      const selectedInference = possibleInferences.sort((a, b) => {
-        return b.endingAt.getTime() - a.endingAt.getTime();
-      })[0];
-
-      this.inferenceStatus.inferenceIdsInProcess.push(
-        selectedInference.requestId
-      );
-
-      const possibleModelsToSelect =
-        selectedInference.payload.acceptedModels.filter(
-          (modelName) => llmWorkerAvailability[modelName].free > 0
-        );
-
-      const selectedModel =
-        possibleModelsToSelect[
-          Math.floor(Math.random() * possibleModelsToSelect.length)
-        ];
-
-      console.log(
-        "Running inference request ",
-        selectedInference.requestId,
-        " on model ",
-        selectedModel
-      );
-
-      const inferenceStartedAt = new Date();
-
-      this.llmEngine
-        .runInferenceNonStreaming({
-          modelName: selectedModel,
-          messages: [
-            { role: "user", content: selectedInference.payload.prompt },
-          ],
-          // TODO: Drill temperature and other parameters through here
-        })
-        .then((response) => {
-          console.log(
-            "Inference completed for ",
-            selectedInference.requestId,
-            " - ",
-            response
-          );
-
-          this.inferenceDB.saveInferenceResult({
-            requestId: selectedInference.requestId,
-            // TODO: Secure this more by using a hash
-            inferenceId:
-              selectedInference.requestId + "." + generateRandomString(),
-            startedAt: stringifyDateWithOffset(inferenceStartedAt),
-            completedAt: stringifyDateWithOffset(new Date()),
-            result: response,
-          });
-        });
+    if (!possibleInferences.length) {
+      console.log(cycleId, ": No possible inferences, going back to sleep.");
+      return;
     }
 
-    if (possibleInferences.length < 2) {
-      const possibleInferencesIfWorkersWereFree =
-        this.inferenceDB.activeInferenceRequests.filter(
-          (inferenceRequest) =>
-            inferenceRequest.endingAt > new Date() &&
-            inferenceRequest.payload.acceptedModels.some(
-              (model) => llmWorkerAvailability[model].count > 0
-            ) &&
-            !this.inferenceStatus.inferenceIdsInProcess.includes(
-              inferenceRequest.requestId
-            )
-        );
+    const selectedInference = possibleInferences.sort((a, b) => {
+      return b.endingAt.getTime() - a.endingAt.getTime();
+    })[0];
 
-      if (possibleInferencesIfWorkersWereFree.length > 0) {
-        const workerPromises = Object.values(this.llmEngine.llmWorkers)
-          .filter(
-            (worker) => worker.inferenceInProgress && worker.inferencePromise
-          )
-          .map((worker) => worker.inferencePromise!.promise);
+    console.log(
+      cycleId,
+      ": Selected inference - ",
+      selectedInference.requestId
+    );
 
-        if (workerPromises.length) {
-          console.log("Running when workers are free");
-          if (!this.inferenceStatus.waitingForWorker) {
-            this.inferenceStatus.waitingForWorker = true;
-            Promise.any(workerPromises).then(() => {
-              this.inferenceStatus.waitingForWorker = false;
-              console.log(
-                "Running again because an actual worker promise completed"
-              );
-              setTimeout(() => this.checkAndRunInference(), 0);
-            });
-          }
-        }
-      } else {
+    this.inferenceStatus.inferenceIdsInProcess.push(
+      selectedInference.requestId
+    );
+
+    const inferenceStartedAt = new Date();
+
+    this.llmEngine
+      .runInferenceNonStreaming({
+        modelName: selectedInference.payload.acceptedModels[0],
+        messages: [{ role: "user", content: selectedInference.payload.prompt }],
+      })
+      .then((response) => {
         console.log(
-          "No inferences left to run, leaving us on a timeout to be sure."
+          cycleId,
+          ": Inference completed for ",
+          selectedInference.requestId,
+          " - ",
+          response
         );
-        if (this.inferenceStatus.inferenceCompletionInterval)
-          clearInterval(this.inferenceStatus.inferenceCompletionInterval);
 
-        this.inferenceStatus.inferenceCompletionInterval = setInterval(() => {
-          this.checkAndRunInference();
-        }, 5000);
-      }
-    } else {
-      setTimeout(() => this.checkAndRunInference(), 0);
-    }
+        return this.inferenceDB.saveInferenceResult({
+          requestId: selectedInference.requestId,
+          inferenceId:
+            selectedInference.requestId + "." + generateRandomString(),
+          startedAt: stringifyDateWithOffset(inferenceStartedAt),
+          completedAt: stringifyDateWithOffset(new Date()),
+          result: response,
+        });
+      })
+      .then(() => {
+        this.inferenceStatus.inferenceIdsInProcess =
+          this.inferenceStatus.inferenceIdsInProcess.filter(
+            (id) => id !== selectedInference.requestId
+          );
+      })
+      .catch((err) => {
+        console.error(cycleId, ": Error running inference - ", err);
+
+        return this.inferenceDB.saveInferenceResult({
+          requestId: selectedInference.requestId,
+          inferenceId:
+            selectedInference.requestId + "." + generateRandomString(),
+          startedAt: stringifyDateWithOffset(inferenceStartedAt),
+          completedAt: stringifyDateWithOffset(new Date()),
+          result: {
+            success: false,
+            error: err,
+          },
+        });
+      });
+
+    console.log("looking for next inference, waiting a tick.");
+    setTimeout(() => this.processInferenceRequests(), 0);
   }
 
   // TODOs:
