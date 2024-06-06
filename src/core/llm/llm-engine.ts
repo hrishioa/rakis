@@ -15,6 +15,7 @@ import {
   InferenceSuccessPayload,
 } from "../synthient-chain/db/packet-types";
 import { generateRandomString } from "../synthient-chain/utils/utils";
+import { createLogger, logStyles } from "../synthient-chain/utils/logger";
 
 type LLMEngineEvents = {
   workerLoadFailed: (data: {
@@ -27,6 +28,8 @@ type LLMEngineEvents = {
   workerFree: (data: { workerId: string }) => void;
 };
 
+const logger = createLogger("LLM Engine", logStyles.llmEngine.main);
+
 export class LLMEngine extends EventEmitter<LLMEngineEvents> {
   public llmWorkers: Record<string, LLMWorker> = {};
   private engineLog: LLMEngineLogEntry[] = [];
@@ -36,7 +39,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     if (!entry.at) entry.at = new Date();
     const logLength = this.engineLog.length;
 
-    console.log("LLM Engine: ", "Engine event ", logLength, " - ", entry);
+    logger.debug("Engine event ", logLength, " - ", entry);
 
     this.engineLog.push(entry);
     return logLength;
@@ -130,8 +133,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     };
 
     if (this.llmWorkers[workerId].modelLoadingPromise) {
-      console.log(
-        "LLM Engine: ",
+      logger.debug(
         `Tried to create worker ${workerId}, but creation is already done or in progress`
       );
       return await this.llmWorkers[workerId]!.modelLoadingPromise!.promise;
@@ -156,8 +158,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
           modelName,
           {
             initProgressCallback: (report: webllm.InitProgressReport) => {
-              console.log(
-                "LLM Engine: ",
+              logger.debug(
                 `Worker ${workerId}: Loading ${modelName} progress - `,
                 report
               );
@@ -194,7 +195,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         workerId,
         error: err,
       });
-      console.error(`Worker ${workerId}: Error loading ${modelName}`, err);
+      logger.error(`Worker ${workerId}: Error loading ${modelName}`, err);
       this.llmWorkers[workerId].modelLoadingPromise?.reject(err);
     }
 
@@ -401,7 +402,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
       this.llmWorkers[workerId].inferenceInProgress = false;
       this.llmWorkers[workerId].inferencePromise!.resolve(true);
     } catch (err) {
-      console.error(`Worker ${workerId}: Error running inference`, err);
+      logger.error(`Worker ${workerId}: Error running inference`, err);
       this.llmWorkers[workerId].inferenceInProgress = false;
       this.llmWorkers[workerId].inferencePromise!.resolve(false);
 
@@ -434,8 +435,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
       if (numberOfExistingWorkers === count) return;
 
       if (numberOfExistingWorkers < count) {
-        console.log(
-          "LLM Engine: ",
+        logger.debug(
           "Scaling up number of llm workers for ",
           modelName,
           " to ",
@@ -449,8 +449,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
 
         // TODO: Process errors
       } else {
-        console.log(
-          "LLM Engine: ",
+        logger.debug(
           "Scaling down number of llm workers for ",
           modelName,
           " to ",
@@ -479,7 +478,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         // TODO: Process errors
       }
     } catch (err) {
-      console.error("Domain: Error updating LLM workers", err);
+      logger.error("Domain: Error updating LLM workers", err);
     }
   }
 }

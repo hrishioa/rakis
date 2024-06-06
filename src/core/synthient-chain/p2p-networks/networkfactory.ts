@@ -6,6 +6,9 @@ import { P2P_CONFIG } from "./p2p-config";
 import { P2PNetworkInstance } from "./p2pnetwork-types";
 import { GunP2PNetworkInstance } from "./pewpewdb";
 import { TrysteroP2PNetworkInstance } from "./trystero";
+import { createLogger, logStyles } from "../utils/logger";
+
+const logger = createLogger("Domain", logStyles.theDomain);
 
 export class P2PNetworkFactory {
   static createP2PNetworkInstance(
@@ -61,7 +64,7 @@ export class P2PNetworkFactory {
     ]);
 
     if (waitingResult === "timeout") {
-      console.log("Timed out waiting for all networks to load.");
+      logger.debug("Timed out waiting for all networks to load.");
       const unloadedNetworks = p2pNetworkInstances.filter(
         (_, index) => !p2pLoadingResults[index]
       );

@@ -12,6 +12,9 @@ import * as ed from "@noble/ed25519";
 import { LLMModelName } from "../../llm/types";
 import { generateRandomString } from "../utils/utils";
 import EventEmitter from "eventemitter3";
+import { createLogger, logStyles } from "../utils/logger";
+
+const logger = createLogger("InferenceDB", logStyles.databases.inferenceDB);
 
 class InferenceEmbeddingDatabase extends Dexie {
   inferenceEmbeddings!: Dexie.Table<InferenceEmbedding, string>;
@@ -115,7 +118,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
         .toArray()
     ).map((result) => result.requestId);
 
-    console.log("Got matching results ", matchingResults);
+    logger.debug("Got matching results ", matchingResults);
 
     this.activeInferenceRequests = this.activeInferenceRequests.filter(
       (inference) =>
@@ -123,7 +126,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
         !matchingResults.includes(inference.requestId)
     );
 
-    console.log(
+    logger.debug(
       "Active inferences after cleanup",
       this.activeInferenceRequests.length
     );
@@ -154,7 +157,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       );
 
     if (existingEmbedding) {
-      console.log("Embedding already exists. Skipping save.");
+      logger.debug("Embedding already exists. Skipping save.");
       return;
     }
 
@@ -201,7 +204,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       request.requestId
     );
     if (existingRequest) {
-      console.log("Inference request already exists. Skipping save.");
+      logger.debug("Inference request already exists. Skipping save.");
       return;
     }
 
@@ -218,7 +221,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       requestId: request.requestId!,
     };
 
-    console.log("Saving ", processedRequest);
+    logger.debug("Saving ", processedRequest);
 
     // Save the request to the database
     await this.inferenceRequestDb.inferenceRequests.put(processedRequest);
@@ -227,7 +230,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     if (endingAt > new Date()) {
       this.activeInferenceRequests.push(processedRequest);
 
-      console.log(
+      logger.debug(
         "Active inferences after save",
         this.activeInferenceRequests.length
       );

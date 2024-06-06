@@ -7,6 +7,12 @@ import {
 } from "./types";
 import { DeferredPromise } from "../utils/deferredpromise";
 import { EmbeddingResult } from "./types";
+import { createLogger, logStyles } from "../synthient-chain/utils/logger";
+const logger = createLogger(
+  "Embedding Worker",
+  logStyles.embeddingEngine.worker,
+  true
+);
 
 let workerInstance: EmbeddingWorker | null = null;
 
@@ -98,8 +104,7 @@ async function embedText(
   });
 
   try {
-    console.log(
-      "Embedding Worker: ",
+    logger.debug(
       `Worker ${workerInstance.workerId} is embedding ${batchId}: `,
       JSON.stringify(texts)
     );
@@ -184,7 +189,7 @@ self.onmessage = async (
       }
       break;
     default:
-      console.error("EMBEDDING WORKER GOT ", event, " - THIS SHOULDNT HAPPEN!");
+      logger.error("EMBEDDING WORKER GOT ", event, " - THIS SHOULDNT HAPPEN!");
       break;
   }
 };

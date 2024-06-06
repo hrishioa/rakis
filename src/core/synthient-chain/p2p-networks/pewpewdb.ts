@@ -12,6 +12,9 @@ import {
   PacketReceivedCallback,
 } from "./p2pnetwork-types";
 import { DeferredPromise } from "../../utils/deferredpromise";
+import { createLogger, logStyles } from "../utils/logger";
+
+const logger = createLogger("P2P: PewPewDB", logStyles.p2pNetworks.pewpewdb);
 
 export type GunBootstrapOptions = {
   gunPeers: string[];
@@ -62,14 +65,14 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
       packet: JSON.stringify(packet.packet),
     };
 
-    console.log("Transmitting through gun: ", serializedPacket);
+    logger.debug("Transmitting through gun: ", serializedPacket);
 
     return new Promise((resolve) => {
       this.gun
         .get(this.gunTopic)
         .put(serializedPacket, (ack: GunMessagePut) => {
           if ((ack as any).err) {
-            console.error("Error sending gun message: ", (ack as any).err);
+            logger.error("Error sending gun message: ", (ack as any).err);
             return resolve(false);
           }
           return resolve(true);
@@ -92,7 +95,7 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
         return;
       }
 
-      console.log("Got packet ", data, " from gun");
+      logger.debug("Got packet ", data, " from gun");
 
       const packet: ReceivedPeerPacket = {
         ...data,

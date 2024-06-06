@@ -14,6 +14,10 @@ import {
 } from "../utils/simple-crypto";
 import EventEmitter from "eventemitter3";
 import { PeerDB } from "./peerdb";
+import { createLogger, logStyles } from "../utils/logger";
+
+const logger = createLogger("PacketDB", logStyles.databases.packetDB);
+
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 type SendPacketOverP2PFunc = (packet: TransmittedPeerPacket) => Promise<void>;
@@ -85,7 +89,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     }
 
     for (const subscription of this.newPacketSubscriptions) {
-      console.log("Checking subscription", subscription, newPacket);
+      logger.debug("Checking subscription", subscription, newPacket);
       try {
         if (
           (!subscription.filters.synthientId ||
@@ -106,11 +110,11 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
           (!subscription.filters.receivedTimeBefore ||
             newPacket.receivedTime! < subscription.filters.receivedTimeBefore)
         ) {
-          console.log("Notifying subscription", subscription);
+          logger.debug("Notifying subscription", subscription);
           subscription.callback(newPacket);
         }
       } catch (err) {
-        console.error("Error notifying subscription", err);
+        logger.error("Error notifying subscription", err);
       }
     }
   }
@@ -149,8 +153,8 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
       // receivedTime: undefined, // Set as undefined since it's our own packet
     });
 
-    console.log("PacketDB: Transmitting packet:", transmittedPacket);
-    console.log(
+    logger.debug("Transmitting packet:", transmittedPacket);
+    logger.debug(
       "Signature:",
       transmittedPacket.signature,
       "Packet:",
@@ -162,7 +166,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
     // TODO: this is super ugly, need to streamline
     if (packet.type === "p2pInferenceRequest") {
-      console.log("PacketDB: Ugly but emitting newP2PInferenceRequest");
+      logger.debug("Ugly but emitting newP2PInferenceRequest");
       this.emit("newP2PInferenceRequest", packet as P2PInferenceRequestPacket);
     }
   }
@@ -177,7 +181,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
   }
 
   async receivePacket(receivedPacket: ReceivedPeerPacket): Promise<boolean> {
-    console.log("PacketDB: Received packet:", receivedPacket);
+    logger.debug("Received packet:", receivedPacket);
 
     try {
       // Validate the signature
@@ -188,9 +192,9 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
       );
 
       if (!signatureValid) {
-        console.log("Invalid signature. Dropping packet.");
-        console.log(
-          "PacketDB: Signature ",
+        logger.debug("Invalid signature. Dropping packet.");
+        logger.debug(
+          "Signature ",
           receivedPacket.signature,
           " is invalid for packet ",
           JSON.stringify(receivedPacket.packet)
@@ -198,7 +202,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         return false;
       }
     } catch (err) {
-      console.error(
+      logger.error(
         "Error verifying signature for packet ",
         receivedPacket,
         err
@@ -213,11 +217,11 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     });
 
     if (existingPacket) {
-      console.log("Packet already exists in the database. Dropping.");
+      logger.debug("Packet already exists in the database. Dropping.");
       return false;
     }
 
-    console.log("Actually adding packet!");
+    logger.debug("Actually adding packet!");
     // Add the packet to the database
     try {
       await this.db.packets.add({
@@ -225,7 +229,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         // receivedTime: new Date(), // Set the receivedTime to the current timestamp
       });
     } catch (err) {
-      console.error("Error adding packet to the database", err);
+      logger.error("Error adding packet to the database", err);
       return false;
     }
 
@@ -240,7 +244,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
   async printPackets(): Promise<void> {
     const packets = await this.db.packets.toArray();
-    console.log("Packets in the database:", packets);
+    logger.debug("Packets in the database:", packets);
   }
 
   async dropOldPackets(maxAgeMs: number): Promise<void> {
@@ -250,11 +254,11 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
     await this.db.packets.where("receivedTime").below(cutoffTime).delete();
 
-    console.log(`Dropped packets older than ${maxAgeMs}ms`);
+    logger.debug(`Dropped packets older than ${maxAgeMs}ms`);
   }
 
   async clearPackets(): Promise<void> {
     await this.db.packets.clear();
-    console.log("Cleared all packets from the database.");
+    logger.debug("Cleared all packets from the database.");
   }
 }

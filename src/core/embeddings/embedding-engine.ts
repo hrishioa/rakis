@@ -8,6 +8,8 @@ import {
 import { DeferredPromise } from "../utils/deferredpromise";
 import EventEmitter from "eventemitter3";
 import { generateRandomString } from "../synthient-chain/utils/utils";
+import { createLogger, logStyles } from "../synthient-chain/utils/logger";
+const logger = createLogger("Embedding Engine", logStyles.embeddingEngine.main);
 
 type EmbeddingEngineEvents = {
   workerFree: (data: { modelName: string; workerId: string }) => void;
@@ -57,13 +59,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     if (!entry.at) entry.at = new Date();
     const logLength = this.embeddingEngineLog.length;
 
-    console.log(
-      "Embedding Engine: ",
-      "Embedding engine event ",
-      logLength,
-      " - ",
-      entry
-    );
+    logger.debug("Embedding engine event ", logLength, " - ", entry);
 
     this.embeddingEngineLog.push(entry);
     return logLength;
@@ -80,8 +76,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     if (numberOfExistingWorkers === count) return;
 
     if (numberOfExistingWorkers < count) {
-      console.log(
-        "Embedding Engine: ",
+      logger.debug(
         "Scaling up number of embedding workers for ",
         modelName,
         " to ",
@@ -92,8 +87,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
         this.addEmbeddingWorker(modelName, workerId);
       }
     } else {
-      console.log(
-        "Embedding Engine: ",
+      logger.debug(
         "Scaling down number of embedding workers for ",
         modelName,
         " to ",
@@ -124,12 +118,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       return;
     }
 
-    console.log(
-      "Embedding Engine: ",
-      "Trying to create new embedding worker",
-      modelName,
-      workerId
-    );
+    logger.debug("Trying to create new embedding worker", modelName, workerId);
 
     const worker = new Worker(new URL("./embedding-worker", import.meta.url));
 
@@ -170,7 +159,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
           if (job) {
             job.completionPromise.resolve(message.results);
           } else {
-            console.error(
+            logger.error(
               "EMBEDDING ENGINE ERROR: SHOUDLNT HAPPEN, couldn't find job to resolve"
             );
           }
@@ -244,8 +233,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     try {
       this.queuesRunning++;
 
-      console.log(
-        "Embedding Engine: ",
+      logger.debug(
         "Trying to run a job from the queue, queue length is",
         this.embeddingJobQueue.length,
         "jobs, with ",
@@ -258,10 +246,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       );
 
       if (unassignedJobs.length === 0) {
-        console.log(
-          "Embedding Engine: ",
-          "No jobs left, queue is going to sleep"
-        );
+        logger.debug("No jobs left, queue is going to sleep");
         this.queuesRunning--;
         return;
       }
@@ -274,14 +259,13 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       );
 
       if (matchingWorkerIds.length === 0) {
-        console.error(
+        logger.error(
           `No workers loaded with embedding model ${selectedJob.modelName}, ignoring job`
         );
 
         selectedJob.completionPromise.resolve(false);
       } else {
-        console.log(
-          "Embedding Engine: ",
+        logger.debug(
           `${matchingWorkerIds.length} workers available for embedding ${selectedJob.params.texts}`
         );
 
@@ -297,10 +281,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
         if (freeWorkers.length === 0) {
           unassignedJobs.unshift(selectedJob);
 
-          console.log(
-            "Embedding Engine: ",
-            "No free workers available, wait to be called on idle"
-          );
+          logger.debug("No free workers available, wait to be called on idle");
           this.queuesRunning--;
           return;
         }
@@ -321,8 +302,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
           });
         });
 
-        console.log(
-          "Embedding Engine: ",
+        logger.debug(
           `Embedding ${selectedJob.batchId}`,
           selectedJob.params.texts.length,
           " texts with ",
@@ -378,7 +358,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
         }
       }
     } catch (err) {
-      console.error("Error running job from queue", err);
+      logger.error("Error running job from queue", err);
       this.logEngineEvent({
         type: "engine_embedding_error",
         error: err,

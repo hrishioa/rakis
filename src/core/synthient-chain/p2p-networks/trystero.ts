@@ -9,6 +9,7 @@ import {
 import { DeferredPromise } from "../../utils/deferredpromise";
 import { Room } from "trystero";
 import { P2P_CONFIG } from "./p2p-config";
+import { createLogger, logStyles } from "../utils/logger";
 
 export type TrysteroBootstrapOptions = {
   trysteroAppId: string;
@@ -32,9 +33,14 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
   private packetReceivedCallbacks: PacketReceivedCallback<TrysteroAvailablePeerInfo>[] =
     [];
   private errorHandlers: ErrorHandler[] = [];
+  private logger: ReturnType<typeof createLogger>;
 
   constructor(synthientId: string, options: TrysteroBootstrapOptions) {
     super(synthientId, options);
+    this.logger = createLogger(
+      `P2P: ${options.trysteroType} (trystero)`,
+      logStyles.p2pNetworks[options.trysteroType]
+    );
     try {
       this.trysteroRoom =
         this.options.trysteroType === "nostr"
@@ -55,10 +61,10 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
               this.options.trysteroTopic
             );
 
-      console.log("Trystero: Trystero client created", this.trysteroRoom);
+      this.logger.debug("Trystero: Trystero client created", this.trysteroRoom);
 
       // this.trysteroRoom.onPeerJoin((peerId: string) => {
-      //   console.log("Trystero: Peer joined", peerId);
+      //   this.logger.debug("Trystero: Peer joined", peerId);
 
       //   this.loadingPromise.resolve(true);
       // });
@@ -80,7 +86,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
 
       this.loadingPromise.resolve(true); // Best we can do 🤷
     } catch (error) {
-      console.error("Trystero: Error setting up Trystero", error);
+      this.logger.error("Trystero: Error setting up Trystero", error);
       this.loadingPromise.resolve(false);
       this.errorHandlers.forEach((handler) => handler(error as Error, true));
 
@@ -103,7 +109,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
       } catch (error) {
         this.transmissionErrorCount++;
 
-        console.error("Trystero: Error sending message", error);
+        this.logger.error("Trystero: Error sending message", error);
         this.errorHandlers.forEach((handler) =>
           handler(
             error as Error,

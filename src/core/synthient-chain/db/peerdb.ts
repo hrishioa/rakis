@@ -1,6 +1,9 @@
 import Dexie, { type DexieOptions } from "dexie";
 import { Peer } from "./entities";
 import { ReceivedPeerPacket } from "./packet-types";
+import { createLogger, logStyles } from "../utils/logger";
+
+const logger = createLogger("PeerDB", logStyles.databases.peerDB);
 
 class PeerDatabase extends Dexie {
   peers!: Dexie.Table<Peer, string>;
