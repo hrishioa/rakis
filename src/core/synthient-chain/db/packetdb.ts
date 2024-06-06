@@ -1,6 +1,7 @@
 import Dexie, { DexieOptions } from "dexie";
 import * as ed from "@noble/ed25519";
 import {
+  InferenceCommit,
   P2PInferenceRequestPacket,
   type PeerPacket,
   type ReceivedPeerPacket,
@@ -51,6 +52,9 @@ class PacketDatabase extends Dexie {
 
 export type PacketDBEvents = {
   newP2PInferenceRequest: (packet: P2PInferenceRequestPacket) => void;
+  newInferenceCommit: (
+    packet: Omit<ReceivedPeerPacket, "packet"> & { packet: InferenceCommit }
+  ) => void;
 };
 
 export class PacketDB extends EventEmitter<PacketDBEvents> {
@@ -58,11 +62,10 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
   private clientInfo: ClientInfo;
   public peerDB: PeerDB;
   private sendPacketOverP2P: SendPacketOverP2PFunc;
-  private newPacketSubscriptions: {
-    filters: PacketSelector;
-    callback: PacketSubscriber;
-  }[] = [];
-  private packetDBCreatedAt: Date = new Date();
+  // private newPacketSubscriptions: {
+  //   filters: PacketSelector;
+  //   callback: PacketSubscriber;
+  // }[] = [];
 
   constructor(
     clientInfo: ClientInfo,
@@ -76,62 +79,80 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     this.sendPacketOverP2P = sendPacketOverP2P;
   }
 
-  // TODO: This is best migrated to Eventemitter or rxjs patterns,
-  // wrote it when I didn't know better
-  notifySubscriptions(newPacket: ReceivedPeerPacket) {
-    if (newPacket.packet.type === "p2pInferenceRequest") {
-      setTimeout(() =>
-        this.emit(
-          "newP2PInferenceRequest",
-          newPacket.packet as P2PInferenceRequestPacket
-        )
+  // // TODO: This is best migrated to Eventemitter or rxjs patterns,
+  // // wrote it when I didn't know better
+  // notifySubscriptions(newPacket: ReceivedPeerPacket) {
+  //   if (newPacket.packet.type === "p2pInferenceRequest") {
+  //     setTimeout(() =>
+  //       this.emit(
+  //         "newP2PInferenceRequest",
+  //         newPacket.packet as P2PInferenceRequestPacket
+  //       )
+  //     );
+  //   }
+
+  //   for (const subscription of this.newPacketSubscriptions) {
+  //     logger.debug("Checking subscription", subscription, newPacket);
+  //     try {
+  //       if (
+  //         (!subscription.filters.synthientId ||
+  //           subscription.filters.synthientId === newPacket.synthientId) &&
+  //         (!subscription.filters.signature ||
+  //           subscription.filters.signature === newPacket.signature) &&
+  //         (!subscription.filters.types ||
+  //           subscription.filters.types.includes(newPacket.packet.type)) &&
+  //         (!subscription.filters.inferenceId ||
+  //           subscription.filters.inferenceId ===
+  //             (newPacket.packet as any).inferenceId) &&
+  //         // TODO: Find a better way to do this and segregate packets, don't love losing type safety
+  //         (!subscription.filters.requestId ||
+  //           subscription.filters.requestId ===
+  //             (newPacket.packet as any).requestId) &&
+  //         (!subscription.filters.receivedTimeAfter ||
+  //           newPacket.receivedTime! > subscription.filters.receivedTimeAfter) &&
+  //         (!subscription.filters.receivedTimeBefore ||
+  //           newPacket.receivedTime! < subscription.filters.receivedTimeBefore)
+  //       ) {
+  //         logger.debug("Notifying subscription", subscription);
+  //         subscription.callback(newPacket);
+  //       }
+  //     } catch (err) {
+  //       logger.error("Error notifying subscription", err);
+  //     }
+  //   }
+  // }
+
+  // subscribeToNewPackets(
+  //   filters: PacketSelector,
+  //   callback: PacketSubscriber
+  // ): () => void {
+  //   const subscription = { filters, callback };
+  //   this.newPacketSubscriptions.push(subscription);
+
+  //   return () => {
+  //     const index = this.newPacketSubscriptions.indexOf(subscription);
+  //     if (index !== -1) {
+  //       this.newPacketSubscriptions.splice(index, 1);
+  //     }
+  //   };
+  // }
+
+  async emitNewPacketEvents(packet: ReceivedPeerPacket) {
+    if (packet.packet.type === "p2pInferenceRequest") {
+      this.emit(
+        "newP2PInferenceRequest",
+        packet.packet as P2PInferenceRequestPacket
       );
     }
 
-    for (const subscription of this.newPacketSubscriptions) {
-      logger.debug("Checking subscription", subscription, newPacket);
-      try {
-        if (
-          (!subscription.filters.synthientId ||
-            subscription.filters.synthientId === newPacket.synthientId) &&
-          (!subscription.filters.signature ||
-            subscription.filters.signature === newPacket.signature) &&
-          (!subscription.filters.types ||
-            subscription.filters.types.includes(newPacket.packet.type)) &&
-          (!subscription.filters.inferenceId ||
-            subscription.filters.inferenceId ===
-              (newPacket.packet as any).inferenceId) &&
-          // TODO: Find a better way to do this and segregate packets, don't love losing type safety
-          (!subscription.filters.requestId ||
-            subscription.filters.requestId ===
-              (newPacket.packet as any).requestId) &&
-          (!subscription.filters.receivedTimeAfter ||
-            newPacket.receivedTime! > subscription.filters.receivedTimeAfter) &&
-          (!subscription.filters.receivedTimeBefore ||
-            newPacket.receivedTime! < subscription.filters.receivedTimeBefore)
-        ) {
-          logger.debug("Notifying subscription", subscription);
-          subscription.callback(newPacket);
+    if (packet.packet.type === "inferenceCommit") {
+      this.emit(
+        "newInferenceCommit",
+        packet as Omit<ReceivedPeerPacket, "packet"> & {
+          packet: InferenceCommit;
         }
-      } catch (err) {
-        logger.error("Error notifying subscription", err);
-      }
+      );
     }
-  }
-
-  subscribeToNewPackets(
-    filters: PacketSelector,
-    callback: PacketSubscriber
-  ): () => void {
-    const subscription = { filters, callback };
-    this.newPacketSubscriptions.push(subscription);
-
-    return () => {
-      const index = this.newPacketSubscriptions.indexOf(subscription);
-      if (index !== -1) {
-        this.newPacketSubscriptions.splice(index, 1);
-      }
-    };
   }
 
   async transmitPacket(packet: PeerPacket): Promise<void> {
@@ -164,11 +185,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     // Send the packet over the P2P network
     await this.sendPacketOverP2P(transmittedPacket);
 
-    // TODO: this is super ugly, need to streamline
-    if (packet.type === "p2pInferenceRequest") {
-      logger.debug("Ugly but emitting newP2PInferenceRequest");
-      this.emit("newP2PInferenceRequest", packet as P2PInferenceRequestPacket);
-    }
+    this.emitNewPacketEvents(transmittedPacket);
   }
 
   // Expensive, primarily for testing, if you're calling this otherwise please rethink your life choices
@@ -236,8 +253,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     if (receivedPacket.receivedTime || new Date())
       this.peerDB.processPacket(receivedPacket);
 
-    // Notify subscriptions
-    this.notifySubscriptions(receivedPacket);
+    this.emitNewPacketEvents(receivedPacket);
 
     return true;
   }

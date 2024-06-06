@@ -178,14 +178,14 @@ export const RequestIdPacketTypes = [
   "inferenceQuorumComputed",
 ] as const;
 
-type InferenceCommit = PeerPacketAttributes & {
+export type InferenceCommit = PeerPacketAttributes & {
   type: "inferenceCommit";
   bEmbeddingHash: string;
   requestId: string;
   inferenceId: string;
 };
 
-type InferenceRevealRequest = PeerPacketAttributes & {
+export type InferenceRevealRequest = PeerPacketAttributes & {
   type: "inferenceRevealRequest";
   // Request to reveal inferences within this fixed quorum
   requestId: string;
@@ -196,7 +196,7 @@ type InferenceRevealRequest = PeerPacketAttributes & {
   timeoutMs: number; // Time that this reveal request is valid to submit responses to
 };
 
-type InferenceReveal = PeerPacketAttributes & {
+export type InferenceReveal = PeerPacketAttributes & {
   type: "inferenceReveal";
   requestId: string;
   inferenceId: string;
@@ -205,7 +205,7 @@ type InferenceReveal = PeerPacketAttributes & {
   bEmbedding: number[];
 };
 
-type InferenceRevealRejected = PeerPacketAttributes & {
+export type InferenceRevealRejected = PeerPacketAttributes & {
   type: "inferenceRevealRejected";
   requestId: string;
   inferenceId: string;
@@ -223,7 +223,7 @@ type InferenceRevealRejected = PeerPacketAttributes & {
       };
 };
 
-type InferenceQuorumComputed = PeerPacketAttributes & {
+export type InferenceQuorumComputed = PeerPacketAttributes & {
   type: "inferenceQuorumComputed";
   requestId: string;
   submittedInferences: {

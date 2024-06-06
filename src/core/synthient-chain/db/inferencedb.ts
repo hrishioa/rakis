@@ -1,10 +1,12 @@
 import Dexie, { type DexieOptions } from "dexie";
 import { SupportedChains } from "./entities";
 import {
+  InferenceCommit,
   InferenceEmbedding,
   InferenceRequest,
   InferenceResult,
   InferenceSuccessResult,
+  ReceivedPeerPacket,
   UnprocessedInferenceRequest,
 } from "./packet-types";
 import { sha256 } from "@noble/hashes/sha256";
@@ -13,6 +15,7 @@ import { LLMModelName } from "../../llm/types";
 import { generateRandomString } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { createLogger, logStyles } from "../utils/logger";
+import { QuorumDB } from "./quorumdb";
 
 const logger = createLogger("InferenceDB", logStyles.databases.inferenceDB);
 
@@ -72,6 +75,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   private inferenceRequestDb: InferenceRequestDatabase;
   private inferenceResultDb: InferenceResultDatabase;
   private inferenceEmbeddingDb: InferenceEmbeddingDatabase;
+  private quorumDb: QuorumDB;
   // This should ideally be part of the db or a live query once the network is larger, has a chance of becoming problematic
   public activeInferenceRequests: InferenceRequest[] = [];
   private cleanupTimeout: NodeJS.Timeout | null = null;
@@ -81,6 +85,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     this.inferenceRequestDb = new InferenceRequestDatabase(dbOptions);
     this.inferenceResultDb = new InferenceResultDatabase(dbOptions);
     this.inferenceEmbeddingDb = new InferenceEmbeddingDatabase(dbOptions);
+    this.quorumDb = new QuorumDB();
   }
 
   private refreshCleanupTimeout() {
@@ -188,6 +193,25 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
         );
       }
     }
+  }
+
+  async saveInferenceCommit(
+    packet: Omit<ReceivedPeerPacket, "packet"> & { packet: InferenceCommit }
+  ) {
+    const matchingInferenceRequest =
+      await this.inferenceRequestDb.inferenceRequests.get(
+        packet.packet.requestId
+      );
+
+    if (!matchingInferenceRequest) {
+      logger.error("No matching inference request for commit ", packet);
+      return;
+    }
+
+    await this.quorumDb.processInferenceCommit(
+      packet,
+      matchingInferenceRequest
+    );
   }
 
   async saveInferenceRequest(

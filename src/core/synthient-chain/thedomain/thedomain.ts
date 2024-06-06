@@ -71,11 +71,21 @@ export class TheDomain {
     // data flow
     this.packetDB.on("newP2PInferenceRequest", (packet) => {
       logger.debug("Saving p2p inference request to our db");
-      this.inferenceDB.saveInferenceRequest({
-        fetchedAt: new Date(),
-        requestId: packet.requestId,
-        payload: packet.payload,
-      });
+      setTimeout(
+        () =>
+          this.inferenceDB.saveInferenceRequest({
+            fetchedAt: new Date(),
+            requestId: packet.requestId,
+            payload: packet.payload,
+          }),
+        0
+      );
+    });
+
+    // Hook us up to process to inference commits
+    this.packetDB.on("newInferenceCommit", (packet) => {
+      logger.debug("Processing new inference commit");
+      setTimeout(() => this.inferenceDB.saveInferenceCommit(packet), 0);
     });
 
     // ############# Set up event-based connections
@@ -216,7 +226,7 @@ export class TheDomain {
     const runId = generateRandomString(3);
 
     logger.debug(
-      "DOMAIN: InferenceResultQueue: ",
+      "InferenceResultQueue: ",
       runId,
       ": Starting embedding process."
     );
@@ -224,7 +234,7 @@ export class TheDomain {
     const availableModels = this.embeddingEngine.getAvailableModels();
 
     logger.debug(
-      "DOMAIN: InferenceResultQueue: ",
+      "InferenceResultQueue: ",
       runId,
       ": Available models - ",
       availableModels
@@ -238,7 +248,7 @@ export class TheDomain {
       );
 
     logger.debug(
-      "DOMAIN: InferenceResultQueue: ",
+      "InferenceResultQueue: ",
       runId,
       ": Sorted embedding queue - ",
       this.inferenceStatus.embeddingQueue
@@ -253,7 +263,7 @@ export class TheDomain {
     );
 
     logger.debug(
-      "DOMAIN: InferenceResultQueue: ",
+      "InferenceResultQueue: ",
       runId,
       ": Valid inference results - ",
       validInferenceResults
@@ -268,7 +278,7 @@ export class TheDomain {
     );
 
     logger.debug(
-      "DOMAIN: InferenceResultQueue: ",
+      "InferenceResultQueue: ",
       runId,
       ": Usable models - ",
       usableModels
@@ -281,7 +291,7 @@ export class TheDomain {
     );
 
     logger.debug(
-      "DOMAIN: InferenceResultQueue: ",
+      "InferenceResultQueue: ",
       runId,
       ": Available workers - ",
       availableWorkers
@@ -306,7 +316,7 @@ export class TheDomain {
       // as a batch will influence the embeddings
       // TODO: For someone else to test
       logger.debug(
-        "DOMAIN: InferenceResultQueue: ",
+        "InferenceResultQueue: ",
         "Embedding ",
         validInferenceResults[i].result.result
       );
@@ -318,7 +328,7 @@ export class TheDomain {
         )
         .then((embeddingResults) => {
           logger.debug(
-            "DOMAIN: InferenceResultQueue: ",
+            "InferenceResultQueue: ",
             "Embedded ",
             validInferenceResults[i].result.result.result,
             " - ",
@@ -380,7 +390,7 @@ export class TheDomain {
       );
 
     logger.debug(
-      "DOMAIN: Request Inference Queue: ",
+      "Request Inference Queue: ",
       cycleId,
       ": Found ",
       availableInferenceRequests.length,
@@ -396,7 +406,7 @@ export class TheDomain {
     );
 
     logger.debug(
-      "DOMAIN: Request Inference Queue: ",
+      "Request Inference Queue: ",
       cycleId,
       ": Models needed - ",
       neededModels
@@ -417,7 +427,7 @@ export class TheDomain {
     );
 
     logger.debug(
-      "DOMAIN: Request Inference Queue: ",
+      "Request Inference Queue: ",
       cycleId,
       ": Possible inferences - ",
       possibleInferences
@@ -433,7 +443,7 @@ export class TheDomain {
     })[0];
 
     logger.debug(
-      "DOMAIN: Request Inference Queue: ",
+      "Request Inference Queue: ",
       cycleId,
       ": Selected inference - ",
       selectedInference.requestId
@@ -459,7 +469,7 @@ export class TheDomain {
       })
       .then((response) => {
         logger.debug(
-          "DOMAIN: Request Inference Queue: ",
+          "Request Inference Queue: ",
           cycleId,
           ": Inference completed for ",
           selectedInference.requestId,
@@ -519,7 +529,7 @@ export class TheDomain {
       });
 
     logger.debug(
-      "DOMAIN: Request Inference Queue: ",
+      "Request Inference Queue: ",
       "looking for next inference, waiting a tick."
     );
     setTimeout(() => this.processInferenceRequestQueue(), 0);
