@@ -36,7 +36,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     if (!entry.at) entry.at = new Date();
     const logLength = this.engineLog.length;
 
-    console.log("Engine event ", logLength, " - ", entry);
+    console.log("LLM Engine: ", "Engine event ", logLength, " - ", entry);
 
     this.engineLog.push(entry);
     return logLength;
@@ -131,6 +131,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
 
     if (this.llmWorkers[workerId].modelLoadingPromise) {
       console.log(
+        "LLM Engine: ",
         `Tried to create worker ${workerId}, but creation is already done or in progress`
       );
       return await this.llmWorkers[workerId]!.modelLoadingPromise!.promise;
@@ -156,6 +157,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
           {
             initProgressCallback: (report: webllm.InitProgressReport) => {
               console.log(
+                "LLM Engine: ",
                 `Worker ${workerId}: Loading ${modelName} progress - `,
                 report
               );
@@ -433,6 +435,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
 
       if (numberOfExistingWorkers < count) {
         console.log(
+          "LLM Engine: ",
           "Scaling up number of llm workers for ",
           modelName,
           " to ",
@@ -447,6 +450,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         // TODO: Process errors
       } else {
         console.log(
+          "LLM Engine: ",
           "Scaling down number of llm workers for ",
           modelName,
           " to ",

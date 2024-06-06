@@ -67,7 +67,7 @@ export class TheDomain {
     // TODO: This should be depreated later so we don't have a cycle in our
     // data flow
     this.packetDB.on("newP2PInferenceRequest", (packet) => {
-      console.log("Saving p2p inference request to our db");
+      console.log("DOMAIN: ", "Saving p2p inference request to our db");
       this.inferenceDB.saveInferenceRequest({
         fetchedAt: new Date(),
         requestId: packet.requestId,
@@ -81,7 +81,7 @@ export class TheDomain {
     this.inferenceDB.on(
       "inferenceResultAwaitingEmbedding",
       (request, result) => {
-        console.log("New inference awaiting embedding");
+        console.log("DOMAIN: ", "New inference awaiting embedding");
         this.inferenceStatus.embeddingQueue.push({
           request,
           result,
@@ -93,13 +93,13 @@ export class TheDomain {
 
     // If embedding workers are free, check for new jobs
     this.embeddingEngine.on("workerFree", () => {
-      console.log("Worker free, checking for jobs");
+      console.log("DOMAIN: ", "Worker free, checking for jobs");
       setTimeout(() => this.processInferenceResultQueue(), 0);
     });
 
     // If embeddings are done, send out the commit message
     this.inferenceDB.on("newInferenceEmbedding", (inferenceEmbedding) => {
-      console.log("New inference embedding, committing to result");
+      console.log("DOMAIN: ", "New inference embedding, committing to result");
       this.packetDB.transmitPacket({
         type: "inferenceCommit",
         bEmbeddingHash: inferenceEmbedding.bEmbeddingHash,
@@ -111,13 +111,16 @@ export class TheDomain {
 
     // If llm workers are free, check for new jobs
     this.llmEngine.on("workerFree", () => {
-      console.log("Worker free, checking for jobs");
+      console.log("DOMAIN: ", "Worker free, checking for jobs");
       setTimeout(() => this.processInferenceRequestQueue(), 0);
     });
 
     // If new inference requests come in, start the inference loop
     this.inferenceDB.on("newActiveInferenceRequest", (request) => {
-      console.log("New active inference request, starting inference loop.");
+      console.log(
+        "DOMAIN: ",
+        "New active inference request, starting inference loop."
+      );
       setTimeout(() => this.processInferenceRequestQueue(), 0);
     });
   }
@@ -137,15 +140,15 @@ export class TheDomain {
     this.packetDB = new PacketDB(clientInfo, broadcastPacket);
     this.inferenceDB = new InferenceDB();
 
-    console.log("Databases created.");
+    console.log("DOMAIN: ", "Databases created.");
 
     this.embeddingEngine = new EmbeddingEngine();
     this.llmEngine = new LLMEngine();
 
-    console.log("Setting up connections...");
+    console.log("DOMAIN: ", "Setting up connections...");
     this.hookupConnections();
 
-    console.log("Starting workers...");
+    console.log("DOMAIN: ", "Starting workers...");
 
     const workerStartPromises: Promise<any>[] = [];
     for (const worker of initialEmbeddingWorkers) {
@@ -205,18 +208,27 @@ export class TheDomain {
         llmEngine: this.llmEngine,
       };
 
-      console.log("Inference request function exposed.");
+      console.log("DOMAIN: ", "Inference request function exposed.");
     }
   }
 
   private processInferenceResultQueue() {
     const runId = generateRandomString(3);
 
-    console.log(runId, ": Starting embedding process.");
+    console.log(
+      "DOMAIN: InferenceResultQueue: ",
+      runId,
+      ": Starting embedding process."
+    );
 
     const availableModels = this.embeddingEngine.getAvailableModels();
 
-    console.log(runId, ": Available models - ", availableModels);
+    console.log(
+      "DOMAIN: InferenceResultQueue: ",
+      runId,
+      ": Available models - ",
+      availableModels
+    );
 
     // Put the soonest ending ones first, let's try and race
     this.inferenceStatus.embeddingQueue = this.inferenceStatus.embeddingQueue
@@ -226,6 +238,7 @@ export class TheDomain {
       );
 
     console.log(
+      "DOMAIN: InferenceResultQueue: ",
       runId,
       ": Sorted embedding queue - ",
       this.inferenceStatus.embeddingQueue
@@ -239,7 +252,12 @@ export class TheDomain {
         )
     );
 
-    console.log(runId, ": Valid inference results - ", validInferenceResults);
+    console.log(
+      "DOMAIN: InferenceResultQueue: ",
+      runId,
+      ": Valid inference results - ",
+      validInferenceResults
+    );
 
     const usableModels = Array.from(
       new Set(
@@ -249,7 +267,12 @@ export class TheDomain {
       )
     );
 
-    console.log(runId, ": Usable models - ", usableModels);
+    console.log(
+      "DOMAIN: InferenceResultQueue: ",
+      runId,
+      ": Usable models - ",
+      usableModels
+    );
 
     const availableWorkers = Object.values(
       this.embeddingEngine.embeddingWorkers
@@ -257,7 +280,12 @@ export class TheDomain {
       (worker) => !worker.busy && usableModels.includes(worker.modelName)
     );
 
-    console.log(runId, ": Available workers - ", availableWorkers);
+    console.log(
+      "DOMAIN: InferenceResultQueue: ",
+      runId,
+      ": Available workers - ",
+      availableWorkers
+    );
 
     if (availableWorkers.length && validInferenceResults.length)
       this.packetDB.transmitPacket({
@@ -277,7 +305,11 @@ export class TheDomain {
       // We're doing these one by one for now since we're not sure if running them
       // as a batch will influence the embeddings
       // TODO: For someone else to test
-      console.log("Embedding ", validInferenceResults[i].result.result);
+      console.log(
+        "DOMAIN: InferenceResultQueue: ",
+        "Embedding ",
+        validInferenceResults[i].result.result
+      );
 
       this.embeddingEngine
         .embedText(
@@ -286,6 +318,7 @@ export class TheDomain {
         )
         .then((embeddingResults) => {
           console.log(
+            "DOMAIN: InferenceResultQueue: ",
             "Embedded ",
             validInferenceResults[i].result.result.result,
             " - ",
@@ -347,6 +380,7 @@ export class TheDomain {
       );
 
     console.log(
+      "DOMAIN: Request Inference Queue: ",
       cycleId,
       ": Found ",
       availableInferenceRequests.length,
@@ -361,7 +395,12 @@ export class TheDomain {
       )
     );
 
-    console.log(cycleId, ": Models needed - ", neededModels);
+    console.log(
+      "DOMAIN: Request Inference Queue: ",
+      cycleId,
+      ": Models needed - ",
+      neededModels
+    );
 
     const llmWorkerAvailability =
       this.llmEngine.getWorkerAvailability(neededModels);
@@ -377,7 +416,12 @@ export class TheDomain {
         )
     );
 
-    console.log(cycleId, ": Possible inferences - ", possibleInferences);
+    console.log(
+      "DOMAIN: Request Inference Queue: ",
+      cycleId,
+      ": Possible inferences - ",
+      possibleInferences
+    );
 
     if (!possibleInferences.length) {
       console.log(cycleId, ": No possible inferences, going back to sleep.");
@@ -389,6 +433,7 @@ export class TheDomain {
     })[0];
 
     console.log(
+      "DOMAIN: Request Inference Queue: ",
       cycleId,
       ": Selected inference - ",
       selectedInference.requestId
@@ -414,6 +459,7 @@ export class TheDomain {
       })
       .then((response) => {
         console.log(
+          "DOMAIN: Request Inference Queue: ",
           cycleId,
           ": Inference completed for ",
           selectedInference.requestId,
@@ -472,7 +518,10 @@ export class TheDomain {
         });
       });
 
-    console.log("looking for next inference, waiting a tick.");
+    console.log(
+      "DOMAIN: Request Inference Queue: ",
+      "looking for next inference, waiting a tick."
+    );
     setTimeout(() => this.processInferenceRequestQueue(), 0);
   }, THEDOMAIN_SETTINGS.inferenceRequestQueueDebounceMs);
 
@@ -494,7 +543,7 @@ export class TheDomain {
   }: DomainStartOptions) {
     if (TheDomain.instance) return TheDomain.instance;
 
-    console.log("Booting up the the domain...");
+    console.log("DOMAIN: ", "Booting up the the domain...");
 
     // Initialize client info
     // TODO: We probably want things to emit events we can save to the logs
@@ -503,7 +552,7 @@ export class TheDomain {
       overwriteIdentity
     );
 
-    console.log("Identity retrieved/created successfully.");
+    console.log("DOMAIN: ", "Identity retrieved/created successfully.");
 
     const p2pNetworkInstances: P2PNetworkInstance<any, any>[] =
       THEDOMAIN_SETTINGS.enabledP2PNetworks.map((network) =>
@@ -513,7 +562,7 @@ export class TheDomain {
         )
       );
 
-    console.log("Initialized p2p networks, waiting for bootup...");
+    console.log("DOMAIN: ", "Initialized p2p networks, waiting for bootup...");
 
     const workingP2PNetworkInstances =
       await P2PNetworkFactory.initializeP2PNetworks(
@@ -521,7 +570,7 @@ export class TheDomain {
         THEDOMAIN_SETTINGS.waitForP2PBootupMs
       );
 
-    console.log("Connecting up working networks.");
+    console.log("DOMAIN: ", "Connecting up working networks.");
 
     this.instance = new TheDomain(
       clientInfo,

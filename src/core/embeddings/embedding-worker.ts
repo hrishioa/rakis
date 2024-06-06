@@ -30,8 +30,6 @@ async function loadEmbeddingWorker(
 ) {
   try {
     if (!workerInstance) {
-      console.log("Creating new embedding worker");
-
       workerInstance = {
         workerId,
         modelName,
@@ -101,6 +99,7 @@ async function embedText(
 
   try {
     console.log(
+      "Embedding Worker: ",
       `Worker ${workerInstance.workerId} is embedding ${batchId}: `,
       JSON.stringify(texts)
     );

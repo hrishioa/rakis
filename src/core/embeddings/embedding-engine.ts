@@ -57,7 +57,13 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     if (!entry.at) entry.at = new Date();
     const logLength = this.embeddingEngineLog.length;
 
-    console.log("Embedding engine event ", logLength, " - ", entry);
+    console.log(
+      "Embedding Engine: ",
+      "Embedding engine event ",
+      logLength,
+      " - ",
+      entry
+    );
 
     this.embeddingEngineLog.push(entry);
     return logLength;
@@ -75,6 +81,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
 
     if (numberOfExistingWorkers < count) {
       console.log(
+        "Embedding Engine: ",
         "Scaling up number of embedding workers for ",
         modelName,
         " to ",
@@ -86,6 +93,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       }
     } else {
       console.log(
+        "Embedding Engine: ",
         "Scaling down number of embedding workers for ",
         modelName,
         " to ",
@@ -116,7 +124,12 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       return;
     }
 
-    console.log("Trying to create new embedding worker", modelName, workerId);
+    console.log(
+      "Embedding Engine: ",
+      "Trying to create new embedding worker",
+      modelName,
+      workerId
+    );
 
     const worker = new Worker(new URL("./embedding-worker", import.meta.url));
 
@@ -232,6 +245,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       this.queuesRunning++;
 
       console.log(
+        "Embedding Engine: ",
         "Trying to run a job from the queue, queue length is",
         this.embeddingJobQueue.length,
         "jobs, with ",
@@ -244,7 +258,10 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       );
 
       if (unassignedJobs.length === 0) {
-        console.log("No jobs left, queue is going to sleep");
+        console.log(
+          "Embedding Engine: ",
+          "No jobs left, queue is going to sleep"
+        );
         this.queuesRunning--;
         return;
       }
@@ -264,6 +281,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
         selectedJob.completionPromise.resolve(false);
       } else {
         console.log(
+          "Embedding Engine: ",
           `${matchingWorkerIds.length} workers available for embedding ${selectedJob.params.texts}`
         );
 
@@ -279,7 +297,10 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
         if (freeWorkers.length === 0) {
           unassignedJobs.unshift(selectedJob);
 
-          console.log("No free workers available, wait to be called on idle");
+          console.log(
+            "Embedding Engine: ",
+            "No free workers available, wait to be called on idle"
+          );
           this.queuesRunning--;
           return;
         }
@@ -301,6 +322,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
         });
 
         console.log(
+          "Embedding Engine: ",
           `Embedding ${selectedJob.batchId}`,
           selectedJob.params.texts.length,
           " texts with ",
