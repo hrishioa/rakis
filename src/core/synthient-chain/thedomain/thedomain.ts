@@ -8,7 +8,13 @@ import {
   SupportedP2PDeliveryNetwork,
 } from "../db/entities";
 import { InferenceDB } from "../db/inferencedb";
-import { InferenceRequest, TransmittedPeerPacket } from "../db/packet-types";
+import {
+  InferenceEmbedding,
+  InferenceRequest,
+  InferenceResult,
+  InferenceSuccessResult,
+  TransmittedPeerPacket,
+} from "../db/packet-types";
 import { PacketDB } from "../db/packetdb";
 import { PeerDB } from "../db/peerdb";
 import { ClientInfo, initClientInfo } from "../identity";
@@ -49,13 +55,17 @@ export class TheDomain {
     inferenceIdsInProcess: string[];
     inferenceCompletionInterval: NodeJS.Timeout | null;
     waitingForWorker: boolean;
+    embeddingQueue: {
+      request: InferenceRequest;
+      result: InferenceSuccessResult;
+      queued: boolean;
+    }[];
   } = {
     inferenceIdsInProcess: [],
     inferenceCompletionInterval: null,
     waitingForWorker: false,
+    embeddingQueue: [],
   };
-  // private inferenceIdsInProcess: string[] = [];
-  // private inferenceCompletionInterval: NodeJS.Timeout | null = null;
   private inferenceRequestSubscription: null | (() => void) = null;
 
   private constructor(
@@ -64,15 +74,47 @@ export class TheDomain {
     initialEmbeddingWorkers: { modelName: EmbeddingModelName; count: number }[],
     initialLLMWorkers: { modelName: LLMModelName; count: number }[]
   ) {
-    this.packetDB = new PacketDB(clientInfo, this.broadcastPacket);
+    const broadcastPacket = async (packet: TransmittedPeerPacket) => {
+      await Promise.all(
+        this.p2pNetworkInstances.map((p) => p.broadcastPacket(packet))
+      );
+    };
+
+    this.packetDB = new PacketDB(clientInfo, broadcastPacket);
     this.peerDB = new PeerDB();
     this.inferenceDB = new InferenceDB();
+
+    this.inferenceDB.on(
+      "inferenceResultAwaitingEmbedding",
+      (request, result) => {
+        console.log("New inference awaiting embedding");
+        this.inferenceStatus.embeddingQueue.push({
+          request,
+          result,
+          queued: false,
+        });
+        setTimeout(() => this.processInferenceEmbeddings(), 0);
+      }
+    );
+
+    this.inferenceDB.on("newInferenceEmbedding", (embedding) => {
+      console.log("New inference embedding, committing to result");
+      this.onInferenceEmbedding(embedding);
+    });
 
     console.log("Databases created.");
     this.connectP2PToPacketDB();
     this.connectPacketDBToPeerDB();
+    // TODO: Again, might be deprecated later
+    this.connectPacketDBToInferenceDB();
 
     this.embeddingEngine = new EmbeddingEngine();
+
+    this.embeddingEngine.on("workerFree", () => {
+      console.log("Worker free, checking for jobs");
+      setTimeout(() => this.processInferenceEmbeddings(), 0);
+    });
+
     this.llmEngine = new LLMEngine();
     this.llmEngine.on("workerFree", () => {
       console.log("Worker free, checking for jobs");
@@ -95,20 +137,28 @@ export class TheDomain {
 
     this.updateInferenceSubscription();
 
+    this.packetDB.transmitPacket({
+      type: "peerStatusUpdate",
+      status: "boot",
+      createdAt: stringifyDateWithOffset(new Date()),
+    });
+
     // Await the promise if we want to block, but we're fine without I think
 
     if (typeof window !== "undefined") {
       (window as any).theDomain = {
-        logInference: (
+        runInference: (
           prompt: string,
           model: LLMModelName,
           maxTimeMs: number
         ) => {
-          this.inferenceDB.saveInferenceRequest({
+          this.packetDB.transmitPacket({
+            type: "p2pInferenceRequest",
+            requestId: generateRandomString(10),
             payload: {
-              fromChain: "eth",
+              fromChain: "ecumene",
               blockNumber: 0,
-              createdAt: new Date(),
+              createdAt: stringifyDateWithOffset(new Date()),
               prompt,
               acceptedModels: [model],
               temperature: 1,
@@ -118,9 +168,10 @@ export class TheDomain {
                 maxTimeMs,
                 secDistance: 0.9,
                 secPercentage: 0.5,
+                embeddingModel: "nomic-ai/nomic-embed-text-v1.5",
               },
             },
-            fetchedAt: new Date(),
+            createdAt: stringifyDateWithOffset(new Date()),
           });
         },
         updateLLMWorkers: (modelName: LLMModelName, count: number) => {
@@ -133,6 +184,16 @@ export class TheDomain {
     }
   }
 
+  private onInferenceEmbedding(inferenceEmbedding: InferenceEmbedding) {
+    this.packetDB.transmitPacket({
+      type: "inferenceCommit",
+      bEmbeddingHash: inferenceEmbedding.bEmbeddingHash,
+      requestId: inferenceEmbedding.requestId,
+      inferenceId: inferenceEmbedding.inferenceId,
+      createdAt: stringifyDateWithOffset(new Date()),
+    });
+  }
+
   private updateInferenceSubscription() {
     if (this.inferenceRequestSubscription) {
       this.inferenceRequestSubscription();
@@ -140,7 +201,7 @@ export class TheDomain {
 
     this.inferenceRequestSubscription = this.inferenceDB.subscribeToInferences(
       {
-        endingAfter: new Date(),
+        active: true,
         models: Array.from(
           new Set(
             Object.values(this.llmEngine.llmWorkers).map(
@@ -156,7 +217,132 @@ export class TheDomain {
     );
   }
 
-  processInferenceRequests() {
+  private processInferenceEmbeddings() {
+    const runId = generateRandomString(3);
+
+    console.log(runId, ": Starting embedding process.");
+
+    const availableModels = this.embeddingEngine.getAvailableModels();
+
+    console.log(runId, ": Available models - ", availableModels);
+
+    // Put the soonest ending ones first, let's try and race
+    this.inferenceStatus.embeddingQueue = this.inferenceStatus.embeddingQueue
+      .filter((item) => item.request.endingAt > new Date())
+      .sort(
+        (a, b) => a.request.endingAt.getTime() - b.request.endingAt.getTime()
+      );
+
+    console.log(
+      runId,
+      ": Sorted embedding queue - ",
+      this.inferenceStatus.embeddingQueue
+    );
+
+    const validInferenceResults = this.inferenceStatus.embeddingQueue.filter(
+      (item) =>
+        !item.queued &&
+        availableModels.includes(
+          item.request.payload.securityFrame.embeddingModel
+        )
+    );
+
+    console.log(runId, ": Valid inference results - ", validInferenceResults);
+
+    const usableModels = Array.from(
+      new Set(
+        validInferenceResults.map(
+          (item) => item.request.payload.securityFrame.embeddingModel
+        )
+      )
+    );
+
+    console.log(runId, ": Usable models - ", usableModels);
+
+    const availableWorkers = Object.values(
+      this.embeddingEngine.embeddingWorkers
+    ).filter(
+      (worker) => !worker.busy && usableModels.includes(worker.modelName)
+    );
+
+    console.log(runId, ": Available workers - ", availableWorkers);
+
+    if (availableWorkers.length && validInferenceResults.length)
+      this.packetDB.transmitPacket({
+        type: "peerStatusUpdate",
+        status: "computing_bEmbeddingHash",
+        embeddingModels: usableModels,
+        createdAt: stringifyDateWithOffset(new Date()),
+      });
+
+    for (
+      let i = 0;
+      i < Math.min(availableWorkers.length, validInferenceResults.length);
+      i++
+    ) {
+      validInferenceResults[i].queued = true;
+
+      // We're doing these one by one for now since we're not sure if running them
+      // as a batch will influence the embeddings
+      // TODO: For someone else to test
+      console.log("Embedding ", validInferenceResults[i].result.result);
+
+      this.embeddingEngine
+        .embedText(
+          [validInferenceResults[i].result.result.result],
+          validInferenceResults[i].request.payload.securityFrame.embeddingModel
+        )
+        .then((embeddingResults) => {
+          console.log(
+            "Embedded ",
+            validInferenceResults[i].result.result.result,
+            " - ",
+            embeddingResults
+          );
+
+          this.inferenceStatus.embeddingQueue =
+            this.inferenceStatus.embeddingQueue.filter(
+              (item) => item !== validInferenceResults[i]
+            );
+
+          if (embeddingResults && embeddingResults.length) {
+            const embeddingResult = embeddingResults[0];
+            this.inferenceDB.saveInferenceEmbedding(
+              validInferenceResults[i].result,
+              {
+                inferenceId: validInferenceResults[i].result.inferenceId,
+                requestId: validInferenceResults[i].result.requestId,
+                embedding: embeddingResult.embedding,
+                bEmbedding: embeddingResult.binaryEmbedding,
+                bEmbeddingHash: embeddingResult.bEmbeddingHash,
+              }
+            );
+          } else {
+            // TODO: Log an error?
+            console.error(
+              "Could not inference ",
+              validInferenceResults[i].result.result.result,
+              " for unknown reason to caller"
+            );
+          }
+        })
+        .catch((err) => {
+          this.inferenceStatus.embeddingQueue =
+            this.inferenceStatus.embeddingQueue.filter(
+              (item) => item !== validInferenceResults[i]
+            );
+
+          console.error(
+            "Error embedding ",
+            validInferenceResults[i].result.result.result,
+            " - ",
+            err
+          );
+        });
+    }
+  }
+
+  private processInferenceRequests() {
     const cycleId = generateRandomString(3);
 
     const availableInferenceRequests =
@@ -193,7 +379,9 @@ export class TheDomain {
     const possibleInferences = availableInferenceRequests.filter(
       (inferenceRequest) =>
         inferenceRequest.payload.acceptedModels.some(
-          (model) => llmWorkerAvailability[model].free > 0
+          (model) =>
+            llmWorkerAvailability[model] &&
+            llmWorkerAvailability[model].free > 0
         )
     );
 
@@ -220,6 +408,13 @@ export class TheDomain {
 
     const inferenceStartedAt = new Date();
 
+    this.packetDB.transmitPacket({
+      type: "peerStatusUpdate",
+      status: "inferencing",
+      modelName: selectedInference.payload.acceptedModels[0],
+      createdAt: stringifyDateWithOffset(new Date()),
+    });
+
     this.llmEngine
       .runInferenceNonStreaming({
         modelName: selectedInference.payload.acceptedModels[0],
@@ -233,6 +428,26 @@ export class TheDomain {
           " - ",
           response
         );
+
+        const inferenceEndedAt = new Date();
+
+        if (response.success) {
+          const inferenceSeconds =
+            inferenceEndedAt.getTime() / 1000 -
+            inferenceStartedAt.getTime() / 1000;
+          const tps =
+            response.tokenCount && inferenceSeconds
+              ? response.tokenCount / inferenceSeconds
+              : 0;
+
+          this.packetDB.transmitPacket({
+            type: "peerStatusUpdate",
+            status: "completed_inference",
+            modelName: selectedInference.payload.acceptedModels[0],
+            tps,
+            createdAt: stringifyDateWithOffset(new Date()),
+          });
+        }
 
         return this.inferenceDB.saveInferenceResult({
           requestId: selectedInference.requestId,
@@ -273,7 +488,7 @@ export class TheDomain {
   // 1. Register error handlers for the p2p networks, and restart them (some finite number of times) if they error out
   // 2. Expose a packet subscriber to the outside in case someone wants to listen in
 
-  async updateEmbeddingWorkers(
+  private async updateEmbeddingWorkers(
     modelName: EmbeddingModelName,
     count: number,
     abruptKill: boolean = false
@@ -294,6 +509,13 @@ export class TheDomain {
       for (let i = 0; i < count - numberOfExistingWorkers; i++) {
         const workerId = `embedding-${modelName}-${generateRandomString()}`;
         this.embeddingEngine.addEmbeddingWorker(modelName, workerId);
+        this.packetDB.transmitPacket({
+          type: "peerStatusUpdate",
+          createdAt: stringifyDateWithOffset(new Date()),
+          status: "loaded_worker",
+          modelName,
+          workerId,
+        });
       }
     } else {
       console.log(
@@ -390,6 +612,21 @@ export class TheDomain {
     this.updateInferenceSubscription();
   }
 
+  private connectPacketDBToInferenceDB() {
+    this.packetDB.off("newP2PInferenceRequest");
+
+    this.packetDB.on("newP2PInferenceRequest", (packet) => {
+      console.log("Saving p2p inference request to our db");
+      this.inferenceDB.saveInferenceRequest({
+        fetchedAt: new Date(),
+        requestId: packet.requestId,
+        payload: packet.payload,
+      });
+    });
+
+    console.log("Connected p2pinference requests from packetdb to inferencedb");
+  }
+
   private connectP2PToPacketDB() {
     for (const p2pNetwork of this.p2pNetworkInstances) {
       const listener = p2pNetwork.listenForPacket(async (packet) => {
@@ -412,12 +649,6 @@ export class TheDomain {
     );
 
     this.shutdownListeners.push(() => listener());
-  }
-
-  private async broadcastPacket(packet: TransmittedPeerPacket): Promise<void> {
-    await Promise.all(
-      this.p2pNetworkInstances.map((p) => p.broadcastPacket(packet))
-    );
   }
 
   async shutdownDomain() {

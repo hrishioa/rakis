@@ -1,14 +1,29 @@
 import Dexie, { type DexieOptions } from "dexie";
 import { SupportedChains } from "./entities";
 import {
+  InferenceEmbedding,
   InferenceRequest,
   InferenceResult,
+  InferenceResultAttributes,
+  InferenceSuccessResult,
   UnprocessedInferenceRequest,
 } from "./packet-types";
 import { sha256 } from "@noble/hashes/sha256";
 import * as ed from "@noble/ed25519";
 import { LLMModelName } from "../../llm/types";
 import { generateRandomString } from "../utils/utils";
+import EventEmitter from "eventemitter3";
+
+class InferenceEmbeddingDatabase extends Dexie {
+  inferenceEmbeddings!: Dexie.Table<InferenceEmbedding, string>;
+
+  constructor(options: DexieOptions = {}) {
+    super("InferenceEmbeddingDB", options);
+    this.version(1).stores({
+      inferenceEmbeddings: "inferenceId, requestId, bEmbeddingHash",
+    });
+  }
+}
 
 class InferenceRequestDatabase extends Dexie {
   inferenceRequests!: Dexie.Table<InferenceRequest, string>;
@@ -41,9 +56,18 @@ export type InferenceSelector = {
   active?: boolean; // Is this inference currently active, i.e are we before its endtime
 };
 
-export class InferenceDB {
+export type InferenceDBEvents = {
+  inferenceResultAwaitingEmbedding: (
+    request: InferenceRequest,
+    result: InferenceSuccessResult
+  ) => void;
+  newInferenceEmbedding: (embedding: InferenceEmbedding) => void;
+};
+
+export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   private inferenceRequestDb: InferenceRequestDatabase;
   private inferenceResultDb: InferenceResultDatabase;
+  private inferenceEmbeddingDb: InferenceEmbeddingDatabase;
   // This should ideally be part of the db or a live query once the network is larger, has a chance of becoming problematic
   public activeInferenceRequests: InferenceRequest[] = [];
   private cleanupTimeout: NodeJS.Timeout | null = null;
@@ -53,8 +77,10 @@ export class InferenceDB {
   }[] = [];
 
   constructor(dbOptions: DexieOptions = {}) {
+    super();
     this.inferenceRequestDb = new InferenceRequestDatabase(dbOptions);
     this.inferenceResultDb = new InferenceResultDatabase(dbOptions);
+    this.inferenceEmbeddingDb = new InferenceEmbeddingDatabase(dbOptions);
   }
 
   private refreshCleanupTimeout() {
@@ -110,12 +136,58 @@ export class InferenceDB {
     }
   }
 
+  async saveInferenceEmbedding(
+    inferenceResult: InferenceResult,
+    inferenceEmbedding: InferenceEmbedding
+  ) {
+    // Check for matching inferenceResults
+    const matchingResult = await this.inferenceResultDb.inferenceResults.get(
+      inferenceResult.inferenceId
+    );
+
+    if (!matchingResult)
+      throw new Error(
+        `No matching inference result for embedding - ${inferenceResult.inferenceId}`
+      );
+
+    // Check for matching inferenceEmbeddings
+    const existingEmbedding =
+      await this.inferenceEmbeddingDb.inferenceEmbeddings.get(
+        inferenceEmbedding.inferenceId
+      );
+
+    if (existingEmbedding) {
+      console.log("Embedding already exists. Skipping save.");
+      return;
+    }
+
+    await this.inferenceEmbeddingDb.inferenceEmbeddings.put(inferenceEmbedding);
+
+    this.emit("newInferenceEmbedding", inferenceEmbedding);
+  }
+
   async saveInferenceResult(inferenceResult: InferenceResult) {
     this.activeInferenceRequests = this.activeInferenceRequests.filter(
       (inference) => inference.requestId !== inferenceResult.requestId
     );
 
     await this.inferenceResultDb.inferenceResults.put(inferenceResult);
+
+    if (inferenceResult.result.success) {
+      // Get matching inferenceRequest and recheck
+      const matchingRequest =
+        await this.inferenceRequestDb.inferenceRequests.get(
+          inferenceResult.requestId
+        );
+
+      if (matchingRequest && matchingRequest.endingAt > new Date()) {
+        this.emit(
+          "inferenceResultAwaitingEmbedding",
+          matchingRequest,
+          inferenceResult as InferenceSuccessResult
+        );
+      }
+    }
   }
 
   subscribeToInferences(
@@ -139,6 +211,36 @@ export class InferenceDB {
       console.log("Checking subscription ", subscription.filter, newInferences);
 
       const matchingInferences = newInferences.filter((inference) => {
+        console.log("Checking inference request ", inference);
+        console.log(
+          "Matches requestId? ",
+          !subscription.filter.requestId ||
+            inference.requestId === subscription.filter.requestId
+        );
+        console.log(
+          "Matches fromChains? ",
+          !subscription.filter.fromChains ||
+            subscription.filter.fromChains.includes(inference.payload.fromChain)
+        );
+        console.log(
+          "Matches endingAfter? ",
+          !subscription.filter.endingAfter ||
+            inference.endingAt > subscription.filter.endingAfter
+        );
+        console.log(
+          "Matches models? ",
+          !subscription.filter.models ||
+            subscription.filter.models.some((model) =>
+              inference.payload.acceptedModels.includes(model)
+            )
+        );
+        console.log(
+          "Matches active? ",
+          subscription.filter.active === undefined ||
+            (subscription.filter.active && inference.endingAt > new Date()) ||
+            (!subscription.filter.active && inference.endingAt <= new Date())
+        );
+
         return (
           (!subscription.filter.requestId ||
             inference.requestId === subscription.filter.requestId) &&
@@ -158,6 +260,8 @@ export class InferenceDB {
         );
       });
 
+      console.log("Calling subscriptions with inferences ", matchingInferences);
+
       if (matchingInferences.length > 0) {
         subscription.callback(matchingInferences);
       }
@@ -170,9 +274,8 @@ export class InferenceDB {
     // Calculate a hash of the object values to use as the requestId
     const objectValues = Object.values(request.payload).join("");
     // TODO: Use a different source of randomness here, probably the txhash
-    const requestId =
+    request.requestId ??=
       ed.etc.bytesToHex(sha256(objectValues)) + "." + generateRandomString(8);
-    request.requestId = requestId;
 
     // Check if the request already exists in the database
     const existingRequest = await this.inferenceRequestDb.inferenceRequests.get(
@@ -185,7 +288,7 @@ export class InferenceDB {
 
     // Calculate endingAt date from the securityFrame of the request
     const endingAt = new Date(
-      request.payload.createdAt.getTime() +
+      new Date(request.payload.createdAt).getTime() +
         request.payload.securityFrame.maxTimeMs
     );
     request.endingAt = endingAt;
@@ -193,7 +296,7 @@ export class InferenceDB {
     const processedRequest: InferenceRequest = {
       ...request,
       endingAt,
-      requestId,
+      requestId: request.requestId!,
     };
 
     console.log("Saving ", processedRequest);

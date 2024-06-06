@@ -1,6 +1,7 @@
 import Dexie, { Collection, DexieOptions, liveQuery } from "dexie";
 import * as ed from "@noble/ed25519";
 import {
+  P2PInferenceRequestPacket,
   RequestIdPacketTypes,
   type PeerPacket,
   type ReceivedPeerPacket,
@@ -12,6 +13,8 @@ import {
   signJSONObject,
   verifySignatureOnJSONObject,
 } from "../utils/simple-crypto";
+import { stringifyDateWithOffset } from "../utils/utils";
+import EventEmitter from "eventemitter3";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 type SendPacketOverP2PFunc = (packet: TransmittedPeerPacket) => Promise<void>;
@@ -43,7 +46,11 @@ class PacketDatabase extends Dexie {
   }
 }
 
-export class PacketDB {
+export type PacketDBEvents = {
+  newP2PInferenceRequest: (packet: P2PInferenceRequestPacket) => void;
+};
+
+export class PacketDB extends EventEmitter<PacketDBEvents> {
   private db: PacketDatabase;
   private clientInfo: ClientInfo;
   private sendPacketOverP2P: SendPacketOverP2PFunc;
@@ -57,12 +64,24 @@ export class PacketDB {
     sendPacketOverP2P: SendPacketOverP2PFunc,
     dbOptions: DexieOptions = {}
   ) {
+    super();
     this.db = new PacketDatabase(dbOptions);
     this.clientInfo = clientInfo;
     this.sendPacketOverP2P = sendPacketOverP2P;
   }
 
+  // TODO: This is best migrated to Eventemitter or rxjs patterns,
+  // wrote it when I didn't know better
   notifySubscriptions(newPacket: ReceivedPeerPacket) {
+    if (newPacket.packet.type === "p2pInferenceRequest") {
+      setTimeout(() =>
+        this.emit(
+          "newP2PInferenceRequest",
+          newPacket.packet as P2PInferenceRequestPacket
+        )
+      );
+    }
+
     for (const subscription of this.newPacketSubscriptions) {
       console.log("Checking subscription", subscription, newPacket);
       try {
@@ -138,6 +157,12 @@ export class PacketDB {
 
     // Send the packet over the P2P network
     await this.sendPacketOverP2P(transmittedPacket);
+
+    // TODO: this is super ugly, need to streamline
+    if (packet.type === "p2pInferenceRequest") {
+      console.log("PacketDB: Ugly but emitting newP2PInferenceRequest");
+      this.emit("newP2PInferenceRequest", packet as P2PInferenceRequestPacket);
+    }
   }
 
   // Expensive, primarily for testing, if you're calling this otherwise please rethink your life choices

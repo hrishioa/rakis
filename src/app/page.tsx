@@ -14,13 +14,13 @@ export default function Home() {
       initialLLMWorkers: [
         {
           modelName: "gemma-2b-it-q4f16_1",
-          count: 2,
+          count: 1,
         },
       ],
       initialEmbeddingWorkers: [
         {
           modelName: "nomic-ai/nomic-embed-text-v1.5",
-          count: 0,
+          count: 1,
         },
       ],
     });

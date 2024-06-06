@@ -1,5 +1,11 @@
 export function stringifyDateWithOffset(date: Date) {
-  const isoString = date.toISOString();
+  // Convert date to local time by subtracting the timezone offset
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+
+  // Generate ISO string in local time
+  const isoString = localDate.toISOString();
+
+  // Replace 'Z' with the actual timezone offset formatted as `±hh:mm`
   const timezoneOffset = date.getTimezoneOffset();
   const offsetSign = timezoneOffset > 0 ? "-" : "+";
   const offsetHours = Math.abs(Math.floor(timezoneOffset / 60))

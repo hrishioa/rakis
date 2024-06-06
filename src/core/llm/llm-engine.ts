@@ -3,7 +3,6 @@ import { DeferredPromise } from "../utils/deferredpromise";
 import * as webllm from "@mlc-ai/web-llm";
 import {
   availableModels,
-  InferenceFullResult,
   InferencePacket,
   InferenceParams,
   LLMEngineLogEntry,
@@ -11,6 +10,11 @@ import {
   LLMWorker,
 } from "./types";
 import EventEmitter from "eventemitter3";
+import {
+  InferenceErrorPayload,
+  InferenceResult,
+  InferenceSuccessPayload,
+} from "../synthient-chain/db/packet-types";
 
 type LLMEngineEvents = {
   workerLoadFailed: (data: {
@@ -155,24 +159,26 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
                 `Worker ${workerId}: Loading ${modelName} progress - `,
                 report
               );
+
               this.llmWorkers[workerId].modelLoadingProgress = report.progress;
               if (report.progress === 1) {
                 if (
                   !this.searchEngineLogs("engine_loaded", workerId).filter(
                     (entry) => (entry as any).modelName === modelName
                   ).length
-                )
+                ) {
                   this.logEngineEvent({
                     type: "engine_loaded",
                     modelName,
                     workerId,
                   });
 
-                this.emit("workerLoaded", { modelName, workerId });
+                  this.emit("workerLoaded", { modelName, workerId });
+                  this.emit("workerFree", { workerId });
+                }
                 this.llmWorkers[workerId].modelLoadingPromise?.resolve(
                   workerId
                 );
-                this.emit("workerFree", { workerId });
               }
             },
           }
@@ -214,7 +220,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
 
   public async runInferenceNonStreaming(
     params: InferenceParams
-  ): Promise<InferenceFullResult> {
+  ): Promise<InferenceSuccessPayload | InferenceErrorPayload> {
     const response = await this.runInference(params);
 
     let fullMessage = "";
@@ -239,8 +245,8 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     // TODO: This could use more work streamlining, just tired tonight
     return {
       success: true,
-      fullMessage,
-      outputTokenCount: tokenCount,
+      result: fullMessage,
+      tokenCount,
     };
   }
 

@@ -1,5 +1,5 @@
 import { EmbeddingModelName } from "../../embeddings/types";
-import { InferenceFullResult, LLMModelName } from "../../llm/types";
+import { LLMModelName } from "../../llm/types";
 import {
   ChainIdentity,
   SupportedChains,
@@ -8,13 +8,44 @@ import {
 
 // Things from chain to client
 
-export type InferenceResult = {
+export type InferenceResultAttributes = {
   requestId: string;
   inferenceId: string;
   startedAt: string; // timezoned date
   completedAt: string; // timezoned date
-  result: InferenceFullResult;
 };
+
+export type InferenceSuccessResult = InferenceResultAttributes & {
+  result: InferenceSuccessPayload;
+};
+
+export type InferenceErrorResult = InferenceResultAttributes & {
+  result: InferenceErrorPayload;
+};
+
+export type InferenceEmbedding = {
+  inferenceId: string;
+  requestId: string;
+  embedding: number[];
+  bEmbedding: number[];
+  bEmbeddingHash: string;
+};
+
+export type InferenceResult = InferenceResultAttributes & {
+  result: InferencePayload;
+};
+
+export type InferenceSuccessPayload = {
+  success: true;
+  result: string;
+  tokenCount: number;
+};
+export type InferenceErrorPayload = {
+  success: false;
+  error: any;
+};
+
+export type InferencePayload = InferenceSuccessPayload | InferenceErrorPayload;
 
 export type InferenceRequest = Required<UnprocessedInferenceRequest>;
 
@@ -28,7 +59,7 @@ export type UnprocessedInferenceRequest = {
 type InferenceRequestPayload = {
   fromChain: SupportedChains;
   blockNumber: number;
-  createdAt: Date;
+  createdAt: string;
   prompt: string;
   acceptedModels: LLMModelName[];
   temperature: number;
@@ -41,6 +72,7 @@ type InferenceSecurityFrame = {
   maxTimeMs: number; // Max amount of time that this round can take before failed inference
   secDistance: number; // Distance in embeddingspace
   secPercentage: number; // Percentage of quorum that needs to be within secDistance embedding distance
+  embeddingModel: EmbeddingModelName;
 };
 
 // Unused for now, to set consensus thresholds and update those on the fly
@@ -66,7 +98,11 @@ export type TransmittedPeerPacket = {
   packet: PeerPacket;
 };
 
-export type PeerPacket = (
+export type PeerPacketAttributes = {
+  createdAt: string;
+};
+
+export type PeerPacket =
   | PeerStatusUpdate
   | PeerHeart
   | PeerInfo
@@ -74,52 +110,62 @@ export type PeerPacket = (
   | InferenceCommit
   | InferenceRevealRequest
   | InferenceReveal
+  | P2PInferenceRequestPacket
   | InferenceRevealRejected
-  | InferenceQuorumComputed
-) & {
-  createdAt: string; // Local time the packet was created at with the timezone
+  | InferenceQuorumComputed;
+
+// TODO: These might be retired at some point, the intent here is just to test
+// faster without costs of doing things on-chain
+export type P2PInferenceRequestPacket = PeerPacketAttributes & {
+  type: "p2pInferenceRequest";
+  requestId: string;
+  payload: InferenceRequestPayload;
 };
 
-type PeerStatusUpdate = (
-  | {
-      status: "idle";
-    }
-  | {
-      status: "inferencing";
-      modelName: LLMModelName;
-      workerId: string;
-    }
-  | {
-      status: "completed_inference";
-      tps: number;
-      modelName: LLMModelName;
-      workerId: string;
-    }
-  | {
-      status: "computing_bEmbeddingHash";
-      embeddingModelName: EmbeddingModelName;
-    }
-  | {
-      status: "verifying quorum";
-      requestId: string;
-    }
-) & {
-  type: "peerStatusUpdate";
-};
+type PeerStatusUpdate = PeerPacketAttributes &
+  (
+    | {
+        status: "boot";
+      }
+    | {
+        status: "loaded_worker";
+        workerId: string;
+        modelName: string;
+      }
+    | {
+        status: "inferencing";
+        modelName: LLMModelName;
+      }
+    | {
+        status: "completed_inference";
+        tps: number;
+        modelName: LLMModelName;
+      }
+    | {
+        status: "computing_bEmbeddingHash";
+        embeddingModels: EmbeddingModelName[];
+      }
+    | {
+        status: "verifying quorum";
+        requestId: string;
+      }
+  ) & {
+    type: "peerStatusUpdate";
+  };
 
-type PeerHeart = {
+type PeerHeart = PeerPacketAttributes & {
   type: "peerHeart";
   windowX: number; // X coordinate of the window
   windowY: number;
 };
 
-type PeerInfo = {
+type PeerInfo = PeerPacketAttributes & {
   type: "peerInfo";
   deviceInfo: string; // Some kind of signature of what kind of device they're on;
   // benchmarkResuts?: any; // To be defined, mostly about what kind of models they can run and at what TPS
 };
 
-type PeerConnectedChain = {
+type PeerConnectedChain = PeerPacketAttributes & {
   type: "peerConnectedChain";
   identities: ChainIdentity[];
 };
@@ -132,14 +178,14 @@ export const RequestIdPacketTypes = [
   "inferenceQuorumComputed",
 ] as const;
 
-type InferenceCommit = {
+type InferenceCommit = PeerPacketAttributes & {
   type: "inferenceCommit";
   bEmbeddingHash: string;
   requestId: string;
   inferenceId: string;
 };
 
-type InferenceRevealRequest = {
+type InferenceRevealRequest = PeerPacketAttributes & {
   type: "inferenceRevealRequest";
   // Request to reveal inferences within this fixed quorum
   requestId: string;
@@ -150,7 +196,7 @@ type InferenceRevealRequest = {
   timeoutMs: number; // Time that this reveal request is valid to submit responses to
 };
 
-type InferenceReveal = {
+type InferenceReveal = PeerPacketAttributes & {
   type: "inferenceReveal";
   requestId: string;
   inferenceId: string;
@@ -159,7 +205,7 @@ type InferenceReveal = {
   bEmbedding: number[];
 };
 
-type InferenceRevealRejected = {
+type InferenceRevealRejected = PeerPacketAttributes & {
   type: "inferenceRevealRejected";
   requestId: string;
   inferenceId: string;
@@ -177,7 +223,7 @@ type InferenceRevealRejected = {
       };
 };
 
-type InferenceQuorumComputed = {
+type InferenceQuorumComputed = PeerPacketAttributes & {
   type: "inferenceQuorumComputed";
   requestId: string;
   submittedInferences: {

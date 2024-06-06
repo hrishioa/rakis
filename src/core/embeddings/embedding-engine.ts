@@ -6,8 +6,13 @@ import {
   EmbeddingWorkerSentMessage,
 } from "./types";
 import { DeferredPromise } from "../utils/deferredpromise";
+import EventEmitter from "eventemitter3";
 
-export class EmbeddingEngine {
+type EmbeddingEngineEvents = {
+  workerFree: (data: { modelName: string; workerId: string }) => void;
+};
+
+export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
   private embeddingEngineLog: EmbeddingEngineLogEntry[] = [];
   private embeddingBatchCounter = 0;
   private queuesRunning = 0;
@@ -35,6 +40,16 @@ export class EmbeddingEngine {
     lastNPackets: number
   ): EmbeddingEngineLogEntry[] {
     return this.embeddingEngineLog.slice(-lastNPackets);
+  }
+
+  public getAvailableModels(): EmbeddingModelName[] {
+    return Array.from(
+      new Set(
+        Object.keys(this.embeddingWorkers).map(
+          (workerId) => this.embeddingWorkers[workerId].modelName
+        )
+      )
+    );
   }
 
   private logEngineEvent(entry: EmbeddingEngineLogEntry): number {
@@ -69,6 +84,7 @@ export class EmbeddingEngine {
             workerId,
           });
           this.embeddingWorkers[workerId].workerLoadedPromise.resolve(true);
+          this.emit("workerFree", { modelName, workerId });
           break;
         case "workerLoadFailure":
           this.embeddingWorkers[workerId].status = "failed";
@@ -96,6 +112,7 @@ export class EmbeddingEngine {
               "EMBEDDING ENGINE ERROR: SHOUDLNT HAPPEN, couldn't find job to resolve"
             );
           }
+          this.emit("workerFree", { modelName, workerId });
           break;
         case "embeddingFailure":
           const failedJob = this.embeddingJobQueue.find(
@@ -104,6 +121,7 @@ export class EmbeddingEngine {
           if (failedJob) {
             failedJob.completionPromise.resolve(false);
           }
+          this.emit("workerFree", { modelName, workerId });
           break;
         case "workerBusyEmbedding":
           this.embeddingWorkers[workerId].busy = true;

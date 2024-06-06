@@ -48,17 +48,6 @@ export type InferencePacket =
       error: any;
     };
 
-export type InferenceFullResult =
-  | {
-      success: true;
-      fullMessage: string;
-      outputTokenCount: number;
-    }
-  | {
-      success: false;
-      error: any;
-    };
-
 export type LLMWorkerLogEntryRaw =
   | {
       type: "engine_loading" | "engine_loaded";

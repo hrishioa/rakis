@@ -9,7 +9,7 @@ export const P2PDeliveryNetworks = [
 
 export type SupportedP2PDeliveryNetwork = (typeof P2PDeliveryNetworks)[number];
 
-export type SupportedChains = "eth" | "arbitrum";
+export type SupportedChains = "eth" | "arbitrum" | "ecumene";
 // | "solana"; // Coming soon?
 
 export type ChainIdentity = {
