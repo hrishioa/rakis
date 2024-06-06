@@ -7,6 +7,7 @@ import {
 } from "./types";
 import { DeferredPromise } from "../utils/deferredpromise";
 import EventEmitter from "eventemitter3";
+import { generateRandomString } from "../synthient-chain/utils/utils";
 
 type EmbeddingEngineEvents = {
   workerFree: (data: { modelName: string; workerId: string }) => void;
@@ -60,6 +61,54 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
 
     this.embeddingEngineLog.push(entry);
     return logLength;
+  }
+
+  public async scaleEmbeddingWorkers(
+    modelName: EmbeddingModelName,
+    count: number
+  ) {
+    const numberOfExistingWorkers = Object.values(this.embeddingWorkers).filter(
+      (worker) => worker.modelName === modelName
+    ).length;
+
+    if (numberOfExistingWorkers === count) return;
+
+    if (numberOfExistingWorkers < count) {
+      console.log(
+        "Scaling up number of embedding workers for ",
+        modelName,
+        " to ",
+        count
+      );
+      for (let i = 0; i < count - numberOfExistingWorkers; i++) {
+        const workerId = `embedding-${modelName}-${generateRandomString()}`;
+        this.addEmbeddingWorker(modelName, workerId);
+      }
+    } else {
+      console.log(
+        "Scaling down number of embedding workers for ",
+        modelName,
+        " to ",
+        count
+      );
+
+      const workerIdsByLoad = Object.keys(this.embeddingWorkers).sort((a, b) =>
+        this.embeddingWorkers[a].busy === this.embeddingWorkers[b].busy
+          ? 0
+          : this.embeddingWorkers[a].busy
+          ? -1
+          : 1
+      );
+
+      const workerIdsToScaleDown = workerIdsByLoad.slice(
+        0,
+        numberOfExistingWorkers - count
+      );
+
+      for (const workerId of workerIdsToScaleDown) {
+        this.deleteEmbeddingWorker(workerId);
+      }
+    }
   }
 
   public addEmbeddingWorker(modelName: EmbeddingModelName, workerId: string) {

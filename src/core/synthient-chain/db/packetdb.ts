@@ -1,8 +1,7 @@
-import Dexie, { Collection, DexieOptions, liveQuery } from "dexie";
+import Dexie, { DexieOptions } from "dexie";
 import * as ed from "@noble/ed25519";
 import {
   P2PInferenceRequestPacket,
-  RequestIdPacketTypes,
   type PeerPacket,
   type ReceivedPeerPacket,
   type TransmittedPeerPacket,
@@ -13,8 +12,8 @@ import {
   signJSONObject,
   verifySignatureOnJSONObject,
 } from "../utils/simple-crypto";
-import { stringifyDateWithOffset } from "../utils/utils";
 import EventEmitter from "eventemitter3";
+import { PeerDB } from "./peerdb";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 type SendPacketOverP2PFunc = (packet: TransmittedPeerPacket) => Promise<void>;
@@ -53,11 +52,13 @@ export type PacketDBEvents = {
 export class PacketDB extends EventEmitter<PacketDBEvents> {
   private db: PacketDatabase;
   private clientInfo: ClientInfo;
+  public peerDB: PeerDB;
   private sendPacketOverP2P: SendPacketOverP2PFunc;
   private newPacketSubscriptions: {
     filters: PacketSelector;
     callback: PacketSubscriber;
   }[] = [];
+  private packetDBCreatedAt: Date = new Date();
 
   constructor(
     clientInfo: ClientInfo,
@@ -66,6 +67,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
   ) {
     super();
     this.db = new PacketDatabase(dbOptions);
+    this.peerDB = new PeerDB();
     this.clientInfo = clientInfo;
     this.sendPacketOverP2P = sendPacketOverP2P;
   }
@@ -224,17 +226,11 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
       });
     } catch (err) {
       console.error("Error adding packet to the database", err);
-      // console.log(
-      //   "Checking for duplicate packets to ",
-      //   receivedPacket,
-      //   " - ",
-      //   await this.db.packets.get({
-      //     synthientId: receivedPacket.synthientId,
-      //     signature: receivedPacket.signature,
-      //   })
-      // );
       return false;
     }
+
+    if (receivedPacket.receivedTime || new Date())
+      this.peerDB.processPacket(receivedPacket);
 
     // Notify subscriptions
     this.notifySubscriptions(receivedPacket);

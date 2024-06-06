@@ -4,7 +4,6 @@ import {
   InferenceEmbedding,
   InferenceRequest,
   InferenceResult,
-  InferenceResultAttributes,
   InferenceSuccessResult,
   UnprocessedInferenceRequest,
 } from "./packet-types";
@@ -62,6 +61,8 @@ export type InferenceDBEvents = {
     result: InferenceSuccessResult
   ) => void;
   newInferenceEmbedding: (embedding: InferenceEmbedding) => void;
+  newActiveInferenceRequest: (request: InferenceRequest) => void;
+  newInferenceRequest: (request: InferenceRequest) => void;
 };
 
 export class InferenceDB extends EventEmitter<InferenceDBEvents> {
@@ -71,10 +72,6 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   // This should ideally be part of the db or a live query once the network is larger, has a chance of becoming problematic
   public activeInferenceRequests: InferenceRequest[] = [];
   private cleanupTimeout: NodeJS.Timeout | null = null;
-  private inferenceSubscriptions: {
-    filter: InferenceSelector;
-    callback: (inferences: InferenceRequest[]) => void;
-  }[] = [];
 
   constructor(dbOptions: DexieOptions = {}) {
     super();
@@ -190,84 +187,6 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     }
   }
 
-  subscribeToInferences(
-    selector: InferenceSelector,
-    callback: (inferences: InferenceRequest[]) => void
-  ): () => void {
-    const subscription = { filter: selector, callback };
-    this.inferenceSubscriptions.push(subscription);
-
-    // Return a function to remove the subscription
-    return () => {
-      const index = this.inferenceSubscriptions.indexOf(subscription);
-      if (index !== -1) {
-        this.inferenceSubscriptions.splice(index, 1);
-      }
-    };
-  }
-
-  private async notifySubscriptions(newInferences: InferenceRequest[]) {
-    for (const subscription of this.inferenceSubscriptions) {
-      console.log("Checking subscription ", subscription.filter, newInferences);
-
-      const matchingInferences = newInferences.filter((inference) => {
-        console.log("Checking inference request ", inference);
-        console.log(
-          "Matches requestId? ",
-          !subscription.filter.requestId ||
-            inference.requestId === subscription.filter.requestId
-        );
-        console.log(
-          "Matches fromChains? ",
-          !subscription.filter.fromChains ||
-            subscription.filter.fromChains.includes(inference.payload.fromChain)
-        );
-        console.log(
-          "Matches endingAfter? ",
-          !subscription.filter.endingAfter ||
-            inference.endingAt > subscription.filter.endingAfter
-        );
-        console.log(
-          "Matches models? ",
-          !subscription.filter.models ||
-            subscription.filter.models.some((model) =>
-              inference.payload.acceptedModels.includes(model)
-            )
-        );
-        console.log(
-          "Matches active? ",
-          subscription.filter.active === undefined ||
-            (subscription.filter.active && inference.endingAt > new Date()) ||
-            (!subscription.filter.active && inference.endingAt <= new Date())
-        );
-
-        return (
-          (!subscription.filter.requestId ||
-            inference.requestId === subscription.filter.requestId) &&
-          (!subscription.filter.fromChains ||
-            subscription.filter.fromChains.includes(
-              inference.payload.fromChain
-            )) &&
-          (!subscription.filter.endingAfter ||
-            inference.endingAt > subscription.filter.endingAfter) &&
-          (!subscription.filter.models ||
-            subscription.filter.models.some((model) =>
-              inference.payload.acceptedModels.includes(model)
-            )) &&
-          (subscription.filter.active === undefined ||
-            (subscription.filter.active && inference.endingAt > new Date()) ||
-            (!subscription.filter.active && inference.endingAt <= new Date()))
-        );
-      });
-
-      console.log("Calling subscriptions with inferences ", matchingInferences);
-
-      if (matchingInferences.length > 0) {
-        subscription.callback(matchingInferences);
-      }
-    }
-  }
-
   async saveInferenceRequest(
     request: UnprocessedInferenceRequest
   ): Promise<void> {
@@ -319,6 +238,12 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     // Notify subscribers of the new inference request
     // TODO: See if we can't make this an array, or just switch to
     // individual objects like in packetdb
-    await this.notifySubscriptions([processedRequest]);
+    if (processedRequest.endingAt > new Date())
+      setTimeout(
+        () => this.emit("newActiveInferenceRequest", processedRequest),
+        0
+      );
+
+    setTimeout(() => this.emit("newInferenceRequest", processedRequest), 0);
   }
 }

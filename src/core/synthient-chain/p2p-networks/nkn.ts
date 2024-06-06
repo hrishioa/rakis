@@ -6,7 +6,7 @@ import {
   PacketReceivedCallback,
 } from "./p2pnetwork-types";
 import { DeferredPromise } from "../../utils/deferredpromise";
-import { NKN_CONFIG } from "../config";
+import { P2P_CONFIG } from "./p2p-config";
 
 export type NknBootstrapOptions = {
   nknTopic: string;
@@ -113,7 +113,8 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
         console.error("NKN: Error sending message", error);
         this.transmissionErrorCount++;
         if (
-          this.transmissionErrorCount > NKN_CONFIG.maxSendErrorsBeforeRestart
+          this.transmissionErrorCount >
+          P2P_CONFIG.NKN.maxSendErrorsBeforeRestart
         ) {
           this.errorHandlers.forEach((handler) =>
             handler(error as Error, true)

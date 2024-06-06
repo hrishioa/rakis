@@ -12,9 +12,9 @@ import {
 import EventEmitter from "eventemitter3";
 import {
   InferenceErrorPayload,
-  InferenceResult,
   InferenceSuccessPayload,
 } from "../synthient-chain/db/packet-types";
+import { generateRandomString } from "../synthient-chain/utils/utils";
 
 type LLMEngineEvents = {
   workerLoadFailed: (data: {
@@ -417,5 +417,65 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     }
 
     this.emit("workerFree", { workerId });
+  }
+
+  async scaleLLMWorkers(
+    modelName: LLMModelName,
+    count: number,
+    abruptKill: boolean = false
+  ) {
+    try {
+      const numberOfExistingWorkers = Object.values(this.llmWorkers).filter(
+        (worker) => worker.modelName === modelName
+      ).length;
+
+      if (numberOfExistingWorkers === count) return;
+
+      if (numberOfExistingWorkers < count) {
+        console.log(
+          "Scaling up number of llm workers for ",
+          modelName,
+          " to ",
+          count
+        );
+        const scaleUpPromises: Promise<any>[] = [];
+        for (let i = 0; i < count - numberOfExistingWorkers; i++) {
+          const workerId = `llm-${modelName}-${generateRandomString()}`;
+          scaleUpPromises.push(this.loadWorker(modelName, workerId));
+        }
+
+        // TODO: Process errors
+      } else {
+        console.log(
+          "Scaling down number of llm workers for ",
+          modelName,
+          " to ",
+          count
+        );
+
+        const workerIdsByLoad = Object.keys(this.llmWorkers).sort((a, b) =>
+          this.llmWorkers[a].inferenceInProgress ===
+          this.llmWorkers[b].inferenceInProgress
+            ? 0
+            : this.llmWorkers[a].inferenceInProgress
+            ? -1
+            : 1
+        );
+
+        const workerIdsToScaleDown = workerIdsByLoad.slice(
+          0,
+          numberOfExistingWorkers - count
+        );
+
+        const scaleDownPromises: Promise<any>[] = [];
+        for (const workerId of workerIdsToScaleDown) {
+          scaleDownPromises.push(this.unloadWorker(workerId, abruptKill));
+        }
+
+        // TODO: Process errors
+      }
+    } catch (err) {
+      console.error("Domain: Error updating LLM workers", err);
+    }
   }
 }

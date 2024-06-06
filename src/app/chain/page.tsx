@@ -8,11 +8,6 @@ import {
 import { GunP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/pewpewdb";
 import { PacketDB } from "../../core/synthient-chain/db/packetdb";
 import {
-  GUNDB_CONFIG,
-  NKN_CONFIG,
-  TRYSTERO_CONFIG,
-} from "../../core/synthient-chain/config";
-import {
   PeerPacket,
   TransmittedPeerPacket,
 } from "../../core/synthient-chain/db/packet-types";
@@ -21,6 +16,7 @@ import { Input } from "../../components/ui/input";
 import { stringifyDateWithOffset } from "../../core/synthient-chain/utils/utils";
 import { NknP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/nkn";
 import { TrysteroP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/trystero";
+import { P2P_CONFIG } from "../../core/synthient-chain/p2p-networks/p2p-config";
 
 const Heart = ({ x, y, source }: { x: number; y: number; source: string }) => {
   const [visible, setVisible] = useState(true);
@@ -72,26 +68,26 @@ const Home = () => {
         initInstancesMutex.current = true;
         console.log("Initializing GunP2PNetworkInstance...");
         const gun = new GunP2PNetworkInstance(clientInfo.synthientId, {
-          gunPeers: GUNDB_CONFIG.bootstrapPeers,
-          gunTopic: GUNDB_CONFIG.topic,
-          startupDelayMs: GUNDB_CONFIG.bootFixedDelayMs,
+          gunPeers: P2P_CONFIG.PEWPEW.bootstrapPeers,
+          gunTopic: P2P_CONFIG.PEWPEW.topic,
+          startupDelayMs: P2P_CONFIG.PEWPEW.bootFixedDelayMs,
         });
         setGunInstance(gun);
         console.log("GunP2PNetworkInstance initialized.");
 
         console.log("Initializing NknP2PNetworkInstance...");
         const nkn = new NknP2PNetworkInstance(clientInfo.synthientId, {
-          nknTopic: NKN_CONFIG.topic,
+          nknTopic: P2P_CONFIG.NKN.topic,
           nknWalletPassword: "password",
         });
         setNKNInstance(nkn);
 
         console.log("Initializing TrysteroP2PNetworkInstance...");
         const nostr = new TrysteroP2PNetworkInstance(clientInfo.synthientId, {
-          relayRedundancy: TRYSTERO_CONFIG.relayRedundancy,
-          rtcConfig: TRYSTERO_CONFIG.rtcConfig,
-          trysteroTopic: TRYSTERO_CONFIG.topic,
-          trysteroAppId: TRYSTERO_CONFIG.appId,
+          relayRedundancy: P2P_CONFIG.TRYSTERO.relayRedundancy,
+          rtcConfig: P2P_CONFIG.TRYSTERO.rtcConfig,
+          trysteroTopic: P2P_CONFIG.TRYSTERO.topic,
+          trysteroAppId: P2P_CONFIG.TRYSTERO.appId,
           trysteroType: "nostr",
         });
         setNostrInstance(nostr);

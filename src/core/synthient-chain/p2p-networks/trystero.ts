@@ -8,7 +8,7 @@ import {
 } from "./p2pnetwork-types";
 import { DeferredPromise } from "../../utils/deferredpromise";
 import { Room } from "trystero";
-import { TRYSTERO_CONFIG } from "../config";
+import { P2P_CONFIG } from "./p2p-config";
 
 export type TrysteroBootstrapOptions = {
   trysteroAppId: string;
@@ -108,7 +108,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
           handler(
             error as Error,
             this.transmissionErrorCount >
-              TRYSTERO_CONFIG.maxTransmissionErrorsBeforeRestart
+              P2P_CONFIG.TRYSTERO.maxTransmissionErrorsBeforeRestart
           )
         );
         return false;

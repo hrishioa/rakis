@@ -2,32 +2,19 @@ import { EmbeddingEngine } from "../../embeddings/embedding-engine";
 import { EmbeddingModelName } from "../../embeddings/types";
 import { LLMEngine } from "../../llm/llm-engine";
 import { LLMModelName } from "../../llm/types";
-import { GUNDB_CONFIG, NKN_CONFIG, TRYSTERO_CONFIG } from "../config";
-import {
-  P2PDeliveryNetworks,
-  SupportedP2PDeliveryNetwork,
-} from "../db/entities";
 import { InferenceDB } from "../db/inferencedb";
 import {
-  InferenceEmbedding,
   InferenceRequest,
-  InferenceResult,
   InferenceSuccessResult,
   TransmittedPeerPacket,
 } from "../db/packet-types";
 import { PacketDB } from "../db/packetdb";
-import { PeerDB } from "../db/peerdb";
 import { ClientInfo, initClientInfo } from "../identity";
-import { NknP2PNetworkInstance } from "../p2p-networks/nkn";
+import { P2PNetworkFactory } from "../p2p-networks/networkfactory";
 import { P2PNetworkInstance } from "../p2p-networks/p2pnetwork-types";
-import { GunP2PNetworkInstance } from "../p2p-networks/pewpewdb";
-import { TrysteroP2PNetworkInstance } from "../p2p-networks/trystero";
-import {
-  generateRandomString,
-  stringifyDateWithOffset,
-  timeoutPromise,
-} from "../utils/utils";
+import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
 import { THEDOMAIN_SETTINGS } from "./settings";
+import { debounce } from "lodash";
 
 export type DomainStartOptions = {
   identityPassword: string;
@@ -46,7 +33,6 @@ export class TheDomain {
   private static instance: TheDomain;
 
   private packetDB: PacketDB;
-  private peerDB: PeerDB;
   private shutdownListeners: (() => void)[] = [];
   private embeddingEngine: EmbeddingEngine;
   private llmEngine: LLMEngine;
@@ -66,7 +52,75 @@ export class TheDomain {
     waitingForWorker: false,
     embeddingQueue: [],
   };
-  private inferenceRequestSubscription: null | (() => void) = null;
+
+  private hookupConnections() {
+    // Connect received packets from p2p to the packetdb
+    for (const p2pNetwork of this.p2pNetworkInstances) {
+      const listener = p2pNetwork.listenForPacket(async (packet) => {
+        await this.packetDB.receivePacket(packet);
+      });
+
+      this.shutdownListeners.push(() => listener());
+    }
+
+    // Send received peer-based inference requests from packetdb to inferencedb
+    // TODO: This should be depreated later so we don't have a cycle in our
+    // data flow
+    this.packetDB.on("newP2PInferenceRequest", (packet) => {
+      console.log("Saving p2p inference request to our db");
+      this.inferenceDB.saveInferenceRequest({
+        fetchedAt: new Date(),
+        requestId: packet.requestId,
+        payload: packet.payload,
+      });
+    });
+
+    // ############# Set up event-based connections
+
+    // If inference results are done, move them off to get embedded
+    this.inferenceDB.on(
+      "inferenceResultAwaitingEmbedding",
+      (request, result) => {
+        console.log("New inference awaiting embedding");
+        this.inferenceStatus.embeddingQueue.push({
+          request,
+          result,
+          queued: false,
+        });
+        setTimeout(() => this.processInferenceResultQueue(), 0);
+      }
+    );
+
+    // If embedding workers are free, check for new jobs
+    this.embeddingEngine.on("workerFree", () => {
+      console.log("Worker free, checking for jobs");
+      setTimeout(() => this.processInferenceResultQueue(), 0);
+    });
+
+    // If embeddings are done, send out the commit message
+    this.inferenceDB.on("newInferenceEmbedding", (inferenceEmbedding) => {
+      console.log("New inference embedding, committing to result");
+      this.packetDB.transmitPacket({
+        type: "inferenceCommit",
+        bEmbeddingHash: inferenceEmbedding.bEmbeddingHash,
+        requestId: inferenceEmbedding.requestId,
+        inferenceId: inferenceEmbedding.inferenceId,
+        createdAt: stringifyDateWithOffset(new Date()),
+      });
+    });
+
+    // If llm workers are free, check for new jobs
+    this.llmEngine.on("workerFree", () => {
+      console.log("Worker free, checking for jobs");
+      setTimeout(() => this.processInferenceRequestQueue(), 0);
+    });
+
+    // If new inference requests come in, start the inference loop
+    this.inferenceDB.on("newActiveInferenceRequest", (request) => {
+      console.log("New active inference request, starting inference loop.");
+      setTimeout(() => this.processInferenceRequestQueue(), 0);
+    });
+  }
 
   private constructor(
     private clientInfo: ClientInfo,
@@ -81,61 +135,32 @@ export class TheDomain {
     };
 
     this.packetDB = new PacketDB(clientInfo, broadcastPacket);
-    this.peerDB = new PeerDB();
     this.inferenceDB = new InferenceDB();
 
-    this.inferenceDB.on(
-      "inferenceResultAwaitingEmbedding",
-      (request, result) => {
-        console.log("New inference awaiting embedding");
-        this.inferenceStatus.embeddingQueue.push({
-          request,
-          result,
-          queued: false,
-        });
-        setTimeout(() => this.processInferenceEmbeddings(), 0);
-      }
-    );
-
-    this.inferenceDB.on("newInferenceEmbedding", (embedding) => {
-      console.log("New inference embedding, committing to result");
-      this.onInferenceEmbedding(embedding);
-    });
-
     console.log("Databases created.");
-    this.connectP2PToPacketDB();
-    this.connectPacketDBToPeerDB();
-    // TODO: Again, might be deprecated later
-    this.connectPacketDBToInferenceDB();
 
     this.embeddingEngine = new EmbeddingEngine();
-
-    this.embeddingEngine.on("workerFree", () => {
-      console.log("Worker free, checking for jobs");
-      setTimeout(() => this.processInferenceEmbeddings(), 0);
-    });
-
     this.llmEngine = new LLMEngine();
-    this.llmEngine.on("workerFree", () => {
-      console.log("Worker free, checking for jobs");
-      setTimeout(() => this.processInferenceRequests(), 0);
-    });
+
+    console.log("Setting up connections...");
+    this.hookupConnections();
 
     console.log("Starting workers...");
 
     const workerStartPromises: Promise<any>[] = [];
     for (const worker of initialEmbeddingWorkers) {
       workerStartPromises.push(
-        this.updateEmbeddingWorkers(worker.modelName, worker.count)
+        this.embeddingEngine.scaleEmbeddingWorkers(
+          worker.modelName,
+          worker.count
+        )
       );
     }
     for (const worker of initialLLMWorkers) {
       workerStartPromises.push(
-        this.updateLLMWorkers(worker.modelName, worker.count)
+        this.llmEngine.scaleLLMWorkers(worker.modelName, worker.count)
       );
     }
-
-    this.updateInferenceSubscription();
 
     this.packetDB.transmitPacket({
       type: "peerStatusUpdate",
@@ -144,7 +169,7 @@ export class TheDomain {
     });
 
     // Await the promise if we want to block, but we're fine without I think
-
+    // TODO: This is just for testing!
     if (typeof window !== "undefined") {
       (window as any).theDomain = {
         runInference: (
@@ -175,7 +200,7 @@ export class TheDomain {
           });
         },
         updateLLMWorkers: (modelName: LLMModelName, count: number) => {
-          this.updateLLMWorkers(modelName, count);
+          this.llmEngine.scaleLLMWorkers(modelName, count);
         },
         llmEngine: this.llmEngine,
       };
@@ -184,40 +209,7 @@ export class TheDomain {
     }
   }
 
-  private onInferenceEmbedding(inferenceEmbedding: InferenceEmbedding) {
-    this.packetDB.transmitPacket({
-      type: "inferenceCommit",
-      bEmbeddingHash: inferenceEmbedding.bEmbeddingHash,
-      requestId: inferenceEmbedding.requestId,
-      inferenceId: inferenceEmbedding.inferenceId,
-      createdAt: stringifyDateWithOffset(new Date()),
-    });
-  }
-
-  private updateInferenceSubscription() {
-    if (this.inferenceRequestSubscription) {
-      this.inferenceRequestSubscription();
-    }
-
-    this.inferenceRequestSubscription = this.inferenceDB.subscribeToInferences(
-      {
-        active: true,
-        models: Array.from(
-          new Set(
-            Object.values(this.llmEngine.llmWorkers).map(
-              (worker) => worker.modelName
-            )
-          )
-        ),
-      },
-      (packet) => {
-        console.log("Starting new inference loop because of incoming packet.");
-        setTimeout(() => this.processInferenceRequests(), 0);
-      }
-    );
-  }
-
-  private processInferenceEmbeddings() {
+  private processInferenceResultQueue() {
     const runId = generateRandomString(3);
 
     console.log(runId, ": Starting embedding process.");
@@ -342,7 +334,7 @@ export class TheDomain {
     }
   }
 
-  private processInferenceRequests() {
+  private processInferenceRequestQueue = debounce(() => {
     const cycleId = generateRandomString(3);
 
     const availableInferenceRequests =
@@ -481,175 +473,12 @@ export class TheDomain {
       });
 
     console.log("looking for next inference, waiting a tick.");
-    setTimeout(() => this.processInferenceRequests(), 0);
-  }
+    setTimeout(() => this.processInferenceRequestQueue(), 0);
+  }, THEDOMAIN_SETTINGS.inferenceRequestQueueDebounceMs);
 
   // TODOs:
   // 1. Register error handlers for the p2p networks, and restart them (some finite number of times) if they error out
   // 2. Expose a packet subscriber to the outside in case someone wants to listen in
-
-  private async updateEmbeddingWorkers(
-    modelName: EmbeddingModelName,
-    count: number,
-    abruptKill: boolean = false
-  ) {
-    const numberOfExistingWorkers = Object.values(
-      this.embeddingEngine.embeddingWorkers
-    ).filter((worker) => worker.modelName === modelName).length;
-
-    if (numberOfExistingWorkers === count) return;
-
-    if (numberOfExistingWorkers < count) {
-      console.log(
-        "Scaling up number of embedding workers for ",
-        modelName,
-        " to ",
-        count
-      );
-      for (let i = 0; i < count - numberOfExistingWorkers; i++) {
-        const workerId = `embedding-${modelName}-${generateRandomString()}`;
-        this.embeddingEngine.addEmbeddingWorker(modelName, workerId);
-        this.packetDB.transmitPacket({
-          type: "peerStatusUpdate",
-          createdAt: stringifyDateWithOffset(new Date()),
-          status: "loaded_worker",
-          modelName,
-          workerId,
-        });
-      }
-    } else {
-      console.log(
-        "Scaling down number of embedding workers for ",
-        modelName,
-        " to ",
-        count
-      );
-
-      const workerIdsByLoad = Object.keys(
-        this.embeddingEngine.embeddingWorkers
-      ).sort((a, b) =>
-        this.embeddingEngine.embeddingWorkers[a].busy ===
-        this.embeddingEngine.embeddingWorkers[b].busy
-          ? 0
-          : this.embeddingEngine.embeddingWorkers[a].busy
-          ? -1
-          : 1
-      );
-
-      const workerIdsToScaleDown = workerIdsByLoad.slice(
-        0,
-        numberOfExistingWorkers - count
-      );
-
-      for (const workerId of workerIdsToScaleDown) {
-        this.embeddingEngine.deleteEmbeddingWorker(workerId);
-      }
-    }
-  }
-
-  async updateLLMWorkers(
-    modelName: LLMModelName,
-    count: number,
-    abruptKill: boolean = false
-  ) {
-    try {
-      const numberOfExistingWorkers = Object.values(
-        this.llmEngine.llmWorkers
-      ).filter((worker) => worker.modelName === modelName).length;
-
-      if (numberOfExistingWorkers === count) return;
-
-      if (numberOfExistingWorkers < count) {
-        console.log(
-          "Scaling up number of llm workers for ",
-          modelName,
-          " to ",
-          count
-        );
-        const scaleUpPromises: Promise<any>[] = [];
-        for (let i = 0; i < count - numberOfExistingWorkers; i++) {
-          const workerId = `llm-${modelName}-${generateRandomString()}`;
-          scaleUpPromises.push(this.llmEngine.loadWorker(modelName, workerId));
-        }
-
-        // TODO: Process errors
-      } else {
-        console.log(
-          "Scaling down number of llm workers for ",
-          modelName,
-          " to ",
-          count
-        );
-
-        const workerIdsByLoad = Object.keys(this.llmEngine.llmWorkers).sort(
-          (a, b) =>
-            this.llmEngine.llmWorkers[a].inferenceInProgress ===
-            this.llmEngine.llmWorkers[b].inferenceInProgress
-              ? 0
-              : this.llmEngine.llmWorkers[a].inferenceInProgress
-              ? -1
-              : 1
-        );
-
-        const workerIdsToScaleDown = workerIdsByLoad.slice(
-          0,
-          numberOfExistingWorkers - count
-        );
-
-        const scaleDownPromises: Promise<any>[] = [];
-        for (const workerId of workerIdsToScaleDown) {
-          scaleDownPromises.push(
-            this.llmEngine.unloadWorker(workerId, abruptKill)
-          );
-        }
-
-        // TODO: Process errors
-      }
-    } catch (err) {
-      console.error("Domain: Error updating LLM workers", err);
-    }
-
-    this.updateInferenceSubscription();
-  }
-
-  private connectPacketDBToInferenceDB() {
-    this.packetDB.off("newP2PInferenceRequest");
-
-    this.packetDB.on("newP2PInferenceRequest", (packet) => {
-      console.log("Saving p2p inference request to our db");
-      this.inferenceDB.saveInferenceRequest({
-        fetchedAt: new Date(),
-        requestId: packet.requestId,
-        payload: packet.payload,
-      });
-    });
-
-    console.log("Connected p2pinference requests from packetdb to inferencedb");
-  }
-
-  private connectP2PToPacketDB() {
-    for (const p2pNetwork of this.p2pNetworkInstances) {
-      const listener = p2pNetwork.listenForPacket(async (packet) => {
-        await this.packetDB.receivePacket(packet);
-      });
-
-      this.shutdownListeners.push(() => listener());
-    }
-  }
-
-  private connectPacketDBToPeerDB() {
-    const listener = this.packetDB.subscribeToNewPackets(
-      {
-        receivedTimeAfter: new Date(),
-      },
-      (packet) => {
-        console.log("Processing packet for peerdb ", packet);
-        this.peerDB.processPacket(packet);
-      }
-    );
-
-    this.shutdownListeners.push(() => listener());
-  }
 
   async shutdownDomain() {
     for (const listener of this.shutdownListeners) {
@@ -668,7 +497,6 @@ export class TheDomain {
     console.log("Booting up the the domain...");
 
     // Initialize client info
-
     // TODO: We probably want things to emit events we can save to the logs
     const clientInfo = await initClientInfo(
       identityPassword,
@@ -677,92 +505,27 @@ export class TheDomain {
 
     console.log("Identity retrieved/created successfully.");
 
-    const p2pNetworkInstances: P2PNetworkInstance<any, any>[] = [];
-
-    for (const network of P2PDeliveryNetworks) {
-      if (THEDOMAIN_SETTINGS.enabledP2PNetworks.includes(network)) {
-        console.log("Loading ", network, " network...");
-        switch (network as SupportedP2PDeliveryNetwork) {
-          case "gun":
-            console.log("Initializing pewpewdb...");
-            p2pNetworkInstances.push(
-              new GunP2PNetworkInstance(clientInfo.synthientId, {
-                gunPeers: GUNDB_CONFIG.bootstrapPeers,
-                gunTopic: GUNDB_CONFIG.topic,
-                startupDelayMs: GUNDB_CONFIG.bootFixedDelayMs,
-              })
-            );
-            break;
-          case "nkn":
-            p2pNetworkInstances.push(
-              new NknP2PNetworkInstance(clientInfo.synthientId, {
-                nknTopic: NKN_CONFIG.topic,
-                nknWalletPassword: "password",
-              })
-            );
-            break;
-          case "nostr":
-            p2pNetworkInstances.push(
-              new TrysteroP2PNetworkInstance(clientInfo.synthientId, {
-                relayRedundancy: TRYSTERO_CONFIG.relayRedundancy,
-                rtcConfig: TRYSTERO_CONFIG.rtcConfig,
-                trysteroTopic: TRYSTERO_CONFIG.topic,
-                trysteroAppId: TRYSTERO_CONFIG.appId,
-                trysteroType: "nostr",
-              })
-            );
-            break;
-          case "torrent":
-            p2pNetworkInstances.push(
-              new TrysteroP2PNetworkInstance(clientInfo.synthientId, {
-                relayRedundancy: TRYSTERO_CONFIG.relayRedundancy,
-                rtcConfig: TRYSTERO_CONFIG.rtcConfig,
-                trysteroTopic: TRYSTERO_CONFIG.topic,
-                trysteroAppId: TRYSTERO_CONFIG.appId,
-                trysteroType: "torrent",
-              })
-            );
-            break;
-          case "waku":
-            console.log(
-              "Waku attempted to load, but left unimplemented due to complexity and size."
-            );
-            break;
-        }
-      }
-    }
+    const p2pNetworkInstances: P2PNetworkInstance<any, any>[] =
+      THEDOMAIN_SETTINGS.enabledP2PNetworks.map((network) =>
+        P2PNetworkFactory.createP2PNetworkInstance(
+          network,
+          clientInfo.synthientId
+        )
+      );
 
     console.log("Initialized p2p networks, waiting for bootup...");
 
-    const p2pLoadingResults: boolean[] = p2pNetworkInstances.map((p) => false);
-
-    const waitingResult = await Promise.race([
-      timeoutPromise(THEDOMAIN_SETTINGS.waitForP2PBootupMs),
-      Promise.all(
-        p2pNetworkInstances.map((p, index) =>
-          p.waitForReady().then(() => (p2pLoadingResults[index] = true))
-        )
-      ),
-    ]);
-
-    if (waitingResult === "timeout") {
-      console.log("Timed out waiting for all networks to load.");
-      const unloadedNetworks = p2pNetworkInstances.filter(
-        (_, index) => !p2pLoadingResults[index]
+    const workingP2PNetworkInstances =
+      await P2PNetworkFactory.initializeP2PNetworks(
+        p2pNetworkInstances,
+        THEDOMAIN_SETTINGS.waitForP2PBootupMs
       );
-
-      if (unloadedNetworks.length >= p2pNetworkInstances.length) {
-        throw new Error(
-          "No p2p networks could be loaded in time. Please check logs for errors."
-        );
-      }
-    }
 
     console.log("Connecting up working networks.");
 
     this.instance = new TheDomain(
       clientInfo,
-      p2pNetworkInstances.filter((_, index) => p2pLoadingResults[index]),
+      workingP2PNetworkInstances,
       initialEmbeddingWorkers,
       initialLLMWorkers
     );
