@@ -2,10 +2,13 @@ import Dexie from "dexie";
 import {
   InferenceCommit,
   InferenceRequest,
+  InferenceReveal,
   ReceivedPeerPacket,
   TransmittedPeerPacket,
 } from "./packet-types";
 import { createLogger, logStyles } from "../utils/logger";
+import { QUORUM_SETTINGS } from "../thedomain/settings";
+import EventEmitter from "eventemitter3";
 
 const logger = createLogger("QuorumDB", logStyles.databases.quorumDB);
 
@@ -42,12 +45,111 @@ class QuorumDatabase extends Dexie {
   }
 }
 
-export class QuorumDB {
+export type QuorumDBEvents = {
+  requestReveal: (quorums: InferenceQuorum[]) => void;
+};
+
+export class QuorumDB extends EventEmitter<QuorumDBEvents> {
   private db: QuorumDatabase;
   private quorumRevealTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
+    super();
     this.db = new QuorumDatabase();
+  }
+
+  private async checkQuorumsReadyForReveal() {
+    logger.debug("Checking quorums for reveal");
+
+    // Find quorums where they've already ended (endingAt is in the past)
+    // But the endingAt+quorumRevealTimeoutMs hasn't ended
+    // And the quorums is still awaiting_commitments
+    const currentTime = new Date();
+    const revealStartTime = new Date(
+      currentTime.getTime() - QUORUM_SETTINGS.quorumRevealRequestIssueTimeoutMs
+    );
+
+    const candidateQuorums = (
+      await this.db.quorums
+        .where("endingAt")
+        .between(revealStartTime, currentTime)
+        .toArray()
+    ).filter((quorum) => quorum.status === "awaiting_commitments");
+
+    const failedQuorums = candidateQuorums.filter(
+      (quorum) => quorum.quorum.length < quorum.quorumThreshold
+    );
+
+    logger.debug("Quorums that failed: ", failedQuorums);
+
+    failedQuorums.forEach((quorum) => (quorum.status = "failed"));
+
+    await this.db.quorums.bulkPut(failedQuorums).catch(Dexie.BulkError, (e) => {
+      logger.error("Failed to update quorums to failed for these quorums: ", e);
+    });
+
+    const successfulQuorums = candidateQuorums.filter(
+      (quorum) => quorum.quorum.length >= quorum.quorumThreshold
+    );
+
+    logger.debug("Quorums that passed: ", successfulQuorums);
+
+    successfulQuorums.forEach((quorum) => (quorum.status = "awaiting_reveal"));
+
+    await this.db.quorums
+      .bulkPut(successfulQuorums)
+      .catch(Dexie.BulkError, (e) => {
+        logger.error(
+          "Failed to update quorums to awaiting_reveal for these quorums: ",
+          e
+        );
+      });
+
+    if (successfulQuorums.length) {
+      this.emit("requestReveal", successfulQuorums);
+    }
+  }
+
+  async processInferenceReveal(
+    revealPacket: Omit<ReceivedPeerPacket, "packet"> & {
+      packet: InferenceReveal;
+    }
+  ) {
+    // Find matching quorum
+
+    const quorum = await this.db.quorums.get(revealPacket.packet.requestId);
+
+    if (!quorum) {
+      logger.debug("No quorum found for reveal packet ", revealPacket);
+      return;
+    }
+
+    const commit = quorum.quorum.find(
+      (commit) =>
+        commit.synthientId === revealPacket.synthientId &&
+        commit.inferenceId === revealPacket.packet.inferenceId
+    );
+
+    if (!commit) {
+      logger.debug("No commit found for reveal packet ", revealPacket);
+      return;
+    }
+
+    // TODO: IMPORTANT Validate the actual reveal before adding it to our quorum
+    // by double checking the embeddings and hash
+
+    commit.reveal = {
+      embedding: revealPacket.packet.embedding,
+      bEmbedding: revealPacket.packet.bEmbedding,
+      output: revealPacket.packet.output,
+      receivedAt: new Date(),
+    };
+
+    quorum.quorumRevealed += 1;
+
+    await this.db.quorums.put(quorum);
+
+    logger.debug("Updated quorum with reveal: ", quorum);
   }
 
   private async refreshQuorumRevealTimeout() {
@@ -65,8 +167,10 @@ export class QuorumDB {
     logger.debug("Got quorums for setting Timeout: ", quorums);
 
     if (quorums.length) {
-      this.quorumRevealTimeout = setTimeout(() => {
-        logger.debug("TODO: Check and ask for reveal here");
+      this.quorumRevealTimeout = setTimeout(async () => {
+        logger.debug("Timeout for quorum reveal");
+
+        await this.checkQuorumsReadyForReveal();
 
         setTimeout(() => this.refreshQuorumRevealTimeout(), 0); // polite timeout
       }, quorums[0].endingAt.getTime() - Date.now());

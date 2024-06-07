@@ -2,6 +2,8 @@ import Dexie, { DexieOptions } from "dexie";
 import * as ed from "@noble/ed25519";
 import {
   InferenceCommit,
+  InferenceReveal,
+  InferenceRevealRequest,
   P2PInferenceRequestPacket,
   type PeerPacket,
   type ReceivedPeerPacket,
@@ -16,6 +18,7 @@ import {
 import EventEmitter from "eventemitter3";
 import { PeerDB } from "./peerdb";
 import { createLogger, logStyles } from "../utils/logger";
+import { InferenceDB } from "./inferencedb";
 
 const logger = createLogger("PacketDB", logStyles.databases.packetDB);
 
@@ -55,21 +58,25 @@ export type PacketDBEvents = {
   newInferenceCommit: (
     packet: Omit<ReceivedPeerPacket, "packet"> & { packet: InferenceCommit }
   ) => void;
+  newInferenceRevealRequest: (
+    packet: Omit<ReceivedPeerPacket, "packet"> & {
+      packet: InferenceRevealRequest;
+    }
+  ) => void;
+  newInferenceRevealed: (
+    packet: Omit<ReceivedPeerPacket, "packet"> & {
+      packet: InferenceReveal;
+    }
+  ) => void;
 };
 
 export class PacketDB extends EventEmitter<PacketDBEvents> {
   private db: PacketDatabase;
-  private clientInfo: ClientInfo;
   public peerDB: PeerDB;
-  private sendPacketOverP2P: SendPacketOverP2PFunc;
-  // private newPacketSubscriptions: {
-  //   filters: PacketSelector;
-  //   callback: PacketSubscriber;
-  // }[] = [];
 
   constructor(
-    clientInfo: ClientInfo,
-    sendPacketOverP2P: SendPacketOverP2PFunc,
+    private clientInfo: ClientInfo,
+    private sendPacketOverP2P: SendPacketOverP2PFunc,
     dbOptions: DexieOptions = {}
   ) {
     super();
@@ -78,64 +85,6 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     this.clientInfo = clientInfo;
     this.sendPacketOverP2P = sendPacketOverP2P;
   }
-
-  // // TODO: This is best migrated to Eventemitter or rxjs patterns,
-  // // wrote it when I didn't know better
-  // notifySubscriptions(newPacket: ReceivedPeerPacket) {
-  //   if (newPacket.packet.type === "p2pInferenceRequest") {
-  //     setTimeout(() =>
-  //       this.emit(
-  //         "newP2PInferenceRequest",
-  //         newPacket.packet as P2PInferenceRequestPacket
-  //       )
-  //     );
-  //   }
-
-  //   for (const subscription of this.newPacketSubscriptions) {
-  //     logger.debug("Checking subscription", subscription, newPacket);
-  //     try {
-  //       if (
-  //         (!subscription.filters.synthientId ||
-  //           subscription.filters.synthientId === newPacket.synthientId) &&
-  //         (!subscription.filters.signature ||
-  //           subscription.filters.signature === newPacket.signature) &&
-  //         (!subscription.filters.types ||
-  //           subscription.filters.types.includes(newPacket.packet.type)) &&
-  //         (!subscription.filters.inferenceId ||
-  //           subscription.filters.inferenceId ===
-  //             (newPacket.packet as any).inferenceId) &&
-  //         // TODO: Find a better way to do this and segregate packets, don't love losing type safety
-  //         (!subscription.filters.requestId ||
-  //           subscription.filters.requestId ===
-  //             (newPacket.packet as any).requestId) &&
-  //         (!subscription.filters.receivedTimeAfter ||
-  //           newPacket.receivedTime! > subscription.filters.receivedTimeAfter) &&
-  //         (!subscription.filters.receivedTimeBefore ||
-  //           newPacket.receivedTime! < subscription.filters.receivedTimeBefore)
-  //       ) {
-  //         logger.debug("Notifying subscription", subscription);
-  //         subscription.callback(newPacket);
-  //       }
-  //     } catch (err) {
-  //       logger.error("Error notifying subscription", err);
-  //     }
-  //   }
-  // }
-
-  // subscribeToNewPackets(
-  //   filters: PacketSelector,
-  //   callback: PacketSubscriber
-  // ): () => void {
-  //   const subscription = { filters, callback };
-  //   this.newPacketSubscriptions.push(subscription);
-
-  //   return () => {
-  //     const index = this.newPacketSubscriptions.indexOf(subscription);
-  //     if (index !== -1) {
-  //       this.newPacketSubscriptions.splice(index, 1);
-  //     }
-  //   };
-  // }
 
   async emitNewPacketEvents(packet: ReceivedPeerPacket) {
     if (packet.packet.type === "p2pInferenceRequest") {
@@ -150,6 +99,40 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         "newInferenceCommit",
         packet as Omit<ReceivedPeerPacket, "packet"> & {
           packet: InferenceCommit;
+        }
+      );
+    }
+
+    if (packet.packet.type === "inferenceRevealRequest") {
+      this.validateInferenceRevealRequest(packet);
+    }
+
+    if (packet.packet.type == "inferenceReveal") {
+      // Emitting all revealed inferences for now, we'll filter them out at the
+      // inferencedb. We've been assured by Claude that this passing is by reference,
+      // we'll choose to trust this - FOR NOW
+      this.emit(
+        "newInferenceRevealed",
+        packet as Omit<ReceivedPeerPacket, "packet"> & {
+          packet: InferenceReveal;
+        }
+      );
+    }
+  }
+
+  async validateInferenceRevealRequest(packet: ReceivedPeerPacket) {
+    if (packet.packet.type !== "inferenceRevealRequest") return;
+
+    if (
+      packet.packet.quorum.some(
+        (inference) => inference.synthientId === this.clientInfo.synthientId
+      )
+    ) {
+      logger.debug("Received inferenceRevealRequest for own synthientId");
+      this.emit(
+        "newInferenceRevealRequest",
+        packet as Omit<ReceivedPeerPacket, "packet"> & {
+          packet: InferenceRevealRequest;
         }
       );
     }

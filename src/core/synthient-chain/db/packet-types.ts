@@ -191,6 +191,7 @@ export type InferenceRevealRequest = PeerPacketAttributes & {
   requestId: string;
   quorum: {
     synthientId: string;
+    inferenceId: string;
     bEmbeddingHash: string;
   }[];
   timeoutMs: number; // Time that this reveal request is valid to submit responses to
@@ -198,6 +199,7 @@ export type InferenceRevealRequest = PeerPacketAttributes & {
 
 export type InferenceReveal = PeerPacketAttributes & {
   type: "inferenceReveal";
+  requestedSynthientId: string; // For easier identification and to save some cpu cycles unpacking who this was for
   requestId: string;
   inferenceId: string;
   output: string;

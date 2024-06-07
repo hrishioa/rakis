@@ -5,6 +5,8 @@ import {
   InferenceEmbedding,
   InferenceRequest,
   InferenceResult,
+  InferenceReveal,
+  InferenceRevealRequest,
   InferenceSuccessResult,
   ReceivedPeerPacket,
   UnprocessedInferenceRequest,
@@ -12,10 +14,11 @@ import {
 import { sha256 } from "@noble/hashes/sha256";
 import * as ed from "@noble/ed25519";
 import { LLMModelName } from "../../llm/types";
-import { generateRandomString } from "../utils/utils";
+import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { createLogger, logStyles } from "../utils/logger";
-import { QuorumDB } from "./quorumdb";
+import { InferenceQuorum, QuorumDB } from "./quorumdb";
+import { QUORUM_SETTINGS } from "../thedomain/settings";
 
 const logger = createLogger("InferenceDB", logStyles.databases.inferenceDB);
 
@@ -69,6 +72,8 @@ export type InferenceDBEvents = {
   newInferenceEmbedding: (embedding: InferenceEmbedding) => void;
   newActiveInferenceRequest: (request: InferenceRequest) => void;
   newInferenceRequest: (request: InferenceRequest) => void;
+  requestQuorumReveal: (revealRequests: InferenceRevealRequest[]) => void;
+  revealedInference: (revealPacket: InferenceReveal) => void;
 };
 
 export class InferenceDB extends EventEmitter<InferenceDBEvents> {
@@ -86,6 +91,28 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     this.inferenceResultDb = new InferenceResultDatabase(dbOptions);
     this.inferenceEmbeddingDb = new InferenceEmbeddingDatabase(dbOptions);
     this.quorumDb = new QuorumDB();
+
+    this.quorumDb.on("requestReveal", (quorums) => {
+      this.emitRevealRequests(quorums);
+    });
+  }
+
+  private emitRevealRequests(quorums: InferenceQuorum[]) {
+    const revealPackets: InferenceRevealRequest[] = quorums.map((quorum) => ({
+      createdAt: stringifyDateWithOffset(new Date()),
+      type: "inferenceRevealRequest",
+      requestId: quorum.requestId,
+      quorum: quorum.quorum.map((inference) => ({
+        inferenceId: inference.inferenceId,
+        synthientId: inference.synthientId,
+        bEmbeddingHash: inference.bEmbeddingHash,
+      })),
+      timeoutMs: QUORUM_SETTINGS.quorumRevealTimeoutMs,
+    }));
+
+    logger.debug("Emitting reveal requests ", revealPackets);
+
+    this.emit("requestQuorumReveal", revealPackets);
   }
 
   private refreshCleanupTimeout() {
@@ -139,6 +166,98 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     if (this.activeInferenceRequests.length > 0) {
       this.refreshCleanupTimeout();
     }
+  }
+
+  async processInferenceReveal(
+    revealPacket: Omit<ReceivedPeerPacket, "packet"> & {
+      packet: InferenceReveal;
+    }
+  ) {
+    // Find matching request in our db
+    const matchingRequest = await this.inferenceRequestDb.inferenceRequests.get(
+      revealPacket.packet.requestId
+    );
+
+    if (!matchingRequest) {
+      logger.error(
+        "No matching request for revealed inference, skipping ",
+        revealPacket
+      );
+      return;
+    }
+
+    this.quorumDb.processInferenceReveal(revealPacket);
+  }
+
+  async processInferenceRevealRequest(
+    requestPacket: Omit<ReceivedPeerPacket, "packet"> & {
+      packet: InferenceRevealRequest;
+    },
+    ourSynthientId: string
+  ) {
+    // First validate by getting the request and checking the endingAt
+    const matchingRequest = await this.inferenceRequestDb.inferenceRequests.get(
+      requestPacket.packet.requestId
+    );
+
+    if (!matchingRequest) {
+      logger.error("No matching request for reveal request ", requestPacket);
+      return;
+    }
+
+    if (matchingRequest.endingAt > new Date()) {
+      logger.error("Request is still active. Not revealing embeddings.");
+      return;
+    }
+
+    const ourCommit = requestPacket.packet.quorum.find(
+      (commit) => commit.synthientId === ourSynthientId
+    );
+
+    if (!ourCommit) {
+      logger.error("No matching commit with our synthient id ", requestPacket);
+      return;
+    }
+
+    // Next check if we have the inferenceresult
+    const matchingResult = await this.inferenceResultDb.inferenceResults.get(
+      ourCommit.inferenceId
+    );
+
+    if (!matchingResult) {
+      logger.error("No matching result for reveal request ", requestPacket);
+      return;
+    }
+
+    if (!matchingResult.result.success) {
+      logger.error("Result was not successful. Not revealing embeddings.");
+      return;
+    }
+
+    const matchingEmbedding =
+      await this.inferenceEmbeddingDb.inferenceEmbeddings.get(
+        matchingResult.inferenceId
+      );
+
+    if (!matchingEmbedding) {
+      logger.error("No matching embedding for reveal request ", requestPacket);
+      return;
+    }
+
+    // Get the embeddings for the result
+
+    logger.debug("Revealing our inference to ", requestPacket.synthientId);
+
+    this.emit("revealedInference", {
+      createdAt: stringifyDateWithOffset(new Date()),
+      type: "inferenceReveal",
+      requestedSynthientId: requestPacket.synthientId,
+      requestId: matchingRequest.requestId,
+      inferenceId: matchingResult.inferenceId,
+      output: matchingResult.result.result,
+      embedding: matchingEmbedding.embedding,
+      bEmbedding: matchingEmbedding.bEmbedding,
+    });
   }
 
   async saveInferenceEmbedding(

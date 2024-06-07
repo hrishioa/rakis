@@ -88,6 +88,25 @@ export class TheDomain {
       setTimeout(() => this.inferenceDB.saveInferenceCommit(packet), 0);
     });
 
+    // When a reveal is requested, pass it on
+    this.packetDB.on("newInferenceRevealRequest", (packet) => {
+      setTimeout(() => {
+        logger.debug("Processing new inference reveal request");
+        this.inferenceDB.processInferenceRevealRequest(
+          packet,
+          this.clientInfo.synthientId
+        );
+      }, 0);
+    });
+
+    // When we get a reveal, pass it to the inferencedb to process
+    this.packetDB.on("newInferenceRevealed", (packet) => {
+      setTimeout(() => {
+        logger.debug("Processing new inference reveal");
+        this.inferenceDB.processInferenceReveal(packet);
+      }, 0);
+    });
+
     // ############# Set up event-based connections
 
     // If inference results are done, move them off to get embedded
@@ -132,6 +151,23 @@ export class TheDomain {
     this.inferenceDB.on("newActiveInferenceRequest", (request) => {
       logger.debug("New active inference request, starting inference loop.");
       setTimeout(() => this.processInferenceRequestQueue(), 0);
+    });
+
+    // When quorums are ready to be revealed, propagate the requests
+    this.inferenceDB.on("requestQuorumReveal", (revealRequests) => {
+      setTimeout(() => {
+        logger.debug("Publishing reveal requests");
+        revealRequests.forEach((revealRequest) => {
+          this.packetDB.transmitPacket(revealRequest);
+        });
+      }, 0);
+    });
+
+    this.inferenceDB.on("revealedInference", (inferenceReveal) => {
+      setTimeout(() => {
+        logger.debug("Publishing revealed inference");
+        this.packetDB.transmitPacket(inferenceReveal);
+      }, 0);
     });
   }
 
@@ -202,7 +238,7 @@ export class TheDomain {
               temperature: 1,
               maxTokens: 2048,
               securityFrame: {
-                quorum: 10,
+                quorum: 2,
                 maxTimeMs,
                 secDistance: 0.9,
                 secPercentage: 0.5,

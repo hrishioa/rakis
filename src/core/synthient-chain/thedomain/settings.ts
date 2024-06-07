@@ -11,3 +11,11 @@ export const THEDOMAIN_SETTINGS: {
   inferencePollingIntervalMs: 5000,
   inferenceRequestQueueDebounceMs: 1000,
 };
+
+export const QUORUM_SETTINGS: {
+  quorumRevealTimeoutMs: number;
+  quorumRevealRequestIssueTimeoutMs: number;
+} = {
+  quorumRevealRequestIssueTimeoutMs: 10000,
+  quorumRevealTimeoutMs: 15000,
+};
