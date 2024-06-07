@@ -13,6 +13,9 @@ import { hashBinaryEmbedding, hashString } from "../utils/simple-crypto";
 
 const logger = createLogger("Consensus Core", logStyles.consensusCore);
 
+// TODO: Change this to a worker in case it becomes
+// Computationally expensive
+
 export async function runFinalConsensus(
   quorum: InferenceQuorum,
   verifiedEmbeddingResults: EmbeddingResult[],
@@ -247,11 +250,13 @@ export async function runFinalConsensus(
     largestCluster.commitIndex
   );
 
-  const acceptedInferenceIndices = distances[largestCluster.commitIndex]
+  const acceptedInferenceIndices: number[] = distances[
+    largestCluster.commitIndex
+  ]
     .map((distance, index) =>
       distance >= securityFrame.secDistance ? false : index
     )
-    .filter((index) => index !== false);
+    .filter((index) => index !== false) as number[];
 
   logger.debug(
     "Accepted inferences for largest cluster: ",
