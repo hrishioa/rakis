@@ -34,6 +34,7 @@
     "@xenova/transformers": "^2.17.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "cos-similarity": "^2.0.0",
     "dexie": "^4.0.7",
     "eventemitter3": "^5.0.1",
     "fake-indexeddb": "^6.0.0",

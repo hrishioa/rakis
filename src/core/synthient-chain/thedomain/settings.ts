@@ -19,8 +19,10 @@ export const QUORUM_SETTINGS: {
   quorumRevealTimeoutMs: number; // Amount of time allowed between endingAt and quorum reveals being received
   quorumRevealRequestIssueTimeoutMs: number; // Amount of time allowed between endingAt and quorum reveal requests going out
   quorumConsensusWindowMs: number;
+  bEmbeddingThreshold: number; // Distance that our recomputed embeddings are allowed to be off by
 } = {
   quorumRevealRequestIssueTimeoutMs: 10000,
   quorumRevealTimeoutMs: 15000,
   quorumConsensusWindowMs: 30000,
+  bEmbeddingThreshold: 0,
 };

@@ -19,6 +19,7 @@ import EventEmitter from "eventemitter3";
 import { createLogger, logStyles } from "../utils/logger";
 import { InferenceQuorum, QuorumDB } from "./quorumdb";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
+import { EmbeddingResult } from "../../embeddings/types";
 
 const logger = createLogger("InferenceDB", logStyles.databases.inferenceDB);
 
@@ -187,6 +188,40 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     }
 
     this.quorumDb.processInferenceReveal(revealPacket);
+  }
+
+  async processVerifiedConsensusEmbeddings(
+    embeddingResults: {
+      requestId: string;
+      results: EmbeddingResult[] | false;
+    },
+    ourSynthientId: string
+  ) {
+    if (!embeddingResults.results) {
+      logger.error(
+        "No results to process for verified embeddings",
+        embeddingResults
+      );
+      return;
+    }
+
+    const matchingRequest = await this.inferenceRequestDb.inferenceRequests.get(
+      embeddingResults.requestId
+    );
+
+    if (!matchingRequest) {
+      logger.error(
+        "No matching request for verified embeddings to run final consensus",
+        embeddingResults
+      );
+      return;
+    }
+
+    await this.quorumDb.processVerifiedConsensusEmbeddings(
+      matchingRequest,
+      embeddingResults.results,
+      ourSynthientId
+    );
   }
 
   async processInferenceRevealRequest(

@@ -10,6 +10,7 @@ import { createLogger, logStyles } from "../utils/logger";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
 import EventEmitter from "eventemitter3";
 import { EmbeddingModelName, EmbeddingResult } from "../../embeddings/types";
+import { runFinalConsensus } from "../consensus/consensus-core";
 
 const logger = createLogger("QuorumDB", logStyles.databases.quorumDB);
 
@@ -257,18 +258,35 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     }
   }
 
-  async processVerifiedConsensusEmbeddings(embeddingResults: {
-    requestId: string;
-    results: EmbeddingResult[] | false;
-  }) {
+  async processVerifiedConsensusEmbeddings(
+    request: InferenceRequest,
+    results: EmbeddingResult[],
+    ourSynthientId: string
+  ) {
     logger.debug(
       "Processing verified consensus embeddings: ",
-      embeddingResults
+      results,
+      " for request: ",
+      request
     );
 
-    await this.db.quorums.update(embeddingResults.requestId, {
+    await this.db.quorums.update(request.requestId, {
       status: "verifying_consensus",
     });
+
+    const quorum = await this.db.quorums.get(request.requestId);
+
+    if (!quorum) {
+      logger.error("No quorum found for request ", request);
+      return;
+    }
+
+    const finalResults = await runFinalConsensus(
+      quorum,
+      results,
+      ourSynthientId,
+      request.payload.securityFrame
+    );
   }
 
   async processInferenceCommit(

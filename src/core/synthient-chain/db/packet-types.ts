@@ -67,7 +67,7 @@ type InferenceRequestPayload = {
   securityFrame: InferenceSecurityFrame;
 };
 
-type InferenceSecurityFrame = {
+export type InferenceSecurityFrame = {
   quorum: number; // Number of inferences that need to happen for a quorum
   maxTimeMs: number; // Max amount of time that this round can take before failed inference
   secDistance: number; // Distance in embeddingspace
@@ -228,16 +228,17 @@ export type InferenceRevealRejected = PeerPacketAttributes & {
 export type InferenceQuorumComputed = PeerPacketAttributes & {
   type: "inferenceQuorumComputed";
   requestId: string;
+  verifiedBy: string; // SynthientId of the peer that computed the quorum
   submittedInferences: {
     inferenceId: string;
   }[];
-  acceptedInferences: {
+  validInferences: {
     inferenceId: string;
   }[];
-  acceptedInferenceJointHash: string; // Fixed deterministic hashing of the outputs - maybe just sort the inferences alphabetically and hash the results
-  acceptedSingleinference: {
+  validInferenceJointHash: string; // Fixed deterministic hashing of the outputs - maybe just sort the inferences alphabetically and hash the results
+  validSingleInference: {
     output: string;
-    fromsynthientId: string;
+    fromSynthientId: string;
     bEmbeddingHash: string;
   };
 };

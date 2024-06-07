@@ -10,6 +10,7 @@ export const logStyles = {
     worker: "background: #f0fff0; color: #90ee90;",
   },
   theDomain: "background: #fff0f5; color: #ff69b4; font-weight: bold;",
+  consensusCore: "background: #f5f5f5; color: #4682b4; font-weight: bold;",
   databases: {
     inferenceDB: "background: #f5f5f5; color: #a9a9a9;",
     packetDB: "background: #f5f5f5; color: #708090;",

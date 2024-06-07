@@ -7,6 +7,7 @@ import {
 } from "./types";
 import { DeferredPromise } from "../utils/deferredpromise";
 import { EmbeddingResult } from "./types";
+import { hashBinaryEmbedding } from "../synthient-chain/utils/simple-crypto";
 import { createLogger, logStyles } from "../synthient-chain/utils/logger";
 const logger = createLogger(
   "Embedding Worker",
@@ -15,16 +16,6 @@ const logger = createLogger(
 );
 
 let workerInstance: EmbeddingWorker | null = null;
-
-async function hashBinaryEmbedding(bEmbedding: number[]) {
-  const uint8Array = new Uint8Array(bEmbedding);
-  const hashBufer = await crypto.subtle.digest("SHA-256", uint8Array);
-  const hashArray = Array.from(new Uint8Array(hashBufer));
-  const hashHex = hashArray
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return hashHex;
-}
 
 function sendMessageToParent(message: EmbeddingWorkerSentMessage) {
   self.postMessage(message);
@@ -121,15 +112,29 @@ async function embedText(
     const binaryEmbeddings = quantize_embeddings(embeddings, "ubinary");
 
     const results: EmbeddingResult[] = await Promise.all(
-      texts.map(async (text, index) => ({
-        text,
-        embedding: embeddings.slice([index, index + 1]).data as number[],
-        binaryEmbedding: binaryEmbeddings.slice([index, index + 1])
-          .data as number[],
-        bEmbeddingHash: await hashBinaryEmbedding(
+      texts.map(async (text, index) => {
+        logger.warn("Text: ", text);
+        logger.warn(
+          "Binary embedding: ",
           binaryEmbeddings.slice([index, index + 1]).data as number[]
-        ),
-      }))
+        );
+        logger.warn(
+          "Hash: ",
+          await hashBinaryEmbedding(
+            binaryEmbeddings.slice([index, index + 1]).data as number[]
+          )
+        );
+
+        return {
+          text,
+          embedding: embeddings.slice([index, index + 1]).data as number[],
+          binaryEmbedding: binaryEmbeddings.slice([index, index + 1])
+            .data as number[],
+          bEmbeddingHash: await hashBinaryEmbedding(
+            binaryEmbeddings.slice([index, index + 1]).data as number[]
+          ),
+        };
+      })
     );
 
     return {

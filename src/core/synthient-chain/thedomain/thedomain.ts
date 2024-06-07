@@ -16,8 +16,6 @@ import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
 import { QUORUM_SETTINGS, THEDOMAIN_SETTINGS } from "./settings";
 import { debounce } from "lodash";
 import { createLogger, logStyles } from "../utils/logger";
-import { SelectItem } from "../../../components/ui/select";
-import { InferenceQuorum } from "../db/quorumdb";
 
 const logger = createLogger("Domain", logStyles.theDomain);
 
@@ -488,10 +486,13 @@ export class TheDomain {
                 bEmbeddingHash: embeddingResult.bEmbeddingHash,
               });
             } else {
-              this.inferenceDB.quorumDb.processVerifiedConsensusEmbeddings({
-                requestId: item.request.requestId,
-                results: embeddingResults,
-              });
+              this.inferenceDB.processVerifiedConsensusEmbeddings(
+                {
+                  requestId: item.request.requestId,
+                  results: embeddingResults,
+                },
+                this.clientInfo.synthientId
+              );
             }
           } else {
             // TODO: Log an error?

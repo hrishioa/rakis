@@ -5,6 +5,29 @@ import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
+export async function hashBinaryEmbedding(bEmbedding: number[]) {
+  const uint8Array = new Uint8Array(bEmbedding);
+  const hashBufer = await crypto.subtle.digest("SHA-256", uint8Array);
+  const hashArray = Array.from(new Uint8Array(hashBufer));
+  const hashHex = hashArray
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return hashHex;
+}
+
+export async function hashString(str: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  // TODO: replace this with the sha512, but I'm a little worried about rewriting the
+  // crypto right now
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return hashHex;
+}
+
 export function verifySignatureOnJSONObject(
   pubKey: string,
   signature: string,
