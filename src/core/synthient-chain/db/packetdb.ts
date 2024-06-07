@@ -157,6 +157,8 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
       // receivedTime: undefined, // Set as undefined since it's our own packet
     });
 
+    this.emitNewPacketEvents(transmittedPacket);
+
     logger.debug("Transmitting packet:", transmittedPacket);
     logger.debug(
       "Signature:",
@@ -167,8 +169,6 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
     // Send the packet over the P2P network
     await this.sendPacketOverP2P(transmittedPacket);
-
-    this.emitNewPacketEvents(transmittedPacket);
   }
 
   // Expensive, primarily for testing, if you're calling this otherwise please rethink your life choices

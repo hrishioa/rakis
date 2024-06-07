@@ -413,163 +413,169 @@ export class TheDomain {
     }
   }
 
-  private processInferenceRequestQueue = debounce(() => {
-    const cycleId = generateRandomString(3);
+  private processInferenceRequestQueue = debounce(
+    () => {
+      const cycleId = generateRandomString(3);
 
-    const availableInferenceRequests =
-      this.inferenceDB.activeInferenceRequests.filter(
+      const availableInferenceRequests =
+        this.inferenceDB.activeInferenceRequests.filter(
+          (inferenceRequest) =>
+            inferenceRequest.endingAt > new Date() &&
+            !this.inferenceStatus.inferenceIdsInProcess.includes(
+              inferenceRequest.requestId
+            )
+        );
+
+      logger.debug(
+        "Request Inference Queue: ",
+        cycleId,
+        ": Found ",
+        availableInferenceRequests.length,
+        " available inference requests."
+      );
+
+      const neededModels = Array.from(
+        new Set(
+          availableInferenceRequests
+            .map((inferenceRequest) => inferenceRequest.payload.acceptedModels)
+            .flat()
+        )
+      );
+
+      logger.debug(
+        "Request Inference Queue: ",
+        cycleId,
+        ": Models needed - ",
+        neededModels
+      );
+
+      const llmWorkerAvailability =
+        this.llmEngine.getWorkerAvailability(neededModels);
+
+      logger.debug(cycleId, ": Worker availability - ", llmWorkerAvailability);
+
+      const possibleInferences = availableInferenceRequests.filter(
         (inferenceRequest) =>
-          inferenceRequest.endingAt > new Date() &&
-          !this.inferenceStatus.inferenceIdsInProcess.includes(
-            inferenceRequest.requestId
+          inferenceRequest.payload.acceptedModels.some(
+            (model) =>
+              llmWorkerAvailability[model] &&
+              llmWorkerAvailability[model].free > 0
           )
       );
 
-    logger.debug(
-      "Request Inference Queue: ",
-      cycleId,
-      ": Found ",
-      availableInferenceRequests.length,
-      " available inference requests."
-    );
+      logger.debug(
+        "Request Inference Queue: ",
+        cycleId,
+        ": Possible inferences - ",
+        possibleInferences
+      );
 
-    const neededModels = Array.from(
-      new Set(
-        availableInferenceRequests
-          .map((inferenceRequest) => inferenceRequest.payload.acceptedModels)
-          .flat()
-      )
-    );
+      if (!possibleInferences.length) {
+        logger.debug(cycleId, ": No possible inferences, going back to sleep.");
+        return;
+      }
 
-    logger.debug(
-      "Request Inference Queue: ",
-      cycleId,
-      ": Models needed - ",
-      neededModels
-    );
+      const selectedInference = possibleInferences.sort((a, b) => {
+        return b.endingAt.getTime() - a.endingAt.getTime();
+      })[0];
 
-    const llmWorkerAvailability =
-      this.llmEngine.getWorkerAvailability(neededModels);
+      logger.debug(
+        "Request Inference Queue: ",
+        cycleId,
+        ": Selected inference - ",
+        selectedInference.requestId
+      );
 
-    logger.debug(cycleId, ": Worker availability - ", llmWorkerAvailability);
+      this.inferenceStatus.inferenceIdsInProcess.push(
+        selectedInference.requestId
+      );
 
-    const possibleInferences = availableInferenceRequests.filter(
-      (inferenceRequest) =>
-        inferenceRequest.payload.acceptedModels.some(
-          (model) =>
-            llmWorkerAvailability[model] &&
-            llmWorkerAvailability[model].free > 0
-        )
-    );
+      const inferenceStartedAt = new Date();
 
-    logger.debug(
-      "Request Inference Queue: ",
-      cycleId,
-      ": Possible inferences - ",
-      possibleInferences
-    );
-
-    if (!possibleInferences.length) {
-      logger.debug(cycleId, ": No possible inferences, going back to sleep.");
-      return;
-    }
-
-    const selectedInference = possibleInferences.sort((a, b) => {
-      return b.endingAt.getTime() - a.endingAt.getTime();
-    })[0];
-
-    logger.debug(
-      "Request Inference Queue: ",
-      cycleId,
-      ": Selected inference - ",
-      selectedInference.requestId
-    );
-
-    this.inferenceStatus.inferenceIdsInProcess.push(
-      selectedInference.requestId
-    );
-
-    const inferenceStartedAt = new Date();
-
-    this.packetDB.transmitPacket({
-      type: "peerStatusUpdate",
-      status: "inferencing",
-      modelName: selectedInference.payload.acceptedModels[0],
-      createdAt: stringifyDateWithOffset(new Date()),
-    });
-
-    this.llmEngine
-      .runInferenceNonStreaming({
+      this.packetDB.transmitPacket({
+        type: "peerStatusUpdate",
+        status: "inferencing",
         modelName: selectedInference.payload.acceptedModels[0],
-        messages: [{ role: "user", content: selectedInference.payload.prompt }],
-      })
-      .then((response) => {
-        logger.debug(
-          "Request Inference Queue: ",
-          cycleId,
-          ": Inference completed for ",
-          selectedInference.requestId,
-          " - ",
-          response
-        );
-
-        const inferenceEndedAt = new Date();
-
-        if (response.success) {
-          const inferenceSeconds =
-            inferenceEndedAt.getTime() / 1000 -
-            inferenceStartedAt.getTime() / 1000;
-          const tps =
-            response.tokenCount && inferenceSeconds
-              ? response.tokenCount / inferenceSeconds
-              : 0;
-
-          this.packetDB.transmitPacket({
-            type: "peerStatusUpdate",
-            status: "completed_inference",
-            modelName: selectedInference.payload.acceptedModels[0],
-            tps,
-            createdAt: stringifyDateWithOffset(new Date()),
-          });
-        }
-
-        return this.inferenceDB.saveInferenceResult({
-          requestId: selectedInference.requestId,
-          inferenceId:
-            selectedInference.requestId + "." + generateRandomString(),
-          startedAt: stringifyDateWithOffset(inferenceStartedAt),
-          completedAt: stringifyDateWithOffset(new Date()),
-          result: response,
-        });
-      })
-      .then(() => {
-        this.inferenceStatus.inferenceIdsInProcess =
-          this.inferenceStatus.inferenceIdsInProcess.filter(
-            (id) => id !== selectedInference.requestId
-          );
-      })
-      .catch((err) => {
-        logger.error(cycleId, ": Error running inference - ", err);
-
-        return this.inferenceDB.saveInferenceResult({
-          requestId: selectedInference.requestId,
-          inferenceId:
-            selectedInference.requestId + "." + generateRandomString(),
-          startedAt: stringifyDateWithOffset(inferenceStartedAt),
-          completedAt: stringifyDateWithOffset(new Date()),
-          result: {
-            success: false,
-            error: err,
-          },
-        });
+        createdAt: stringifyDateWithOffset(new Date()),
       });
 
-    logger.debug(
-      "Request Inference Queue: ",
-      "looking for next inference, waiting a tick."
-    );
-    setTimeout(() => this.processInferenceRequestQueue(), 0);
-  }, THEDOMAIN_SETTINGS.inferenceRequestQueueDebounceMs);
+      this.llmEngine
+        .runInferenceNonStreaming({
+          modelName: selectedInference.payload.acceptedModels[0],
+          messages: [
+            { role: "user", content: selectedInference.payload.prompt },
+          ],
+        })
+        .then((response) => {
+          logger.debug(
+            "Request Inference Queue: ",
+            cycleId,
+            ": Inference completed for ",
+            selectedInference.requestId,
+            " - ",
+            response
+          );
+
+          const inferenceEndedAt = new Date();
+
+          if (response.success) {
+            const inferenceSeconds =
+              inferenceEndedAt.getTime() / 1000 -
+              inferenceStartedAt.getTime() / 1000;
+            const tps =
+              response.tokenCount && inferenceSeconds
+                ? response.tokenCount / inferenceSeconds
+                : 0;
+
+            this.packetDB.transmitPacket({
+              type: "peerStatusUpdate",
+              status: "completed_inference",
+              modelName: selectedInference.payload.acceptedModels[0],
+              tps,
+              createdAt: stringifyDateWithOffset(new Date()),
+            });
+          }
+
+          return this.inferenceDB.saveInferenceResult({
+            requestId: selectedInference.requestId,
+            inferenceId:
+              selectedInference.requestId + "." + generateRandomString(),
+            startedAt: stringifyDateWithOffset(inferenceStartedAt),
+            completedAt: stringifyDateWithOffset(new Date()),
+            result: response,
+          });
+        })
+        .then(() => {
+          this.inferenceStatus.inferenceIdsInProcess =
+            this.inferenceStatus.inferenceIdsInProcess.filter(
+              (id) => id !== selectedInference.requestId
+            );
+        })
+        .catch((err) => {
+          logger.error(cycleId, ": Error running inference - ", err);
+
+          return this.inferenceDB.saveInferenceResult({
+            requestId: selectedInference.requestId,
+            inferenceId:
+              selectedInference.requestId + "." + generateRandomString(),
+            startedAt: stringifyDateWithOffset(inferenceStartedAt),
+            completedAt: stringifyDateWithOffset(new Date()),
+            result: {
+              success: false,
+              error: err,
+            },
+          });
+        });
+
+      logger.debug(
+        "Request Inference Queue: ",
+        "looking for next inference, waiting a tick."
+      );
+      setTimeout(() => this.processInferenceRequestQueue(), 0);
+    },
+    THEDOMAIN_SETTINGS.inferenceRequestQueueDebounceMs,
+    { leading: true }
+  );
 
   // TODOs:
   // 1. Register error handlers for the p2p networks, and restart them (some finite number of times) if they error out

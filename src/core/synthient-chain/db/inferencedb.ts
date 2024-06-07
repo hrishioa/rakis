@@ -122,20 +122,20 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     }
 
     const now = new Date();
-    let shortestTimeout = Infinity;
 
-    for (const inference of this.activeInferenceRequests) {
-      const timeRemaining = inference.endingAt.getTime() - now.getTime();
-      if (timeRemaining < shortestTimeout) {
-        shortestTimeout = timeRemaining;
-      }
-    }
+    this.activeInferenceRequests = this.activeInferenceRequests.filter(
+      (inference) => inference.endingAt > now
+    );
 
-    if (shortestTimeout !== Infinity) {
-      this.cleanupTimeout = setTimeout(() => {
-        this.cleanupExpiredInferences();
-      }, shortestTimeout);
-    }
+    if (!this.activeInferenceRequests.length) return;
+
+    const inferencesSortedByTimeRemaining = this.activeInferenceRequests.sort(
+      (a, b) => a.endingAt.getTime() - b.endingAt.getTime()
+    );
+
+    this.cleanupTimeout = setTimeout(() => {
+      this.cleanupExpiredInferences();
+    }, inferencesSortedByTimeRemaining[0].endingAt.getTime() - now.getTime());
   }
 
   private async cleanupExpiredInferences() {

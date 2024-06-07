@@ -14,7 +14,12 @@ const logger = createLogger("QuorumDB", logStyles.databases.quorumDB);
 
 export type InferenceQuorum = {
   requestId: string;
-  status: "awaiting_commitments" | "awaiting_reveal" | "failed" | "completed";
+  status:
+    | "awaiting_commitments"
+    | "awaiting_reveal"
+    | "failed"
+    | "completed"
+    | "awaiting_consensus";
   quorumThreshold: number;
   endingAt: Date; // Stringified date
   quorumCommitted: number; // Number of peers that have committed a hash
@@ -136,7 +141,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     }
 
     if (commit.reveal) {
-      logger.debug("Commit already has a reveal ", commit);
+      // logger.debug("Commit already has a reveal ", commit);
       return;
     }
     // TODO: IMPORTANT Validate the actual reveal before adding it to our quorum
@@ -150,6 +155,11 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     };
 
     quorum.quorumRevealed += 1;
+
+    quorum.status =
+      quorum.quorumRevealed > quorum.quorumThreshold
+        ? "awaiting_consensus"
+        : "awaiting_reveal";
 
     await this.db.quorums.put(quorum);
 
