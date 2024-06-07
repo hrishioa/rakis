@@ -135,6 +135,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       return;
     }
 
+    if (commit.reveal) {
+      logger.debug("Commit already has a reveal ", commit);
+      return;
+    }
     // TODO: IMPORTANT Validate the actual reveal before adding it to our quorum
     // by double checking the embeddings and hash
 
