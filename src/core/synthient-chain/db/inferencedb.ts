@@ -80,7 +80,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   private inferenceRequestDb: InferenceRequestDatabase;
   private inferenceResultDb: InferenceResultDatabase;
   private inferenceEmbeddingDb: InferenceEmbeddingDatabase;
-  private quorumDb: QuorumDB;
+  public quorumDb: QuorumDB;
   // This should ideally be part of the db or a live query once the network is larger, has a chance of becoming problematic
   public activeInferenceRequests: InferenceRequest[] = [];
   private cleanupTimeout: NodeJS.Timeout | null = null;

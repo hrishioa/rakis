@@ -1,4 +1,4 @@
-import Dexie from "dexie";
+import Dexie, { liveQuery } from "dexie";
 import {
   InferenceCommit,
   InferenceRequest,
@@ -9,6 +9,7 @@ import {
 import { createLogger, logStyles } from "../utils/logger";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
 import EventEmitter from "eventemitter3";
+import { EmbeddingModelName, EmbeddingResult } from "../../embeddings/types";
 
 const logger = createLogger("QuorumDB", logStyles.databases.quorumDB);
 
@@ -19,11 +20,14 @@ export type InferenceQuorum = {
     | "awaiting_reveal"
     | "failed"
     | "completed"
-    | "awaiting_consensus";
+    | "awaiting_consensus" // means getting the embeddings and other processing ready
+    | "verifying_consensus";
   quorumThreshold: number;
   endingAt: Date; // Stringified date
   quorumCommitted: number; // Number of peers that have committed a hash
   quorumRevealed: number; // Number of peers that have revealed their embedding
+  consensusRequestedAt?: Date; // Time that the consensus was requested
+  embeddingModel: EmbeddingModelName;
   quorum: {
     inferenceId: string;
     synthientId: string;
@@ -45,13 +49,18 @@ class QuorumDatabase extends Dexie {
     super("QuorumDatabase");
     this.version(1).stores({
       quorums:
-        "requestId, status, endingAt, thresholdMet, quorumCommitted, quorumRevealed",
+        "requestId, status, endingAt, thresholdMet, quorumCommitted, quorumRevealed, consensusRequestedAt",
     });
   }
 }
 
 export type QuorumDBEvents = {
   requestReveal: (quorums: InferenceQuorum[]) => void;
+  newQuorumAwaitingConsensus: (
+    requestId: string,
+    modelName: EmbeddingModelName,
+    consensusRequestedAt: Date
+  ) => void;
 };
 
 export class QuorumDB extends EventEmitter<QuorumDBEvents> {
@@ -63,11 +72,15 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     this.db = new QuorumDatabase();
   }
 
+  async getQuorum(requestId: string) {
+    return this.db.quorums.get(requestId);
+  }
+
   private async checkQuorumsReadyForReveal() {
     logger.debug("Checking quorums for reveal");
 
     // Find quorums where they've already ended (endingAt is in the past)
-    // But the endingAt+quorumRevealTimeoutMs hasn't ended
+    // But the endingAt+quorumRevealRequestIssueTimeoutMs hasn't ended
     // And the quorums is still awaiting_commitments
     const currentTime = new Date();
     const revealStartTime = new Date(
@@ -129,6 +142,19 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       return;
     }
 
+    if (
+      revealPacket.receivedTime &&
+      revealPacket.receivedTime.getTime() >
+        quorum.endingAt.getTime() + QUORUM_SETTINGS.quorumRevealTimeoutMs
+    ) {
+      logger.debug(
+        "Received reveal packet after reveal timeout ",
+        revealPacket,
+        " discarding"
+      );
+      return;
+    }
+
     const commit = quorum.quorum.find(
       (commit) =>
         commit.synthientId === revealPacket.synthientId &&
@@ -156,14 +182,54 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
     quorum.quorumRevealed += 1;
 
-    quorum.status =
-      quorum.quorumRevealed > quorum.quorumThreshold
-        ? "awaiting_consensus"
-        : "awaiting_reveal";
+    let emitAwaitingConsensusEvent = false;
+
+    if (quorum.quorumRevealed >= quorum.quorumThreshold) {
+      if (quorum.status !== "awaiting_consensus") {
+        emitAwaitingConsensusEvent = true;
+      }
+
+      quorum.status = "awaiting_consensus";
+      quorum.consensusRequestedAt = new Date();
+    }
 
     await this.db.quorums.put(quorum);
 
+    // TODO: Make this a Dexie subscription instead to just listen for changes in the status type
+    if (emitAwaitingConsensusEvent) {
+      logger.debug("Emitting newQuorumAwaitingConsensus for quorum: ", quorum);
+      this.emit(
+        "newQuorumAwaitingConsensus",
+        quorum.requestId,
+        quorum.embeddingModel,
+        quorum.consensusRequestedAt!
+      );
+    }
+
     logger.debug("Updated quorum with reveal: ", quorum);
+  }
+
+  async getQuorumConsensusQueue() {
+    const now = new Date();
+    // Subtract QUORUM_SETTINGS.quorumConsensusWindowMs from now
+    const revealStartTime = new Date(
+      now.getTime() - QUORUM_SETTINGS.quorumConsensusWindowMs
+    );
+
+    // Get the quorum that's still awaiting_consensus with the soonest endingAt
+    const quorumConsensusQueue = (
+      await this.db.quorums
+        .where("consensusRequestedAt")
+        .above(revealStartTime)
+        .toArray()
+    )
+      .filter((quorum) => !!quorum.consensusRequestedAt)
+      .sort(
+        (a, b) =>
+          a.consensusRequestedAt!.getTime() - b.consensusRequestedAt!.getTime()
+      );
+
+    return quorumConsensusQueue;
   }
 
   private async refreshQuorumRevealTimeout() {
@@ -191,6 +257,20 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     }
   }
 
+  async processVerifiedConsensusEmbeddings(embeddingResults: {
+    requestId: string;
+    results: EmbeddingResult[] | false;
+  }) {
+    logger.debug(
+      "Processing verified consensus embeddings: ",
+      embeddingResults
+    );
+
+    await this.db.quorums.update(embeddingResults.requestId, {
+      status: "verifying_consensus",
+    });
+  }
+
   async processInferenceCommit(
     packet: Omit<ReceivedPeerPacket, "packet"> & { packet: InferenceCommit },
     request: InferenceRequest
@@ -212,6 +292,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
         endingAt: request.endingAt,
         quorumCommitted: 1,
         quorumRevealed: 0,
+        embeddingModel: request.payload.securityFrame.embeddingModel,
         quorum: [
           {
             inferenceId: packet.packet.inferenceId,

@@ -13,9 +13,11 @@ import { ClientInfo, initClientInfo } from "../identity";
 import { P2PNetworkFactory } from "../p2p-networks/networkfactory";
 import { P2PNetworkInstance } from "../p2p-networks/p2pnetwork-types";
 import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
-import { THEDOMAIN_SETTINGS } from "./settings";
+import { QUORUM_SETTINGS, THEDOMAIN_SETTINGS } from "./settings";
 import { debounce } from "lodash";
 import { createLogger, logStyles } from "../utils/logger";
+import { SelectItem } from "../../../components/ui/select";
+import { InferenceQuorum } from "../db/quorumdb";
 
 const logger = createLogger("Domain", logStyles.theDomain);
 
@@ -45,8 +47,18 @@ export class TheDomain {
     inferenceCompletionInterval: NodeJS.Timeout | null;
     waitingForWorker: boolean;
     embeddingQueue: {
-      request: InferenceRequest;
-      result: InferenceSuccessResult;
+      model: EmbeddingModelName;
+      request:
+        | {
+            type: "resultEmbedding";
+            request: InferenceRequest;
+            result: InferenceSuccessResult;
+          }
+        | {
+            type: "consensusVerification";
+            requestId: string;
+          };
+      expiresAt: Date;
       queued: boolean;
     }[];
   } = {
@@ -63,12 +75,14 @@ export class TheDomain {
         await this.packetDB.receivePacket(packet);
       });
 
+      // TODO: Move all the listeners below into proper named functions and then add unloading them to the shutdown listeners
       this.shutdownListeners.push(() => listener());
     }
 
     // Send received peer-based inference requests from packetdb to inferencedb
     // TODO: This should be depreated later so we don't have a cycle in our
     // data flow
+
     this.packetDB.on("newP2PInferenceRequest", (packet) => {
       logger.debug("Saving p2p inference request to our db");
       setTimeout(
@@ -109,24 +123,62 @@ export class TheDomain {
 
     // ############# Set up event-based connections
 
+    // If there's a new consensus quorum that needs to be verified for their
+    // emebeddings, start the process
+    this.inferenceDB.quorumDb.on(
+      "newQuorumAwaitingConsensus",
+      (requestId, embeddingModel, consensusRequestedAt) => {
+        logger.debug(
+          "New quorum awaiting consensus verification - ",
+          requestId
+        );
+        if (
+          !this.inferenceStatus.embeddingQueue.find(
+            (item) =>
+              item.request.type === "consensusVerification" &&
+              item.request.requestId === requestId
+          )
+        ) {
+          this.inferenceStatus.embeddingQueue.push({
+            model: embeddingModel,
+            request: {
+              type: "consensusVerification",
+              requestId,
+            },
+            expiresAt: new Date(
+              consensusRequestedAt.getTime() +
+                QUORUM_SETTINGS.quorumConsensusWindowMs
+            ),
+            queued: false,
+          });
+        }
+        setTimeout(() => this.processEmbeddingQueue(), 0);
+      }
+    );
+
     // If inference results are done, move them off to get embedded
     this.inferenceDB.on(
       "inferenceResultAwaitingEmbedding",
       (request, result) => {
         logger.debug("New inference awaiting embedding");
         this.inferenceStatus.embeddingQueue.push({
-          request,
-          result,
+          model: request.payload.securityFrame.embeddingModel,
+          expiresAt: request.endingAt,
+          request: {
+            type: "resultEmbedding",
+            request,
+            result,
+          },
           queued: false,
         });
-        setTimeout(() => this.processInferenceResultQueue(), 0);
+        setTimeout(() => this.processEmbeddingQueue(), 0);
       }
     );
 
     // If embedding workers are free, check for new jobs
     this.embeddingEngine.on("workerFree", () => {
       logger.debug("Worker free, checking for jobs");
-      setTimeout(() => this.processInferenceResultQueue(), 0);
+      setTimeout(() => this.processEmbeddingQueue(), 0);
     });
 
     // If embeddings are done, send out the commit message
@@ -238,7 +290,7 @@ export class TheDomain {
               temperature: 1,
               maxTokens: 2048,
               securityFrame: {
-                quorum: 2,
+                quorum: 3,
                 maxTimeMs,
                 secDistance: 0.9,
                 secPercentage: 0.5,
@@ -258,19 +310,15 @@ export class TheDomain {
     }
   }
 
-  private processInferenceResultQueue() {
-    const runId = generateRandomString(3);
+  private async processEmbeddingQueue() {
+    const runId = generateRandomString(3); // Just for debugging purposes
 
-    logger.debug(
-      "InferenceResultQueue: ",
-      runId,
-      ": Starting embedding process."
-    );
+    logger.debug("EmbeddingQueue: ", runId, ": Starting embedding process.");
 
     const availableModels = this.embeddingEngine.getAvailableModels();
 
     logger.debug(
-      "InferenceResultQueue: ",
+      "EmbeddingQueue: ",
       runId,
       ": Available models - ",
       availableModels
@@ -278,47 +326,47 @@ export class TheDomain {
 
     // Put the soonest ending ones first, let's try and race
     this.inferenceStatus.embeddingQueue = this.inferenceStatus.embeddingQueue
-      .filter((item) => item.request.endingAt > new Date())
-      .sort(
-        (a, b) => a.request.endingAt.getTime() - b.request.endingAt.getTime()
-      );
+      .filter((item) => item.expiresAt > new Date())
+      .sort((a, b) => {
+        if (
+          a.request.type === "resultEmbedding" &&
+          b.request.type !== "resultEmbedding"
+        ) {
+          return -1; // result items come before consensus items
+        } else if (
+          a.request.type !== "resultEmbedding" &&
+          b.request.type === "resultEmbedding"
+        ) {
+          return 1;
+        } else {
+          // Within each type, sort by the soonest expiring items
+          return a.expiresAt.getTime() - b.expiresAt.getTime();
+        }
+      });
 
     logger.debug(
-      "InferenceResultQueue: ",
+      "EmbeddingQueue: ",
       runId,
       ": Sorted embedding queue - ",
       this.inferenceStatus.embeddingQueue
     );
 
-    const validInferenceResults = this.inferenceStatus.embeddingQueue.filter(
-      (item) =>
-        !item.queued &&
-        availableModels.includes(
-          item.request.payload.securityFrame.embeddingModel
-        )
+    const itemsToProcess = this.inferenceStatus.embeddingQueue.filter(
+      (item) => !item.queued && availableModels.includes(item.model)
     );
 
     logger.debug(
-      "InferenceResultQueue: ",
+      "EmbeddingQueue: ",
       runId,
-      ": Valid inference results - ",
-      validInferenceResults
+      ": Items to process - ",
+      itemsToProcess
     );
 
     const usableModels = Array.from(
-      new Set(
-        validInferenceResults.map(
-          (item) => item.request.payload.securityFrame.embeddingModel
-        )
-      )
+      new Set(itemsToProcess.map((item) => item.model))
     );
 
-    logger.debug(
-      "InferenceResultQueue: ",
-      runId,
-      ": Usable models - ",
-      usableModels
-    );
+    logger.debug("EmbeddingQueue: ", runId, ": Usable models - ", usableModels);
 
     const availableWorkers = Object.values(
       this.embeddingEngine.embeddingWorkers
@@ -327,13 +375,13 @@ export class TheDomain {
     );
 
     logger.debug(
-      "InferenceResultQueue: ",
+      "EmbeddingQueue: ",
       runId,
       ": Available workers - ",
       availableWorkers
     );
 
-    if (availableWorkers.length && validInferenceResults.length)
+    if (availableWorkers.length && itemsToProcess.length)
       this.packetDB.transmitPacket({
         type: "peerStatusUpdate",
         status: "computing_bEmbeddingHash",
@@ -343,72 +391,124 @@ export class TheDomain {
 
     for (
       let i = 0;
-      i < Math.min(availableWorkers.length, validInferenceResults.length);
+      i < Math.min(availableWorkers.length, itemsToProcess.length);
       i++
     ) {
-      validInferenceResults[i].queued = true;
+      const item = itemsToProcess[i];
+
+      item.queued = true;
 
       // We're doing these one by one for now since we're not sure if running them
       // as a batch will influence the embeddings
       // TODO: For someone else to test
       logger.debug(
-        "InferenceResultQueue: ",
+        "EmbeddingQueue: ",
         "Embedding ",
-        validInferenceResults[i].result.result
+        item.request.type,
+        " - ",
+        item.request.type === "resultEmbedding"
+          ? item.request.result!.result
+          : item.request.requestId
       );
 
-      this.embeddingEngine
-        .embedText(
-          [validInferenceResults[i].result.result.result],
-          validInferenceResults[i].request.payload.securityFrame.embeddingModel
-        )
-        .then((embeddingResults) => {
-          logger.debug(
-            "InferenceResultQueue: ",
-            "Embedded ",
-            validInferenceResults[i].result.result.result,
-            " - ",
-            embeddingResults
+      let embeddingPayload: string[] = [];
+
+      if (item.request.type === "consensusVerification") {
+        const matchingQuorum = await this.inferenceDB.quorumDb.getQuorum(
+          item.request.requestId
+        );
+
+        if (!matchingQuorum) {
+          logger.error(
+            "Could not find quorum for consensus verification - ",
+            item.request.requestId
           );
 
           this.inferenceStatus.embeddingQueue =
             this.inferenceStatus.embeddingQueue.filter(
-              (item) => item !== validInferenceResults[i]
+              (item) => item !== itemsToProcess[i]
             );
 
+          // We'll skip one turn (and not maximize throughput, but this really shouldn't happen)
+          continue;
+        }
+
+        embeddingPayload = matchingQuorum.quorum
+          .filter(
+            (commit) =>
+              !!commit.reveal &&
+              commit.synthientId !== this.clientInfo.synthientId
+          )
+          .map((commit) => commit.reveal!.output);
+      } else {
+        embeddingPayload = [item.request.result.result.result];
+      }
+
+      if (!embeddingPayload.length) {
+        logger.error("No embeddings to embed for ", item);
+
+        this.inferenceStatus.embeddingQueue =
+          this.inferenceStatus.embeddingQueue.filter(
+            (item) => item !== itemsToProcess[i]
+          );
+
+        continue;
+      }
+
+      logger.debug(
+        "EmbeddingQueue: ",
+        "Embedding payload - ",
+        embeddingPayload
+      );
+
+      this.embeddingEngine
+        .embedText(embeddingPayload, item.model)
+        .then((embeddingResults) => {
+          logger.debug(
+            "EmbeddingQueue: ",
+            "Embedded ",
+            item,
+            " - ",
+            embeddingResults
+          );
+
+          // this.inferenceStatus.embeddingQueue =
+          //   this.inferenceStatus.embeddingQueue.filter(
+          //     (item) => item !== validInferenceResults[i]
+          //   );
+
           if (embeddingResults && embeddingResults.length) {
-            const embeddingResult = embeddingResults[0];
-            this.inferenceDB.saveInferenceEmbedding(
-              validInferenceResults[i].result,
-              {
-                inferenceId: validInferenceResults[i].result.inferenceId,
-                requestId: validInferenceResults[i].result.requestId,
+            if (item.request.type === "resultEmbedding") {
+              const embeddingResult = embeddingResults[0];
+              this.inferenceDB.saveInferenceEmbedding(item.request.result, {
+                inferenceId: item.request.result.inferenceId,
+                requestId: item.request.result.requestId,
                 embedding: embeddingResult.embedding,
                 bEmbedding: embeddingResult.binaryEmbedding,
                 bEmbeddingHash: embeddingResult.bEmbeddingHash,
-              }
-            );
+              });
+            } else {
+              this.inferenceDB.quorumDb.processVerifiedConsensusEmbeddings({
+                requestId: item.request.requestId,
+                results: embeddingResults,
+              });
+            }
           } else {
             // TODO: Log an error?
             logger.error(
               "Could not inference ",
-              validInferenceResults[i].result.result.result,
+              item,
               " for unknown reason to caller"
             );
           }
         })
         .catch((err) => {
-          this.inferenceStatus.embeddingQueue =
-            this.inferenceStatus.embeddingQueue.filter(
-              (item) => item !== validInferenceResults[i]
-            );
+          // this.inferenceStatus.embeddingQueue =
+          //   this.inferenceStatus.embeddingQueue.filter(
+          //     (item) => item !== validInferenceResults[i]
+          //   );
 
-          logger.error(
-            "Error embedding ",
-            validInferenceResults[i].result.result.result,
-            " - ",
-            err
-          );
+          logger.error("Error embedding ", item, " - ", err);
         });
     }
   }
