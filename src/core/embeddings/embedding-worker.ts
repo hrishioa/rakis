@@ -113,18 +113,6 @@ async function embedText(
 
     const results: EmbeddingResult[] = await Promise.all(
       texts.map(async (text, index) => {
-        logger.warn("Text: ", text);
-        logger.warn(
-          "Binary embedding: ",
-          binaryEmbeddings.slice([index, index + 1]).data as number[]
-        );
-        logger.warn(
-          "Hash: ",
-          await hashBinaryEmbedding(
-            binaryEmbeddings.slice([index, index + 1]).data as number[]
-          )
-        );
-
         return {
           text,
           embedding: embeddings.slice([index, index + 1]).data as number[],

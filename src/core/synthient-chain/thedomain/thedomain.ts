@@ -55,6 +55,7 @@ export class TheDomain {
         | {
             type: "consensusVerification";
             requestId: string;
+            priorityConsensusVerification: boolean;
           };
       expiresAt: Date;
       queued: boolean;
@@ -104,10 +105,7 @@ export class TheDomain {
     this.packetDB.on("newInferenceRevealRequest", (packet) => {
       setTimeout(() => {
         logger.debug("Processing new inference reveal request");
-        this.inferenceDB.processInferenceRevealRequest(
-          packet,
-          this.clientInfo.synthientId
-        );
+        this.inferenceDB.processInferenceRevealRequest(packet);
       }, 0);
     });
 
@@ -125,10 +123,12 @@ export class TheDomain {
     // emebeddings, start the process
     this.inferenceDB.quorumDb.on(
       "newQuorumAwaitingConsensus",
-      (requestId, embeddingModel, consensusRequestedAt) => {
+      (requestId, embeddingModel, consensusRequestedAt, hasMyContribution) => {
         logger.debug(
           "New quorum awaiting consensus verification - ",
-          requestId
+          requestId,
+          "with our work in there? ",
+          hasMyContribution
         );
         if (
           !this.inferenceStatus.embeddingQueue.find(
@@ -142,6 +142,7 @@ export class TheDomain {
             request: {
               type: "consensusVerification",
               requestId,
+              priorityConsensusVerification: hasMyContribution,
             },
             expiresAt: new Date(
               consensusRequestedAt.getTime() +
@@ -153,6 +154,15 @@ export class TheDomain {
         setTimeout(() => this.processEmbeddingQueue(), 0);
       }
     );
+
+    // Once consensus happens, propagate the consensus packets
+    // TODO: IMPORTANT Do we save other peoples consensus packets? Maybe if there's not a collision, or save all for posterity?
+    this.inferenceDB.quorumDb.on("consensusPackets", (consensusPackets) => {
+      logger.debug("New consensus packets, propagating");
+      consensusPackets.forEach((packet) => {
+        setTimeout(() => this.packetDB.transmitPacket(packet), 0);
+      });
+    });
 
     // If inference results are done, move them off to get embedded
     this.inferenceDB.on(
@@ -234,7 +244,7 @@ export class TheDomain {
     };
 
     this.packetDB = new PacketDB(clientInfo, broadcastPacket);
-    this.inferenceDB = new InferenceDB();
+    this.inferenceDB = new InferenceDB(clientInfo.synthientId);
 
     logger.debug("Databases created.");
 
@@ -243,6 +253,8 @@ export class TheDomain {
 
     logger.debug("Setting up connections...");
     this.hookupConnections();
+
+    // TODO: We want the timeouts in all the dbs to restart on restart, in case it wasn't graceful and we were in the middle of something
 
     logger.debug("Starting workers...");
 
@@ -290,7 +302,7 @@ export class TheDomain {
               securityFrame: {
                 quorum: 3,
                 maxTimeMs,
-                secDistance: 0.9,
+                secDistance: 450,
                 secPercentage: 0.5,
                 embeddingModel: "nomic-ai/nomic-embed-text-v1.5",
               },
@@ -326,6 +338,21 @@ export class TheDomain {
     this.inferenceStatus.embeddingQueue = this.inferenceStatus.embeddingQueue
       .filter((item) => item.expiresAt > new Date())
       .sort((a, b) => {
+        if (
+          a.request.type === "consensusVerification" &&
+          a.request.priorityConsensusVerification &&
+          (b.request.type !== "consensusVerification" ||
+            !b.request.priorityConsensusVerification)
+        )
+          return -1;
+        else if (
+          b.request.type === "consensusVerification" &&
+          b.request.priorityConsensusVerification &&
+          (a.request.type !== "consensusVerification" ||
+            !a.request.priorityConsensusVerification)
+        )
+          return 1;
+
         if (
           a.request.type === "resultEmbedding" &&
           b.request.type !== "resultEmbedding"
@@ -486,13 +513,10 @@ export class TheDomain {
                 bEmbeddingHash: embeddingResult.bEmbeddingHash,
               });
             } else {
-              this.inferenceDB.processVerifiedConsensusEmbeddings(
-                {
-                  requestId: item.request.requestId,
-                  results: embeddingResults,
-                },
-                this.clientInfo.synthientId
-              );
+              this.inferenceDB.processVerifiedConsensusEmbeddings({
+                requestId: item.request.requestId,
+                results: embeddingResults,
+              });
             }
           } else {
             // TODO: Log an error?

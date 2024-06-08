@@ -86,12 +86,12 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   public activeInferenceRequests: InferenceRequest[] = [];
   private cleanupTimeout: NodeJS.Timeout | null = null;
 
-  constructor(dbOptions: DexieOptions = {}) {
+  constructor(private mySynthientId: string, dbOptions: DexieOptions = {}) {
     super();
     this.inferenceRequestDb = new InferenceRequestDatabase(dbOptions);
     this.inferenceResultDb = new InferenceResultDatabase(dbOptions);
     this.inferenceEmbeddingDb = new InferenceEmbeddingDatabase(dbOptions);
-    this.quorumDb = new QuorumDB();
+    this.quorumDb = new QuorumDB(mySynthientId);
 
     this.quorumDb.on("requestReveal", (quorums) => {
       this.emitRevealRequests(quorums);
@@ -190,13 +190,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     this.quorumDb.processInferenceReveal(revealPacket);
   }
 
-  async processVerifiedConsensusEmbeddings(
-    embeddingResults: {
-      requestId: string;
-      results: EmbeddingResult[] | false;
-    },
-    ourSynthientId: string
-  ) {
+  async processVerifiedConsensusEmbeddings(embeddingResults: {
+    requestId: string;
+    results: EmbeddingResult[] | false;
+  }) {
     if (!embeddingResults.results) {
       logger.error(
         "No results to process for verified embeddings",
@@ -219,16 +216,14 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
 
     await this.quorumDb.processVerifiedConsensusEmbeddings(
       matchingRequest,
-      embeddingResults.results,
-      ourSynthientId
+      embeddingResults.results
     );
   }
 
   async processInferenceRevealRequest(
     requestPacket: Omit<ReceivedPeerPacket, "packet"> & {
       packet: InferenceRevealRequest;
-    },
-    ourSynthientId: string
+    }
   ) {
     // First validate by getting the request and checking the endingAt
     const matchingRequest = await this.inferenceRequestDb.inferenceRequests.get(
@@ -246,7 +241,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     }
 
     const ourCommit = requestPacket.packet.quorum.find(
-      (commit) => commit.synthientId === ourSynthientId
+      (commit) => commit.synthientId === this.mySynthientId
     );
 
     if (!ourCommit) {

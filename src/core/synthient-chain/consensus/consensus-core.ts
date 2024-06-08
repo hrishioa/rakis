@@ -4,7 +4,7 @@ import {
   InferenceRevealRejected,
   InferenceSecurityFrame,
 } from "../db/packet-types";
-import { InferenceQuorum } from "../db/quorumdb";
+import { ConsensusResults, InferenceQuorum } from "../db/quorumdb";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
 import { createLogger, logStyles } from "../utils/logger";
 import cosSimilarity from "cos-similarity";
@@ -21,16 +21,17 @@ export async function runFinalConsensus(
   verifiedEmbeddingResults: EmbeddingResult[],
   ourSynthientId: string,
   securityFrame: InferenceSecurityFrame
-): Promise<{
-  rejectionPackets: InferenceRevealRejected[];
-  successfulInference?: InferenceQuorumComputed;
-}> {
+): Promise<ConsensusResults> {
   logger.debug(
     "Running final consensus for ",
     quorum,
     " with ",
     quorum.quorum.length,
     " commits"
+  );
+
+  const clusterSizeNeeded = Math.ceil(
+    securityFrame.secPercentage * quorum.quorum.length
   );
 
   // First let's remove all the non-revealed commits
@@ -77,7 +78,7 @@ export async function runFinalConsensus(
           verifiedEmbedding.binaryEmbedding
         );
 
-        if (similarity > QUORUM_SETTINGS.bEmbeddingThreshold) {
+        if (similarity < 1 - QUORUM_SETTINGS.bEmbeddingThreshold) {
           logger.warn(
             "Rejecting reveal for ",
             revealedCommit,
@@ -157,6 +158,12 @@ export async function runFinalConsensus(
     );
 
     return {
+      requestId: quorum.requestId,
+      success: false,
+      reason: "did_not_reach_threshold_after_prune",
+      debug: {
+        clusterSizeNeeded,
+      },
       rejectionPackets,
     };
   }
@@ -169,15 +176,24 @@ export async function runFinalConsensus(
 
   const distances: number[][] = [];
 
+  // Using euclidean for now, according to this (I should do more research) there's not much of a diff between it and dot product
+  // https://www.cse.msu.edu/%7Epramanik/research/papers/2003Papers/sac04.pdf
+
+  // TODO: Super easy optimization here is just to only compute one side of the diagonal in this matrix, skipping for time
+
   for (let i = 0; i < quorum.quorum.length; i++) {
     distances[i] = [];
     for (let j = 0; j < quorum.quorum.length; j++) {
       distances[i][j] =
         i === j
           ? 0
-          : cosSimilarity(
-              quorum.quorum[i].reveal!.embedding,
-              quorum.quorum[j].reveal!.embedding
+          : Math.sqrt(
+              quorum.quorum[i].reveal!.bEmbedding.reduce(
+                (acc, val, index) =>
+                  acc +
+                  Math.pow(val - quorum.quorum[j].reveal!.bEmbedding[index], 2),
+                0
+              )
             );
     }
   }
@@ -203,10 +219,6 @@ export async function runFinalConsensus(
     quorum.quorum.length,
     " commits - ",
     clusterSizes
-  );
-
-  const clusterSizeNeeded = Math.floor(
-    (securityFrame.secPercentage * quorum.quorum.length) / 100.0
   );
 
   logger.debug(
@@ -237,6 +249,13 @@ export async function runFinalConsensus(
     );
 
     return {
+      requestId: quorum.requestId,
+      success: false,
+      reason: "no_clusters_found_of_needed_size",
+      debug: {
+        clusterSizeNeeded,
+        distances,
+      },
       rejectionPackets,
     };
   }
@@ -304,6 +323,13 @@ export async function runFinalConsensus(
 
   return {
     rejectionPackets,
-    successfulInference: inferenceQuorumComputed,
+    success: true,
+    requestId: quorum.requestId,
+    reason: "success",
+    debug: {
+      clusterSizeNeeded,
+      distances,
+    },
+    computedQuorumPacket: inferenceQuorumComputed,
   };
 }

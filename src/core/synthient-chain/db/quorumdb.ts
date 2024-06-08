@@ -1,10 +1,12 @@
-import Dexie, { liveQuery } from "dexie";
+import Dexie from "dexie";
 import {
   InferenceCommit,
+  InferenceQuorumComputed,
   InferenceRequest,
   InferenceReveal,
+  InferenceRevealRejected,
+  PeerPacket,
   ReceivedPeerPacket,
-  TransmittedPeerPacket,
 } from "./packet-types";
 import { createLogger, logStyles } from "../utils/logger";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
@@ -43,6 +45,18 @@ export type InferenceQuorum = {
   }[];
 };
 
+export type ConsensusResults = {
+  requestId: string;
+  success: boolean;
+  reason: string;
+  debug: {
+    distances?: number[][];
+    clusterSizeNeeded?: number;
+  };
+  rejectionPackets: InferenceRevealRejected[];
+  computedQuorumPacket?: InferenceQuorumComputed;
+};
+
 class QuorumDatabase extends Dexie {
   quorums!: Dexie.Table<InferenceQuorum, string>;
 
@@ -55,22 +69,38 @@ class QuorumDatabase extends Dexie {
   }
 }
 
+class ConsensusResultsDatabase extends Dexie {
+  consensusResults!: Dexie.Table<ConsensusResults, string>;
+
+  constructor() {
+    super("ConsensusResultsDatabase");
+    this.version(1).stores({
+      consensusResults: "requestId, success",
+    });
+  }
+}
+
 export type QuorumDBEvents = {
   requestReveal: (quorums: InferenceQuorum[]) => void;
   newQuorumAwaitingConsensus: (
     requestId: string,
     modelName: EmbeddingModelName,
-    consensusRequestedAt: Date
+    consensusRequestedAt: Date,
+    hasMyContribution: boolean
   ) => void;
+  consensusPackets: (packts: PeerPacket[]) => void;
 };
 
 export class QuorumDB extends EventEmitter<QuorumDBEvents> {
   private db: QuorumDatabase;
+  private consensusResultsDB: ConsensusResultsDatabase;
   private quorumRevealTimeout: NodeJS.Timeout | null = null;
+  private quorumConsensusTimeout: NodeJS.Timeout | null = null;
 
-  constructor() {
+  constructor(private mySynthientId: string) {
     super();
     this.db = new QuorumDatabase();
+    this.consensusResultsDB = new ConsensusResultsDatabase();
   }
 
   async getQuorum(requestId: string) {
@@ -183,31 +213,99 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
     quorum.quorumRevealed += 1;
 
-    let emitAwaitingConsensusEvent = false;
+    await this.db.quorums.put(quorum);
 
-    if (quorum.quorumRevealed >= quorum.quorumThreshold) {
-      if (quorum.status !== "awaiting_consensus") {
-        emitAwaitingConsensusEvent = true;
+    logger.debug("Updated quorum with reveal: ", quorum);
+
+    await this.checkQuorumsReadyForConsensus();
+  }
+
+  private async checkQuorumsReadyForConsensus() {
+    if (this.quorumConsensusTimeout) clearTimeout(this.quorumConsensusTimeout);
+
+    const now = new Date();
+    const timeoutRevealWindow = new Date(
+      now.getTime() - QUORUM_SETTINGS.quorumRevealTimeoutMs
+    );
+    const consensusProcessingWindow = new Date(
+      now.getTime() -
+        QUORUM_SETTINGS.quorumRevealTimeoutMs -
+        QUORUM_SETTINGS.quorumConsensusWindowMs
+    );
+
+    const quorums = (
+      await this.db.quorums
+        .where("endingAt")
+        .between(consensusProcessingWindow, timeoutRevealWindow)
+        .toArray()
+    ).filter(
+      (quorum) =>
+        quorum.status === "awaiting_reveal" && !quorum.consensusRequestedAt
+    );
+
+    logger.debug("Quorums ready for consensus processing: ", quorums);
+
+    for (const quorum of quorums) {
+      if (quorum.quorumRevealed < quorum.quorumThreshold) {
+        logger.debug(
+          "Quorum didn't meet threshold for consensus processing: ",
+          quorum
+        );
+
+        quorum.status = "failed";
+        continue;
       }
 
       quorum.status = "awaiting_consensus";
       quorum.consensusRequestedAt = new Date();
-    }
 
-    await this.db.quorums.put(quorum);
-
-    // TODO: Make this a Dexie subscription instead to just listen for changes in the status type
-    if (emitAwaitingConsensusEvent) {
       logger.debug("Emitting newQuorumAwaitingConsensus for quorum: ", quorum);
       this.emit(
         "newQuorumAwaitingConsensus",
         quorum.requestId,
         quorum.embeddingModel,
-        quorum.consensusRequestedAt!
+        quorum.consensusRequestedAt!,
+        quorum.quorum.some(
+          (commit) => commit.synthientId === this.mySynthientId
+        )
       );
     }
 
-    logger.debug("Updated quorum with reveal: ", quorum);
+    await this.db.quorums.bulkPut(quorums).catch(Dexie.BulkError, (e) => {
+      logger.error(
+        "Failed to update quorums to awaiting_consensus for these quorums: ",
+        e
+      );
+    });
+
+    const quorumsAboutToNeedChecking = (
+      await this.db.quorums
+        .where("endingAt")
+        .above(timeoutRevealWindow)
+        .toArray()
+    )
+      .filter((quorum) => quorum.status === "awaiting_reveal")
+      .sort((a, b) => a.endingAt.getTime() - b.endingAt.getTime());
+
+    if (quorumsAboutToNeedChecking.length) {
+      logger.debug(
+        "Setting timeout for next quorum check: ",
+        quorumsAboutToNeedChecking[0],
+        " as ",
+        quorumsAboutToNeedChecking[0].endingAt.getTime() -
+          Date.now() +
+          QUORUM_SETTINGS.quorumRevealTimeoutMs -
+          10
+      );
+
+      this.quorumConsensusTimeout = setTimeout(
+        () => this.checkQuorumsReadyForConsensus(),
+        quorumsAboutToNeedChecking[0].endingAt.getTime() +
+          QUORUM_SETTINGS.quorumRevealTimeoutMs -
+          Date.now() +
+          10
+      );
+    }
   }
 
   async getQuorumConsensusQueue() {
@@ -260,8 +358,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
   async processVerifiedConsensusEmbeddings(
     request: InferenceRequest,
-    results: EmbeddingResult[],
-    ourSynthientId: string
+    results: EmbeddingResult[]
   ) {
     logger.debug(
       "Processing verified consensus embeddings: ",
@@ -284,9 +381,30 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     const finalResults = await runFinalConsensus(
       quorum,
       results,
-      ourSynthientId,
+      this.mySynthientId,
       request.payload.securityFrame
     );
+
+    logger.debug("Final results: ", finalResults);
+
+    this.consensusResultsDB.consensusResults.put(finalResults);
+
+    const consensusPackets: PeerPacket[] = finalResults.rejectionPackets;
+
+    if (finalResults.success) {
+      if (finalResults.computedQuorumPacket)
+        consensusPackets.push(finalResults.computedQuorumPacket);
+
+      this.db.quorums.update(request.requestId, {
+        status: "completed",
+      });
+    } else {
+      this.db.quorums.update(request.requestId, {
+        status: "failed",
+      });
+    }
+
+    this.emit("consensusPackets", consensusPackets);
   }
 
   async processInferenceCommit(

@@ -18,7 +18,6 @@ import {
 import EventEmitter from "eventemitter3";
 import { PeerDB } from "./peerdb";
 import { createLogger, logStyles } from "../utils/logger";
-import { InferenceDB } from "./inferencedb";
 
 const logger = createLogger("PacketDB", logStyles.databases.packetDB);
 
@@ -160,12 +159,6 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     this.emitNewPacketEvents(transmittedPacket);
 
     logger.debug("Transmitting packet:", transmittedPacket);
-    logger.debug(
-      "Signature:",
-      transmittedPacket.signature,
-      "Packet:",
-      JSON.stringify(packet)
-    );
 
     // Send the packet over the P2P network
     await this.sendPacketOverP2P(transmittedPacket);
@@ -174,6 +167,30 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
   // Expensive, primarily for testing, if you're calling this otherwise please rethink your life choices
   async getAllPackets() {
     return await this.db.packets.toArray();
+  }
+
+  private fixEmbeddingArraysInPackets(packet: ReceivedPeerPacket) {
+    if (packet.packet.type === "inferenceReveal") {
+      packet.packet.embedding = Object.values(
+        packet.packet.embedding as any
+      ) as number[];
+      packet.packet.bEmbedding = Object.values(
+        packet.packet.bEmbedding as any
+      ) as number[];
+    } else if (packet.packet.type === "inferenceRevealRejected") {
+      if (
+        packet.packet.rejectReason.type ===
+        "computed_bembedding_fails_threshold"
+      ) {
+        packet.packet.rejectReason.computedBEmbedding = Object.values(
+          packet.packet.rejectReason.computedBEmbedding as any
+        ) as number[];
+      }
+
+      packet.packet.rejectReason.revealedBEmbedding = Object.values(
+        packet.packet.rejectReason.revealedBEmbedding as any
+      ) as number[];
+    }
   }
 
   async getPacket(synthientId: string, signature: string) {
@@ -222,6 +239,9 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     }
 
     logger.debug("Actually adding packet!");
+
+    this.fixEmbeddingArraysInPackets(receivedPacket);
+
     // Add the packet to the database
     try {
       await this.db.packets.add({

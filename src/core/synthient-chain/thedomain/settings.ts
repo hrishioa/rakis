@@ -18,11 +18,11 @@ export const QUORUM_SETTINGS: {
   // TODO: This is being sent out but not really enforced
   quorumRevealTimeoutMs: number; // Amount of time allowed between endingAt and quorum reveals being received
   quorumRevealRequestIssueTimeoutMs: number; // Amount of time allowed between endingAt and quorum reveal requests going out
-  quorumConsensusWindowMs: number;
+  quorumConsensusWindowMs: number; // Amount of time after reveal timeout that is allowed for consensus processing
   bEmbeddingThreshold: number; // Distance that our recomputed embeddings are allowed to be off by
 } = {
   quorumRevealRequestIssueTimeoutMs: 10000,
-  quorumRevealTimeoutMs: 15000,
+  quorumRevealTimeoutMs: 20000,
   quorumConsensusWindowMs: 30000,
   bEmbeddingThreshold: 0,
 };
