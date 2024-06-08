@@ -6,7 +6,7 @@ import {
   P2PNetworkInstance,
   PacketReceivedCallback,
 } from "./p2pnetwork-types";
-import { DeferredPromise } from "../../utils/deferredpromise";
+import { DeferredPromise } from "../utils/deferredpromise";
 import { Room } from "trystero";
 import { P2P_CONFIG } from "./p2p-config";
 import { createLogger, logStyles } from "../utils/logger";

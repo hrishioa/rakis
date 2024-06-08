@@ -1,7 +1,7 @@
-import { EmbeddingEngine } from "../../embeddings/embedding-engine";
-import { EmbeddingModelName } from "../../embeddings/types";
-import { LLMEngine } from "../../llm/llm-engine";
-import { LLMModelName } from "../../llm/types";
+import { EmbeddingEngine } from "../embeddings/embedding-engine";
+import { EmbeddingModelName } from "../embeddings/types";
+import { LLMEngine } from "../llm/llm-engine";
+import { LLMModelName } from "../llm/types";
 import { InferenceDB } from "../db/inferencedb";
 import {
   InferenceRequest,
@@ -16,6 +16,10 @@ import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
 import { QUORUM_SETTINGS, THEDOMAIN_SETTINGS } from "./settings";
 import { debounce } from "lodash";
 import { createLogger, logStyles } from "../utils/logger";
+import {
+  propagateInferencePacketsFromInferenceDBtoP2P,
+  saveInferencePacketsFromP2PToInferenceDB,
+} from "./connectors";
 
 const logger = createLogger("Domain", logStyles.theDomain);
 
@@ -78,44 +82,21 @@ export class TheDomain {
       this.shutdownListeners.push(() => listener());
     }
 
-    // Send received peer-based inference requests from packetdb to inferencedb
-    // TODO: This should be depreated later so we don't have a cycle in our
-    // data flow
+    this.shutdownListeners.push(
+      saveInferencePacketsFromP2PToInferenceDB(
+        this.packetDB,
+        this.inferenceDB,
+        logger
+      )
+    );
 
-    this.packetDB.on("newP2PInferenceRequest", (packet) => {
-      logger.debug("Saving p2p inference request to our db");
-      setTimeout(
-        () =>
-          this.inferenceDB.saveInferenceRequest({
-            fetchedAt: new Date(),
-            requestId: packet.requestId,
-            payload: packet.payload,
-          }),
-        0
-      );
-    });
-
-    // Hook us up to process to inference commits
-    this.packetDB.on("newInferenceCommit", (packet) => {
-      logger.debug("Processing new inference commit");
-      setTimeout(() => this.inferenceDB.saveInferenceCommit(packet), 0);
-    });
-
-    // When a reveal is requested, pass it on
-    this.packetDB.on("newInferenceRevealRequest", (packet) => {
-      setTimeout(() => {
-        logger.debug("Processing new inference reveal request");
-        this.inferenceDB.processInferenceRevealRequest(packet);
-      }, 0);
-    });
-
-    // When we get a reveal, pass it to the inferencedb to process
-    this.packetDB.on("newInferenceRevealed", (packet) => {
-      setTimeout(() => {
-        logger.debug("Processing new inference reveal");
-        this.inferenceDB.processInferenceReveal(packet);
-      }, 0);
-    });
+    this.shutdownListeners.push(() =>
+      propagateInferencePacketsFromInferenceDBtoP2P(
+        this.packetDB,
+        this.inferenceDB,
+        logger
+      )
+    );
 
     // ############# Set up event-based connections
 
@@ -155,13 +136,16 @@ export class TheDomain {
       }
     );
 
-    // Once consensus happens, propagate the consensus packets
-    // TODO: IMPORTANT Do we save other peoples consensus packets? Maybe if there's not a collision, or save all for posterity?
-    this.inferenceDB.quorumDb.on("consensusPackets", (consensusPackets) => {
-      logger.debug("New consensus packets, propagating");
-      consensusPackets.forEach((packet) => {
-        setTimeout(() => this.packetDB.transmitPacket(packet), 0);
-      });
+    // If embedding workers are free, check for new jobs
+    this.embeddingEngine.on("workerFree", () => {
+      logger.debug("Worker free, checking for jobs");
+      setTimeout(() => this.processEmbeddingQueue(), 0);
+    });
+
+    // If llm workers are free, check for new jobs
+    this.llmEngine.on("workerFree", () => {
+      logger.debug("Worker free, checking for jobs");
+      setTimeout(() => this.processInferenceRequestQueue(), 0);
     });
 
     // If inference results are done, move them off to get embedded
@@ -183,51 +167,10 @@ export class TheDomain {
       }
     );
 
-    // If embedding workers are free, check for new jobs
-    this.embeddingEngine.on("workerFree", () => {
-      logger.debug("Worker free, checking for jobs");
-      setTimeout(() => this.processEmbeddingQueue(), 0);
-    });
-
-    // If embeddings are done, send out the commit message
-    this.inferenceDB.on("newInferenceEmbedding", (inferenceEmbedding) => {
-      logger.debug("New inference embedding, committing to result");
-      this.packetDB.transmitPacket({
-        type: "inferenceCommit",
-        bEmbeddingHash: inferenceEmbedding.bEmbeddingHash,
-        requestId: inferenceEmbedding.requestId,
-        inferenceId: inferenceEmbedding.inferenceId,
-        createdAt: stringifyDateWithOffset(new Date()),
-      });
-    });
-
-    // If llm workers are free, check for new jobs
-    this.llmEngine.on("workerFree", () => {
-      logger.debug("Worker free, checking for jobs");
-      setTimeout(() => this.processInferenceRequestQueue(), 0);
-    });
-
     // If new inference requests come in, start the inference loop
     this.inferenceDB.on("newActiveInferenceRequest", (request) => {
       logger.debug("New active inference request, starting inference loop.");
       setTimeout(() => this.processInferenceRequestQueue(), 0);
-    });
-
-    // When quorums are ready to be revealed, propagate the requests
-    this.inferenceDB.on("requestQuorumReveal", (revealRequests) => {
-      setTimeout(() => {
-        logger.debug("Publishing reveal requests");
-        revealRequests.forEach((revealRequest) => {
-          this.packetDB.transmitPacket(revealRequest);
-        });
-      }, 0);
-    });
-
-    this.inferenceDB.on("revealedInference", (inferenceReveal) => {
-      setTimeout(() => {
-        logger.debug("Publishing revealed inference");
-        this.packetDB.transmitPacket(inferenceReveal);
-      }, 0);
     });
   }
 
@@ -300,9 +243,9 @@ export class TheDomain {
               temperature: 1,
               maxTokens: 2048,
               securityFrame: {
-                quorum: 3,
+                quorum: 2,
                 maxTimeMs,
-                secDistance: 450,
+                secDistance: 4500,
                 secPercentage: 0.5,
                 embeddingModel: "nomic-ai/nomic-embed-text-v1.5",
               },
@@ -497,11 +440,6 @@ export class TheDomain {
             embeddingResults
           );
 
-          // this.inferenceStatus.embeddingQueue =
-          //   this.inferenceStatus.embeddingQueue.filter(
-          //     (item) => item !== validInferenceResults[i]
-          //   );
-
           if (embeddingResults && embeddingResults.length) {
             if (item.request.type === "resultEmbedding") {
               const embeddingResult = embeddingResults[0];
@@ -528,11 +466,6 @@ export class TheDomain {
           }
         })
         .catch((err) => {
-          // this.inferenceStatus.embeddingQueue =
-          //   this.inferenceStatus.embeddingQueue.filter(
-          //     (item) => item !== validInferenceResults[i]
-          //   );
-
           logger.error("Error embedding ", item, " - ", err);
         });
     }

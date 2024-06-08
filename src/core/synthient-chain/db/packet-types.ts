@@ -1,5 +1,5 @@
-import { EmbeddingModelName } from "../../embeddings/types";
-import { LLMModelName } from "../../llm/types";
+import { EmbeddingModelName } from "../embeddings/types";
+import { LLMModelName } from "../llm/types";
 import {
   ChainIdentity,
   SupportedChains,

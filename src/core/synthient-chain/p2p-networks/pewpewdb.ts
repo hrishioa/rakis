@@ -11,7 +11,7 @@ import {
   P2PNetworkInstance,
   PacketReceivedCallback,
 } from "./p2pnetwork-types";
-import { DeferredPromise } from "../../utils/deferredpromise";
+import { DeferredPromise } from "../utils/deferredpromise";
 import { createLogger, logStyles } from "../utils/logger";
 
 const logger = createLogger("P2P: PewPewDB", logStyles.p2pNetworks.pewpewdb);

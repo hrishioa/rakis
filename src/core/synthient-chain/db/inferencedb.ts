@@ -13,13 +13,13 @@ import {
 } from "./packet-types";
 import { sha256 } from "@noble/hashes/sha256";
 import * as ed from "@noble/ed25519";
-import { LLMModelName } from "../../llm/types";
+import { LLMModelName } from "../llm/types";
 import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { createLogger, logStyles } from "../utils/logger";
 import { InferenceQuorum, QuorumDB } from "./quorumdb";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
-import { EmbeddingResult } from "../../embeddings/types";
+import { EmbeddingResult } from "../embeddings/types";
 
 const logger = createLogger("InferenceDB", logStyles.databases.inferenceDB);
 

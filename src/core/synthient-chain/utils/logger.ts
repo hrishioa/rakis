@@ -25,11 +25,19 @@ export const logStyles = {
   },
 };
 
+export type SynthientLogger = {
+  trace: (...args: any[]) => void;
+  debug: (...args: any[]) => void;
+  info: (...args: any[]) => void;
+  warn: (...args: any[]) => void;
+  error: (...args: any[]) => void;
+};
+
 export function createLogger(
   name: string,
   style: string,
   noWindow: boolean = false
-) {
+): SynthientLogger {
   if (!noWindow && typeof window !== "undefined" && window) {
     (window as any).blockedLogLevels =
       localStorage.getItem("blockedLogLevels") || [];

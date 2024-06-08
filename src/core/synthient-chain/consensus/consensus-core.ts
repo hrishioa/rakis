@@ -1,4 +1,4 @@
-import { EmbeddingResult } from "../../embeddings/types";
+import { EmbeddingResult } from "../embeddings/types";
 import {
   InferenceQuorumComputed,
   InferenceRevealRejected,

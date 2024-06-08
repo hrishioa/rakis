@@ -11,7 +11,7 @@ import {
 import { createLogger, logStyles } from "../utils/logger";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
 import EventEmitter from "eventemitter3";
-import { EmbeddingModelName, EmbeddingResult } from "../../embeddings/types";
+import { EmbeddingModelName, EmbeddingResult } from "../embeddings/types";
 import { runFinalConsensus } from "../consensus/consensus-core";
 
 const logger = createLogger("QuorumDB", logStyles.databases.quorumDB);
@@ -75,7 +75,7 @@ class ConsensusResultsDatabase extends Dexie {
   constructor() {
     super("ConsensusResultsDatabase");
     this.version(1).stores({
-      consensusResults: "requestId, success",
+      consensusResults: "requestId, success, reason",
     });
   }
 }

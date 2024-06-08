@@ -7,7 +7,7 @@ import {
   InferenceParams,
   LLMEngineLogEntry,
   LLMModelName,
-} from "../../core/llm/types";
+} from "../../core/synthient-chain/llm/types";
 import {
   Select,
   SelectContent,
@@ -29,10 +29,10 @@ import { ChevronsUpDown, X } from "lucide-react";
 import {
   EmbeddingEngineLogEntry,
   EmbeddingResult,
-} from "../../core/embeddings/types";
+} from "../../core/synthient-chain/embeddings/types";
 import { modelColors } from "./colors";
-import { EmbeddingEngine } from "../../core/embeddings/embedding-engine";
-import { LLMEngine } from "../../core/llm/llm-engine";
+import { EmbeddingEngine } from "../../core/synthient-chain/embeddings/embedding-engine";
+import { LLMEngine } from "../../core/synthient-chain/llm/llm-engine";
 
 const EmbeddingChart = dynamic(() => import("./embedding-chart"), {
   ssr: false,

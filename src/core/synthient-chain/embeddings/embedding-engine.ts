@@ -7,8 +7,8 @@ import {
 } from "./types";
 import { DeferredPromise } from "../utils/deferredpromise";
 import EventEmitter from "eventemitter3";
-import { generateRandomString } from "../synthient-chain/utils/utils";
-import { createLogger, logStyles } from "../synthient-chain/utils/logger";
+import { generateRandomString } from "../utils/utils";
+import { createLogger, logStyles } from "../utils/logger";
 const logger = createLogger("Embedding Engine", logStyles.embeddingEngine.main);
 
 type EmbeddingEngineEvents = {

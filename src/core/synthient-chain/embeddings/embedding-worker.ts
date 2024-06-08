@@ -7,8 +7,8 @@ import {
 } from "./types";
 import { DeferredPromise } from "../utils/deferredpromise";
 import { EmbeddingResult } from "./types";
-import { hashBinaryEmbedding } from "../synthient-chain/utils/simple-crypto";
-import { createLogger, logStyles } from "../synthient-chain/utils/logger";
+import { hashBinaryEmbedding } from "../utils/simple-crypto";
+import { createLogger, logStyles } from "../utils/logger";
 const logger = createLogger(
   "Embedding Worker",
   logStyles.embeddingEngine.worker,

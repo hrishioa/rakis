@@ -5,7 +5,7 @@ import {
   P2PNetworkInstance,
   PacketReceivedCallback,
 } from "./p2pnetwork-types";
-import { DeferredPromise } from "../../utils/deferredpromise";
+import { DeferredPromise } from "../utils/deferredpromise";
 import { P2P_CONFIG } from "./p2p-config";
 import { createLogger, logStyles } from "../utils/logger";
 

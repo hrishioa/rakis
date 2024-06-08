@@ -13,9 +13,9 @@ import EventEmitter from "eventemitter3";
 import {
   InferenceErrorPayload,
   InferenceSuccessPayload,
-} from "../synthient-chain/db/packet-types";
-import { generateRandomString } from "../synthient-chain/utils/utils";
-import { createLogger, logStyles } from "../synthient-chain/utils/logger";
+} from "../db/packet-types";
+import { generateRandomString } from "../utils/utils";
+import { createLogger, logStyles } from "../utils/logger";
 
 type LLMEngineEvents = {
   workerLoadFailed: (data: {
