@@ -4,12 +4,12 @@ import {
   InferenceRevealRejected,
   InferenceSecurityFrame,
 } from "../db/packet-types";
-import { ConsensusResults, InferenceQuorum } from "../db/quorumdb";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
 import { createLogger, logStyles } from "../utils/logger";
 import cosSimilarity from "cos-similarity";
 import { stringifyDateWithOffset } from "../utils/utils";
 import { hashBinaryEmbedding, hashString } from "../utils/simple-crypto";
+import { InferenceQuorum, ConsensusResults } from "../db/entities";
 
 const logger = createLogger("Consensus Core", logStyles.consensusCore);
 

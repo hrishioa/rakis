@@ -39,11 +39,11 @@ export type DomainStartOptions = {
 export class TheDomain {
   private static instance: TheDomain;
 
-  private packetDB: PacketDB;
+  public packetDB: PacketDB;
   private shutdownListeners: (() => void)[] = [];
-  private embeddingEngine: EmbeddingEngine;
-  private llmEngine: LLMEngine;
-  private inferenceDB: InferenceDB;
+  public embeddingEngine: EmbeddingEngine;
+  public llmEngine: LLMEngine;
+  public inferenceDB: InferenceDB;
   private inferenceStatus: {
     inferenceIdsInProcess: string[];
     inferenceCompletionInterval: NodeJS.Timeout | null;
@@ -90,7 +90,7 @@ export class TheDomain {
       )
     );
 
-    this.shutdownListeners.push(() =>
+    this.shutdownListeners.push(
       propagateInferencePacketsFromInferenceDBtoP2P(
         this.packetDB,
         this.inferenceDB,

@@ -10,8 +10,8 @@ class PeerDatabase extends Dexie {
 
   constructor(options: DexieOptions = {}) {
     super("PeerDB", options);
-    this.version(1).stores({
-      peers: "synthientId",
+    this.version(2).stores({
+      peers: "synthientId, lastSeen",
     });
   }
 }
@@ -21,6 +21,10 @@ export class PeerDB {
 
   constructor(dbOptions: DexieOptions = {}) {
     this.db = new PeerDatabase(dbOptions);
+  }
+
+  async getLastPeers(count: number): Promise<Peer[]> {
+    return this.db.peers.orderBy("lastSeen").reverse().limit(count).toArray();
   }
 
   async processPacket(packet: ReceivedPeerPacket) {

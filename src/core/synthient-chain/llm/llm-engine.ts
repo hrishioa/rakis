@@ -74,6 +74,22 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     }
   }
 
+  public getWorkerStates(): {
+    [workerId: string]: { modelName: LLMModelName; state: string };
+  } {
+    return Object.keys(this.llmWorkers).reduce((acc, cur) => {
+      acc[cur] = {
+        modelName: this.llmWorkers[cur].modelName,
+        state: this.llmWorkers[cur].inferenceInProgress
+          ? "inference-in-progress"
+          : this.llmWorkers[cur].modelLoadingProgress < 1
+          ? "loading"
+          : "idle",
+      };
+      return acc;
+    }, {} as { [workerId: string]: { modelName: LLMModelName; state: string } });
+  }
+
   public getWorkerAvailability(modelNames: LLMModelName[]): {
     [modelName: string]: { count: number; free: number };
   } {

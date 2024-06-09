@@ -1,5 +1,4 @@
 import Dexie, { type DexieOptions } from "dexie";
-import { SupportedChains } from "./entities";
 import {
   InferenceCommit,
   InferenceEmbedding,
@@ -13,13 +12,13 @@ import {
 } from "./packet-types";
 import { sha256 } from "@noble/hashes/sha256";
 import * as ed from "@noble/ed25519";
-import { LLMModelName } from "../llm/types";
 import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { createLogger, logStyles } from "../utils/logger";
-import { InferenceQuorum, QuorumDB } from "./quorumdb";
+import { QuorumDB } from "./quorumdb";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
 import { EmbeddingResult } from "../embeddings/types";
+import { InferenceDBEvents, InferenceQuorum } from "./entities";
 
 const logger = createLogger("InferenceDB", logStyles.databases.inferenceDB);
 
@@ -57,26 +56,6 @@ class InferenceResultDatabase extends Dexie {
   }
 }
 
-export type InferenceSelector = {
-  requestId?: string;
-  fromChains?: SupportedChains[];
-  endingAfter?: Date;
-  models?: LLMModelName[];
-  active?: boolean; // Is this inference currently active, i.e are we before its endtime
-};
-
-export type InferenceDBEvents = {
-  inferenceResultAwaitingEmbedding: (
-    request: InferenceRequest,
-    result: InferenceSuccessResult
-  ) => void;
-  newInferenceEmbedding: (embedding: InferenceEmbedding) => void;
-  newActiveInferenceRequest: (request: InferenceRequest) => void;
-  newInferenceRequest: (request: InferenceRequest) => void;
-  requestQuorumReveal: (revealRequests: InferenceRevealRequest[]) => void;
-  revealedInference: (revealPacket: InferenceReveal) => void;
-};
-
 export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   private inferenceRequestDb: InferenceRequestDatabase;
   private inferenceResultDb: InferenceResultDatabase;
@@ -96,6 +75,31 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     this.quorumDb.on("requestReveal", (quorums) => {
       this.emitRevealRequests(quorums);
     });
+  }
+
+  async getLastInferenceRequests(count: number): Promise<InferenceRequest[]> {
+    return this.inferenceRequestDb.inferenceRequests
+      .orderBy("endingAt")
+      .reverse()
+      .limit(count)
+      .toArray();
+  }
+
+  async getLastInferenceResults(count: number): Promise<InferenceResult[]> {
+    return this.inferenceResultDb.inferenceResults
+      .orderBy("completedAt")
+      .reverse()
+      .limit(count)
+      .toArray();
+  }
+
+  async getLastInferenceEmbeddings(
+    count: number
+  ): Promise<InferenceEmbedding[]> {
+    return this.inferenceEmbeddingDb.inferenceEmbeddings
+      .reverse()
+      .limit(count)
+      .toArray();
   }
 
   private emitRevealRequests(quorums: InferenceQuorum[]) {

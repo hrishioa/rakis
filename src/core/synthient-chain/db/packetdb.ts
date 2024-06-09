@@ -18,6 +18,7 @@ import {
 import EventEmitter from "eventemitter3";
 import { PeerDB } from "./peerdb";
 import { createLogger, logStyles } from "../utils/logger";
+import { PacketDBEvents } from "./entities";
 
 const logger = createLogger("PacketDB", logStyles.databases.packetDB);
 
@@ -26,18 +27,6 @@ ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 type SendPacketOverP2PFunc = (packet: TransmittedPeerPacket) => Promise<void>;
 
 // TODO: Consider keeping createdAt time as a separate date field on the outside, as a Date object in the db for better indexing
-
-export type PacketSelector = Partial<{
-  synthientId: string;
-  signature: string;
-  types: string[];
-  inferenceId: string;
-  receivedTimeAfter: Date;
-  receivedTimeBefore: Date;
-  requestId: string;
-}>;
-
-export type PacketSubscriber = (packets: ReceivedPeerPacket) => void;
 
 // Define the database schema
 class PacketDatabase extends Dexie {
@@ -51,23 +40,6 @@ class PacketDatabase extends Dexie {
     });
   }
 }
-
-export type PacketDBEvents = {
-  newP2PInferenceRequest: (packet: P2PInferenceRequestPacket) => void;
-  newInferenceCommit: (
-    packet: Omit<ReceivedPeerPacket, "packet"> & { packet: InferenceCommit }
-  ) => void;
-  newInferenceRevealRequest: (
-    packet: Omit<ReceivedPeerPacket, "packet"> & {
-      packet: InferenceRevealRequest;
-    }
-  ) => void;
-  newInferenceRevealed: (
-    packet: Omit<ReceivedPeerPacket, "packet"> & {
-      packet: InferenceReveal;
-    }
-  ) => void;
-};
 
 export class PacketDB extends EventEmitter<PacketDBEvents> {
   private db: PacketDatabase;
@@ -83,6 +55,10 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     this.peerDB = new PeerDB();
     this.clientInfo = clientInfo;
     this.sendPacketOverP2P = sendPacketOverP2P;
+  }
+
+  async getLastPackets(count: number): Promise<ReceivedPeerPacket[]> {
+    return await this.db.packets.orderBy("receivedTime").limit(count).toArray();
   }
 
   async emitNewPacketEvents(packet: ReceivedPeerPacket) {

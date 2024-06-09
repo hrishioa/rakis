@@ -1,61 +1,19 @@
 import Dexie from "dexie";
 import {
   InferenceCommit,
-  InferenceQuorumComputed,
   InferenceRequest,
   InferenceReveal,
-  InferenceRevealRejected,
   PeerPacket,
   ReceivedPeerPacket,
 } from "./packet-types";
 import { createLogger, logStyles } from "../utils/logger";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
 import EventEmitter from "eventemitter3";
-import { EmbeddingModelName, EmbeddingResult } from "../embeddings/types";
+import { EmbeddingResult } from "../embeddings/types";
 import { runFinalConsensus } from "../consensus/consensus-core";
+import { InferenceQuorum, ConsensusResults, QuorumDBEvents } from "./entities";
 
 const logger = createLogger("QuorumDB", logStyles.databases.quorumDB);
-
-export type InferenceQuorum = {
-  requestId: string;
-  status:
-    | "awaiting_commitments"
-    | "awaiting_reveal"
-    | "failed"
-    | "completed"
-    | "awaiting_consensus" // means getting the embeddings and other processing ready
-    | "verifying_consensus";
-  quorumThreshold: number;
-  endingAt: Date; // Stringified date
-  quorumCommitted: number; // Number of peers that have committed a hash
-  quorumRevealed: number; // Number of peers that have revealed their embedding
-  consensusRequestedAt?: Date; // Time that the consensus was requested
-  embeddingModel: EmbeddingModelName;
-  quorum: {
-    inferenceId: string;
-    synthientId: string;
-    bEmbeddingHash: string;
-    commitReceivedAt: Date;
-    reveal?: {
-      embedding: number[];
-      bEmbedding: number[];
-      output: string;
-      receivedAt: Date;
-    };
-  }[];
-};
-
-export type ConsensusResults = {
-  requestId: string;
-  success: boolean;
-  reason: string;
-  debug: {
-    distances?: number[][];
-    clusterSizeNeeded?: number;
-  };
-  rejectionPackets: InferenceRevealRejected[];
-  computedQuorumPacket?: InferenceQuorumComputed;
-};
 
 class QuorumDatabase extends Dexie {
   quorums!: Dexie.Table<InferenceQuorum, string>;
@@ -80,17 +38,6 @@ class ConsensusResultsDatabase extends Dexie {
   }
 }
 
-export type QuorumDBEvents = {
-  requestReveal: (quorums: InferenceQuorum[]) => void;
-  newQuorumAwaitingConsensus: (
-    requestId: string,
-    modelName: EmbeddingModelName,
-    consensusRequestedAt: Date,
-    hasMyContribution: boolean
-  ) => void;
-  consensusPackets: (packts: PeerPacket[]) => void;
-};
-
 export class QuorumDB extends EventEmitter<QuorumDBEvents> {
   private db: QuorumDatabase;
   private consensusResultsDB: ConsensusResultsDatabase;
@@ -101,6 +48,17 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     super();
     this.db = new QuorumDatabase();
     this.consensusResultsDB = new ConsensusResultsDatabase();
+  }
+
+  async getLastQuorums(count: number) {
+    return this.db.quorums.orderBy("endingAt").reverse().limit(count).toArray();
+  }
+
+  async getLastConsensusResults(count: number) {
+    return this.consensusResultsDB.consensusResults
+      .reverse()
+      .limit(count)
+      .toArray();
   }
 
   async getQuorum(requestId: string) {
