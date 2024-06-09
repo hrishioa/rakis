@@ -23,8 +23,12 @@ export class PeerDB {
     this.db = new PeerDatabase(dbOptions);
   }
 
-  async getLastPeers(count: number): Promise<Peer[]> {
-    return this.db.peers.orderBy("lastSeen").reverse().limit(count).toArray();
+  async getLastPeers(lastSeenAfter: Date, maxCount: number): Promise<Peer[]> {
+    return this.db.peers
+      .where("lastSeen")
+      .aboveOrEqual(lastSeenAfter)
+      .limit(maxCount)
+      .toArray();
   }
 
   async processPacket(packet: ReceivedPeerPacket) {

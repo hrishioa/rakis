@@ -18,7 +18,11 @@ import { createLogger, logStyles } from "../utils/logger";
 import { QuorumDB } from "./quorumdb";
 import { QUORUM_SETTINGS } from "../thedomain/settings";
 import { EmbeddingResult } from "../embeddings/types";
-import { InferenceDBEvents, InferenceQuorum } from "./entities";
+import {
+  ConsensusResults,
+  InferenceDBEvents,
+  InferenceQuorum,
+} from "./entities";
 
 const logger = createLogger("InferenceDB", logStyles.databases.inferenceDB);
 
@@ -77,29 +81,65 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     });
   }
 
-  async getLastInferenceRequests(count: number): Promise<InferenceRequest[]> {
-    return this.inferenceRequestDb.inferenceRequests
-      .orderBy("endingAt")
-      .reverse()
-      .limit(count)
-      .toArray();
-  }
+  async getInferences(lastN: number): Promise<
+    {
+      request: Required<UnprocessedInferenceRequest>;
+      result: InferenceResult | undefined;
+      embedding: InferenceEmbedding | undefined;
+      quorum: InferenceQuorum | undefined;
+      consensusResult: ConsensusResults | undefined;
+    }[]
+  > {
+    const lastInferenceRequests: InferenceRequest[] =
+      await this.inferenceRequestDb.inferenceRequests
+        .orderBy("endingAt")
+        .reverse()
+        .limit(lastN)
+        .toArray();
 
-  async getLastInferenceResults(count: number): Promise<InferenceResult[]> {
-    return this.inferenceResultDb.inferenceResults
-      .orderBy("completedAt")
-      .reverse()
-      .limit(count)
-      .toArray();
-  }
+    const matchingInferenceResults: InferenceResult[] =
+      await this.inferenceResultDb.inferenceResults
+        .where("requestId")
+        .anyOf(lastInferenceRequests.map((request) => request.requestId))
+        .toArray();
 
-  async getLastInferenceEmbeddings(
-    count: number
-  ): Promise<InferenceEmbedding[]> {
-    return this.inferenceEmbeddingDb.inferenceEmbeddings
-      .reverse()
-      .limit(count)
-      .toArray();
+    const matchingInferenceEmbeddings: InferenceEmbedding[] =
+      await this.inferenceEmbeddingDb.inferenceEmbeddings
+        .where("requestId")
+        .anyOf(lastInferenceRequests.map((request) => request.requestId))
+        .toArray();
+
+    const matchingQuorums: InferenceQuorum[] = await this.quorumDb.getQuorums(
+      lastInferenceRequests.map((request) => request.requestId)
+    );
+
+    const matchingConsensusResults: ConsensusResults[] =
+      await this.quorumDb.getConsensusResults(
+        lastInferenceRequests.map((request) => request.requestId)
+      );
+
+    return lastInferenceRequests.map((request) => {
+      const result = matchingInferenceResults.find(
+        (result) => result.requestId === request.requestId
+      );
+      const embedding = matchingInferenceEmbeddings.find(
+        (embedding) => embedding.requestId === request.requestId
+      );
+      const quorum = matchingQuorums.find(
+        (quorum) => quorum.requestId === request.requestId
+      );
+      const consensusResult = matchingConsensusResults.find(
+        (consensusResult) => consensusResult.requestId === request.requestId
+      );
+
+      return {
+        request,
+        result,
+        embedding,
+        quorum,
+        consensusResult,
+      };
+    });
   }
 
   private emitRevealRequests(quorums: InferenceQuorum[]) {

@@ -38,7 +38,7 @@ export type DomainStartOptions = {
 
 export class TheDomain {
   private static instance: TheDomain;
-
+  public synthientId: string;
   public packetDB: PacketDB;
   private shutdownListeners: (() => void)[] = [];
   public embeddingEngine: EmbeddingEngine;
@@ -185,6 +185,8 @@ export class TheDomain {
         this.p2pNetworkInstances.map((p) => p.broadcastPacket(packet))
       );
     };
+
+    this.synthientId = clientInfo.synthientId;
 
     this.packetDB = new PacketDB(clientInfo, broadcastPacket);
     this.inferenceDB = new InferenceDB(clientInfo.synthientId);

@@ -1,19 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Peer,
-  InferenceQuorum,
   ConsensusResults,
+  InferenceQuorum,
+  Peer,
 } from "../../core/synthient-chain/db/entities";
-import {
-  ReceivedPeerPacket,
-  InferenceRequest,
-  InferenceResult,
-  InferenceEmbedding,
-} from "../../core/synthient-chain/db/packet-types";
-import { LLMModelName } from "../../core/synthient-chain/llm/types";
 import { TheDomain } from "../../core/synthient-chain/thedomain/thedomain";
+import {
+  InferenceEmbedding,
+  InferenceResult,
+  ReceivedPeerPacket,
+  UnprocessedInferenceRequest,
+} from "../../core/synthient-chain/db/packet-types";
+import {
+  LLMEngineLogEntry,
+  LLMModelName,
+} from "../../core/synthient-chain/llm/types";
+import { debounce, set } from "lodash";
 
-const POLLING_INTERVAL = 5000; // 5 seconds
+const POLLING_INTERVAL = 1500; // 5 seconds
+
+const last24HoursDate = new Date();
+last24HoursDate.setDate(last24HoursDate.getDate() - 1);
 
 export function useTheDomain(
   identityPassword: string,
@@ -21,25 +28,37 @@ export function useTheDomain(
 ) {
   const domainRef = useRef<TheDomain | null>(null);
   const [peers, setPeers] = useState<Peer[]>([]);
-  const [packets, setPackets] = useState<ReceivedPeerPacket[]>([]);
-  const [inferenceRequests, setInferenceRequests] = useState<
-    InferenceRequest[]
-  >([]);
-  const [inferenceResults, setInferenceResults] = useState<InferenceResult[]>(
-    []
-  );
-  const [inferenceEmbeddings, setInferenceEmbeddings] = useState<
-    InferenceEmbedding[]
-  >([]);
-  const [quorums, setQuorums] = useState<InferenceQuorum[]>([]);
-  const [consensusResults, setConsensusResults] = useState<ConsensusResults[]>(
-    []
-  );
-  const [inferenceWorkerStates, setInferenceWorkerStates] = useState<{
+  const [mySynthientId, setMySynthientId] = useState<string | null>(null);
+  const [packets, setPackets] = useState<{
+    packets: ReceivedPeerPacket[];
+    total: number;
+  } | null>(null);
+  const [llmWorkerStates, setllmWorkerStates] = useState<{
     [workerId: string]: { modelName: LLMModelName; state: string };
   }>({});
+  const [llmEngineLog, setLLMEngineLog] = useState<LLMEngineLogEntry[]>([]);
+  const [inferences, setInferences] = useState<
+    {
+      request: Required<UnprocessedInferenceRequest>;
+      result: InferenceResult | undefined;
+      embedding: InferenceEmbedding | undefined;
+      quorum: InferenceQuorum | undefined;
+      consensusResult: ConsensusResults | undefined;
+    }[]
+  >([]);
+
+  function scaleLLMWorkers(modelName: LLMModelName, count: number) {
+    domainRef.current?.llmEngine.scaleLLMWorkers(modelName, count);
+  }
 
   useEffect(() => {
+    const updateEngines = debounce(() => {
+      const engines = domainRef.current?.llmEngine?.getWorkerStates();
+      if (engines) {
+        setllmWorkerStates(engines);
+      }
+    }, 100);
+
     const initDomain = async () => {
       const domain = await TheDomain.bootup({
         identityPassword,
@@ -50,6 +69,15 @@ export function useTheDomain(
         ],
       });
       domainRef.current = domain;
+
+      setMySynthientId(domain.synthientId);
+
+      domain.llmEngine.on("workerFree", updateEngines);
+      domain.llmEngine.on("workerLoadFailed", updateEngines);
+      domain.llmEngine.on("workerLoaded", updateEngines);
+      domain.llmEngine.on("workerUnloaded", updateEngines);
+
+      setllmWorkerStates(domain.llmEngine.getWorkerStates());
     };
 
     initDomain();
@@ -57,50 +85,47 @@ export function useTheDomain(
     const pollData = async () => {
       if (!domainRef.current) return;
 
-      const [
-        latestPeers,
-        latestPackets,
-        latestInferenceRequests,
-        latestInferenceResults,
-        latestInferenceEmbeddings,
-        latestQuorums,
-        latestConsensusResults,
-        inferenceWorkerStates,
-      ] = await Promise.all([
-        domainRef.current.packetDB.peerDB.getLastPeers(100),
-        domainRef.current.packetDB.getLastPackets(100),
-        domainRef.current.inferenceDB.getLastInferenceRequests(100),
-        domainRef.current.inferenceDB.getLastInferenceResults(100),
-        domainRef.current.inferenceDB.getLastInferenceEmbeddings(100),
-        domainRef.current.inferenceDB.quorumDb.getLastQuorums(100),
-        domainRef.current.inferenceDB.quorumDb.getLastConsensusResults(100),
-        domainRef.current.llmEngine.getWorkerStates(),
-      ]);
+      const [latestPeers, latestPackets, llmEngineLogs, inferences] =
+        await Promise.all([
+          domainRef.current.packetDB.peerDB.getLastPeers(last24HoursDate, 100),
+          domainRef.current.packetDB.getLastPackets(100),
+          domainRef.current.llmEngine.getEngineLogs(100),
+          domainRef.current.inferenceDB.getInferences(10),
+        ]);
 
-      setPeers(latestPeers);
+      setPeers(latestPeers || []);
       setPackets(latestPackets);
-      setInferenceRequests(latestInferenceRequests);
-      setInferenceResults(latestInferenceResults);
-      setInferenceEmbeddings(latestInferenceEmbeddings);
-      setQuorums(latestQuorums);
-      setConsensusResults(latestConsensusResults);
+      setLLMEngineLog(llmEngineLogs);
+      setInferences(inferences);
     };
 
     const intervalId = setInterval(pollData, POLLING_INTERVAL);
 
     return () => {
       clearInterval(intervalId);
+      domainRef.current?.llmEngine.removeListener("workerFree", updateEngines);
+      domainRef.current?.llmEngine.removeListener(
+        "workerLoadFailed",
+        updateEngines
+      );
+      domainRef.current?.llmEngine.removeListener(
+        "workerLoaded",
+        updateEngines
+      );
+      domainRef.current?.llmEngine.removeListener(
+        "workerUnloaded",
+        updateEngines
+      );
     };
   }, [identityPassword, overwriteIdentity]);
 
   return {
+    mySynthientId,
     peers,
     packets,
-    inferenceRequests,
-    inferenceResults,
-    inferenceEmbeddings,
-    quorums,
-    consensusResults,
-    inferenceWorkerStates,
+    llmWorkerStates,
+    llmEngineLog,
+    inferences,
+    scaleLLMWorkers,
   };
 }

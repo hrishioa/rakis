@@ -13,23 +13,35 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "../../components/ui/table";
 import { useTheDomain } from "./useTheDomain";
-import { LLMModelName } from "../../core/synthient-chain/llm/types";
+import { Peer } from "../../core/synthient-chain/db/entities";
 import {
-  ConsensusResults,
-  InferenceQuorum,
-  Peer,
-} from "../../core/synthient-chain/db/entities";
+  LLMModelName,
+  LLMEngineLogEntry,
+  availableModels,
+} from "../../core/synthient-chain/llm/types";
+import PacketCards from "./packetCards";
+import { Check, ChevronsUpDown } from "lucide-react";
 import {
-  ReceivedPeerPacket,
-  InferenceRequest,
-  InferenceResult,
-  InferenceEmbedding,
-} from "../../core/synthient-chain/db/packet-types";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "../../components/ui/command";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@radix-ui/react-popover";
+import { Button } from "../../components/ui/button";
+import { cn } from "../../lib/utils";
 
 function DashboardContent({
   identityPassword,
@@ -41,232 +53,284 @@ function DashboardContent({
   const {
     peers,
     packets,
-    inferenceRequests,
-    inferenceResults,
-    inferenceEmbeddings,
-    quorums,
-    consensusResults,
-    inferenceWorkerStates,
+    llmEngineLog,
+    llmWorkerStates,
+    mySynthientId,
+    scaleLLMWorkers,
   } = useTheDomain(identityPassword, overwriteIdentity);
+
+  const [open, setOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<LLMModelName | "">("");
+  const [numWorkers, setNumWorkers] = useState(1);
+
+  const handleScale = () => {
+    if (selectedModel) {
+      console.log(`Scaling ${numWorkers} workers for model ${selectedModel}`);
+      if (selectedModel) scaleLLMWorkers(selectedModel, numWorkers);
+    }
+  };
+
+  const scaleWorkers = (modelName: LLMModelName, numWorkers: number) => {};
 
   return (
     <div className="p-8 overflow-auto">
-      <h1>Synthient Dashboard</h1>
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col  mb-8">
+          <h1 className="text-4xl font-bold mb-2">Started A Rakis</h1>
+          <h2 className="text-sm font-bold">ID: {mySynthientId}</h2>
+        </div>
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Consensus Results</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeader>Request ID</TableHeader>
-                <TableHeader>Success</TableHeader>
-                <TableHeader>Reason</TableHeader>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {consensusResults.map((result: ConsensusResults) => (
-                <TableRow key={result.requestId}>
-                  <TableCell>{result.requestId}</TableCell>
-                  <TableCell>{result.success ? "Success" : "Failed"}</TableCell>
-                  <TableCell>{result.reason}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        <div className="flex items-center space-x-4">
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                className="w-[300px] justify-between"
+              >
+                {selectedModel || "Select model..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0 z-50">
+              <Command>
+                <CommandInput placeholder="Search model..." />
+                <CommandList>
+                  <CommandEmpty>No model found.</CommandEmpty>
+                  <CommandGroup>
+                    {availableModels.map((model) => (
+                      <CommandItem
+                        key={model}
+                        value={model}
+                        onSelect={(currentValue) => {
+                          setSelectedModel(
+                            currentValue === selectedModel
+                              ? ""
+                              : (currentValue as LLMModelName)
+                          );
+                          setOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedModel === model
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                        {model}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+          <input
+            type="number"
+            min={1}
+            value={numWorkers}
+            onChange={(e) => setNumWorkers(parseInt(e.target.value))}
+            className="w-20 px-2 py-1 border rounded-md"
+          />
+          <Button onClick={handleScale}>Scale Workers</Button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-10rem)] overflow-auto">
+        <div className="lg:col-span-1">
+          <LLMWorkerStatesAndLogs
+            llmWorkerStates={llmWorkerStates}
+            llmEngineLog={llmEngineLog}
+          />
+        </div>
+        <div className="lg:col-span-1">
+          {packets && (
+            <div className="bg-white rounded-lg shadow-lg p-6 lg:h-[50vh]">
+              <PacketCards packets={packets.packets} total={packets.total} />
+            </div>
+          )}
+        </div>
+        <div className="lg:col-span-1">
+          {peers && <PeerTable peers={peers} />}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Quorums</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeader>Request ID</TableHeader>
-                <TableHeader>Status</TableHeader>
-                <TableHeader>Quorum Threshold</TableHeader>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {quorums.map((quorum: InferenceQuorum) => (
-                <TableRow key={quorum.requestId}>
-                  <TableCell>{quorum.requestId}</TableCell>
-                  <TableCell>{quorum.status}</TableCell>
-                  <TableCell>{quorum.quorumThreshold}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+export function LLMWorkerStatesAndLogs({
+  llmWorkerStates,
+  llmEngineLog,
+}: {
+  llmWorkerStates: {
+    [workerId: string]: { modelName: LLMModelName; state: string };
+  };
+  llmEngineLog: LLMEngineLogEntry[];
+}) {
+  function getLogRef(entry: LLMEngineLogEntry) {
+    if (entry.type === "engine_loading" || entry.type === "engine_loaded")
+      return entry.modelName;
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Peers</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeader>Synthient ID</TableHeader>
-                <TableHeader>Last Seen</TableHeader>
-                <TableHeader>Device Info</TableHeader>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {peers.map((peer: Peer) => (
-                <TableRow key={peer.synthientId}>
-                  <TableCell>{peer.synthientId}</TableCell>
-                  <TableCell>{peer.lastSeen.toLocaleString()}</TableCell>
-                  <TableCell>{peer.deviceInfo}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+    if (entry.type === "engine_loading_error") return entry.modelName;
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Packets</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeader>Packet Type</TableHeader>
-                <TableHeader>Synthient ID</TableHeader>
-                <TableHeader>Received Time</TableHeader>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {packets.map((packet: ReceivedPeerPacket) => (
-                <TableRow key={`${packet.synthientId}-${packet.receivedTime}`}>
-                  <TableCell>{packet.packet.type}</TableCell>
-                  <TableCell>{packet.synthientId}</TableCell>
-                  <TableCell>
-                    {packet.receivedTime?.toLocaleString() || "-"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+    if (
+      entry.type === "engine_inference_start" ||
+      entry.type === "engine_inference_error" ||
+      entry.type === "engine_inference_streaming_result"
+    )
+      return entry.inferenceId;
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Inference Requests</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeader>Request ID</TableHeader>
-                <TableHeader>From Chain</TableHeader>
-                <TableHeader>Prompt</TableHeader>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {inferenceRequests.map((request: InferenceRequest) => (
-                <TableRow key={request.requestId}>
-                  <TableCell>{request.requestId}</TableCell>
-                  <TableCell>{request.payload.fromChain}</TableCell>
-                  <TableCell>{request.payload.prompt}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+    return "-";
+  }
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Inference Results</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeader>Inference ID</TableHeader>
-                <TableHeader>Request ID</TableHeader>
-                <TableHeader>Success</TableHeader>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {inferenceResults.map((result: InferenceResult) => (
-                <TableRow key={result.inferenceId}>
-                  <TableCell>{result.inferenceId}</TableCell>
-                  <TableCell>{result.requestId}</TableCell>
-                  <TableCell>
-                    {result.result.success ? "Success" : "Failed"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+  function getLogData(entry: LLMEngineLogEntry) {
+    if (entry.type === "engine_loading" || entry.type === "engine_loaded")
+      return "-";
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Inference Embeddings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeader>Inference ID</TableHeader>
-                <TableHeader>Request ID</TableHeader>
-                <TableHeader>B Embedding Hash</TableHeader>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {inferenceEmbeddings.map((embedding: InferenceEmbedding) => (
-                <TableRow key={embedding.inferenceId}>
-                  <TableCell>{embedding.inferenceId}</TableCell>
-                  <TableCell>{embedding.requestId}</TableCell>
-                  <TableCell>{embedding.bEmbeddingHash}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+    if (entry.type === "engine_loading_error") return entry.error;
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Inference Worker States</CardTitle>
-        </CardHeader>
-        <CardContent>
+    if (entry.type === "engine_inference_start")
+      return JSON.stringify(entry.params);
+
+    if (entry.type === "engine_inference_error") return entry.error;
+
+    if (entry.type === "engine_inference_streaming_result")
+      return `Tokens: ${entry.tokenCount} - ${entry.result}`;
+
+    return "-";
+  }
+
+  return (
+    <Card className="lg:h-[50vh] overflow-y-auto bg-blue-50">
+      <CardHeader>
+        <CardTitle className="text-xl">Inference Engine</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col h-full">
+        <div className="mb-4">
           <Table>
-            <TableHead>
+            <TableHeader>
               <TableRow>
-                <TableHeader>Worker ID</TableHeader>
-                <TableHeader>Model Name</TableHeader>
-                <TableHeader>State</TableHeader>
+                <TableHead className="text-sm">Worker Id</TableHead>
+                <TableHead className="text-sm">Model</TableHead>
+                <TableHead className="text-sm text-right">State</TableHead>
               </TableRow>
-            </TableHead>
+            </TableHeader>
             <TableBody>
-              {Object.entries(inferenceWorkerStates).map(
-                ([workerId, workerState]) => (
+              {Object.entries(llmWorkerStates).map(
+                ([workerId, { modelName, state }]) => (
                   <TableRow key={workerId}>
-                    <TableCell>{workerId}</TableCell>
-                    <TableCell>{workerState.modelName}</TableCell>
-                    <TableCell>{workerState.state}</TableCell>
+                    <TableCell className="text-xs">{workerId}</TableCell>
+                    <TableCell className="text-sm">{modelName}</TableCell>
+                    <TableCell className="text-sm text-right">
+                      {state}
+                    </TableCell>
                   </TableRow>
                 )
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+        <div className="overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-sm">Worker</TableHead>
+                <TableHead className="text-sm">Type</TableHead>
+                <TableHead className="text-sm">Ref</TableHead>
+                <TableHead className="text-sm">Data</TableHead>
+                <TableHead className="text-sm text-right">At</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {llmEngineLog
+                .sort((a, b) => b.at!.getTime() - a.at!.getTime())
+                .map((entry, index) => (
+                  <TableRow key={entry.workerId + entry.at!.toISOString()}>
+                    <TableCell className="text-xs">{entry.workerId}</TableCell>
+                    <TableCell className="text-xs">
+                      {entry.type.replace("_", " ")}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {getLogRef(entry)}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {getLogData(entry)}
+                    </TableCell>
+                    <TableCell className="text-xs text-right">
+                      {entry.at!.toLocaleString([], {
+                        year: "2-digit",
+                        month: "numeric",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function PeerTable({ peers }: { peers: Peer[] }) {
+  return (
+    <Card className="lg:h-[50vh] overflow-y-auto bg-green-50">
+      <CardHeader>
+        <CardTitle className="text-xl">Peers (last 24h)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[80px] text-sm">Id</TableHead>
+              <TableHead className="text-sm">Seen</TableHead>
+              <TableHead className="text-sm text-right">Last Seen</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {peers
+              .sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime())
+              .map((peer) => (
+                <TableRow key={peer.synthientId}>
+                  <TableCell className="text-xs font-medium">
+                    {peer.synthientId.slice(0, 10)}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {peer.seenOn.join(", ")}
+                    <span className="ml-1 text-gray-400 text-[10px]">
+                      ({peer.seenOn.length})
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-xs text-right">
+                    {peer.lastSeen.toLocaleString([], {
+                      year: "2-digit",
+                      month: "numeric",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+          <TableFooter>
+            <TableRow>
+              <TableCell className="text-sm" colSpan={2}>
+                Total
+              </TableCell>
+              <TableCell className="text-sm text-right">
+                {peers.length}
+              </TableCell>
+            </TableRow>
+          </TableFooter>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -291,6 +355,11 @@ export default function Home() {
               type="password"
               placeholder="Enter password"
               value={password}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  handlePasswordSubmit();
+                }
+              }}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-600"
             />

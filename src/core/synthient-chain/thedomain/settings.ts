@@ -26,3 +26,9 @@ export const QUORUM_SETTINGS: {
   quorumConsensusWindowMs: 30000,
   bEmbeddingThreshold: 0,
 };
+
+export const LLM_ENGINE_SETTINGS: {
+  engineLogLimit: number;
+} = {
+  engineLogLimit: 2000,
+};

@@ -16,6 +16,7 @@ import {
 } from "../db/packet-types";
 import { generateRandomString } from "../utils/utils";
 import { createLogger, logStyles } from "../utils/logger";
+import { LLM_ENGINE_SETTINGS } from "../thedomain/settings";
 
 type LLMEngineEvents = {
   workerLoadFailed: (data: {
@@ -32,6 +33,7 @@ const logger = createLogger("LLM Engine", logStyles.llmEngine.main);
 
 export class LLMEngine extends EventEmitter<LLMEngineEvents> {
   public llmWorkers: Record<string, LLMWorker> = {};
+  // TODO: Move this into indexedDB
   private engineLog: LLMEngineLogEntry[] = [];
   private inferenceCounter: number = 0;
 
@@ -42,6 +44,12 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     logger.debug("Engine event ", logLength, " - ", entry);
 
     this.engineLog.push(entry);
+
+    if (this.engineLog.length > LLM_ENGINE_SETTINGS.engineLogLimit)
+      this.engineLog = this.engineLog.slice(
+        -LLM_ENGINE_SETTINGS.engineLogLimit
+      );
+
     return logLength;
   }
 

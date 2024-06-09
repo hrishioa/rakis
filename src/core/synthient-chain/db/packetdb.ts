@@ -57,8 +57,18 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     this.sendPacketOverP2P = sendPacketOverP2P;
   }
 
-  async getLastPackets(count: number): Promise<ReceivedPeerPacket[]> {
-    return await this.db.packets.orderBy("receivedTime").limit(count).toArray();
+  async getLastPackets(count: number): Promise<{
+    packets: ReceivedPeerPacket[];
+    total: number;
+  }> {
+    return {
+      packets: await this.db.packets
+        .orderBy("receivedTime")
+        .reverse()
+        .limit(count)
+        .toArray(),
+      total: await this.db.packets.count(),
+    };
   }
 
   async emitNewPacketEvents(packet: ReceivedPeerPacket) {

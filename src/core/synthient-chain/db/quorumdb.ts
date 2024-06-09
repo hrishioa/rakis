@@ -50,19 +50,19 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     this.consensusResultsDB = new ConsensusResultsDatabase();
   }
 
-  async getLastQuorums(count: number) {
-    return this.db.quorums.orderBy("endingAt").reverse().limit(count).toArray();
-  }
-
-  async getLastConsensusResults(count: number) {
-    return this.consensusResultsDB.consensusResults
-      .reverse()
-      .limit(count)
-      .toArray();
-  }
-
   async getQuorum(requestId: string) {
     return this.db.quorums.get(requestId);
+  }
+
+  async getQuorums(requestIds: string[]) {
+    return this.db.quorums.where("requestId").anyOf(requestIds).toArray();
+  }
+
+  async getConsensusResults(requestIds: string[]) {
+    return this.consensusResultsDB.consensusResults
+      .where("requestId")
+      .anyOf(requestIds)
+      .toArray();
   }
 
   private async checkQuorumsReadyForReveal() {
