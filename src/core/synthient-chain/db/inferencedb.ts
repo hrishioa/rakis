@@ -81,15 +81,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     });
   }
 
-  async getInferences(lastN: number): Promise<
-    {
-      request: Required<UnprocessedInferenceRequest>;
-      result: InferenceResult | undefined;
-      embedding: InferenceEmbedding | undefined;
-      quorum: InferenceQuorum | undefined;
-      consensusResult: ConsensusResults | undefined;
-    }[]
-  > {
+  async getInferences(lastN: number) {
     const lastInferenceRequests: InferenceRequest[] =
       await this.inferenceRequestDb.inferenceRequests
         .orderBy("endingAt")
@@ -122,22 +114,66 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       const result = matchingInferenceResults.find(
         (result) => result.requestId === request.requestId
       );
+
       const embedding = matchingInferenceEmbeddings.find(
         (embedding) => embedding.requestId === request.requestId
       );
+
       const quorum = matchingQuorums.find(
         (quorum) => quorum.requestId === request.requestId
       );
+
       const consensusResult = matchingConsensusResults.find(
-        (consensusResult) => consensusResult.requestId === request.requestId
+        (result) => result.requestId === request.requestId
       );
 
       return {
-        request,
-        result,
-        embedding,
-        quorum,
-        consensusResult,
+        requestId: request.requestId,
+        requestedAt: request.payload.createdAt,
+        endingAt: request.endingAt,
+        requestPayload: request.payload,
+        ourResult: result && {
+          payload: result,
+          bEmbeddingHash: embedding?.bEmbeddingHash,
+        },
+        quorum: quorum && {
+          status: quorum.status,
+          quorumThreshold: quorum.quorumThreshold,
+          quorumCommitted: quorum.quorumCommitted,
+          quorumRevealed: quorum.quorumRevealed,
+          quorum: quorum.quorum.map((q) => ({
+            inferenceId: q.inferenceId,
+            synthientId: q.synthientId,
+            commitReceivedAt: q.commitReceivedAt,
+            bEmbeddingHash: q.bEmbeddingHash,
+            reveal: q.reveal && {
+              output: q.reveal.output,
+              receivedAt: q.reveal.receivedAt,
+            },
+          })),
+        },
+        consensusResult: consensusResult && {
+          status: consensusResult.reason,
+          result: consensusResult.computedQuorumPacket && {
+            submittedInferences:
+              consensusResult.computedQuorumPacket.submittedInferences,
+            validInferences:
+              consensusResult.computedQuorumPacket.validInferences,
+            validInferenceJointHash:
+              consensusResult.computedQuorumPacket.validInferenceJointHash,
+            validInference: {
+              output:
+                consensusResult.computedQuorumPacket.validSingleInference
+                  .output,
+              fromSynthientId:
+                consensusResult.computedQuorumPacket.validSingleInference
+                  .fromSynthientId,
+              bEmbeddingHash:
+                consensusResult.computedQuorumPacket.validSingleInference
+                  .bEmbeddingHash,
+            },
+          },
+        },
       };
     });
   }

@@ -248,7 +248,7 @@ export class TheDomain {
                 quorum: 2,
                 maxTimeMs,
                 secDistance: 4500,
-                secPercentage: 0.5,
+                secPercentage: 0.5, // TODO: Important maybe we need to change this to base 100, or are we too late for that?
                 embeddingModel: "nomic-ai/nomic-embed-text-v1.5",
               },
             },

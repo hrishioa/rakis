@@ -42,6 +42,10 @@ import {
 } from "@radix-ui/react-popover";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
+import InferenceList from "./inferenceList";
+import { Label } from "../../components/ui/label";
+import { Input } from "../../components/ui/input";
+import { MultiSelect } from "../../components/ui/multi-select";
 
 function DashboardContent({
   identityPassword,
@@ -57,11 +61,29 @@ function DashboardContent({
     llmWorkerStates,
     mySynthientId,
     scaleLLMWorkers,
+    inferences,
+    submitInferenceRequest,
   } = useTheDomain(identityPassword, overwriteIdentity);
 
   const [open, setOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<LLMModelName | "">("");
   const [numWorkers, setNumWorkers] = useState(1);
+
+  const [prompt, setPrompt] = useState("");
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [minimumParticipants, setMinimumParticipants] = useState(1);
+  const [timeAvailableSeconds, setTimeAvailableSeconds] = useState(60);
+  const [percentageAgreement, setPercentageAgreement] = useState(50);
+
+  const handleInferenceSubmit = () => {
+    submitInferenceRequest(
+      prompt,
+      selectedModels as LLMModelName[],
+      minimumParticipants,
+      timeAvailableSeconds,
+      percentageAgreement
+    );
+  };
 
   const handleScale = () => {
     if (selectedModel) {
@@ -77,7 +99,9 @@ function DashboardContent({
       <div className="flex items-center justify-between mb-8">
         <div className="flex flex-col  mb-8">
           <h1 className="text-4xl font-bold mb-2">Started A Rakis</h1>
-          <h2 className="text-sm font-bold">ID: {mySynthientId}</h2>
+          <h2 className="text-sm font-bold">
+            ID: {mySynthientId?.slice(0, 50)}...
+          </h2>
         </div>
 
         <div className="flex items-center space-x-4">
@@ -138,6 +162,94 @@ function DashboardContent({
           <Button onClick={handleScale}>Scale Workers</Button>
         </div>
       </div>
+
+      <div className="mb-8 grid grid-cols-2 gap-8">
+        {inferences && (
+          <div className="bg-white rounded-lg shadow-lg p-6 col-span-1">
+            <InferenceList inferences={inferences} />
+          </div>
+        )}
+        <div className="ml-8 col-span-1">
+          <h2 className="text-2xl font-bold mb-4">Inference Request</h2>
+          <div className="mb-4">
+            <Label htmlFor="prompt">Prompt</Label>
+            <Input
+              id="prompt"
+              value={prompt}
+              onChange={(e: any) => setPrompt(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <div className="mb-4">
+            <Label>Models</Label>
+            <MultiSelect
+              options={availableModels.map((model) => ({
+                value: model,
+                label: model,
+              }))}
+              defaultValue={selectedModels}
+              onValueChange={setSelectedModels}
+              placeholder="Select models..."
+              animation={2}
+              maxCount={3}
+              className="w-full"
+            />
+          </div>
+          <div className="mb-4">
+            <Label htmlFor="minimumParticipants">Minimum Participants</Label>
+            <Input
+              id="minimumParticipants"
+              type="number"
+              min={1}
+              value={minimumParticipants}
+              onChange={(e: any) =>
+                setMinimumParticipants(
+                  isNaN(e.target.value) ? 1 : parseInt(e.target.value)
+                )
+              }
+              className="w-full"
+            />
+          </div>
+          <div className="mb-4">
+            <Label htmlFor="timeAvailableSeconds">
+              Time Available (seconds)
+            </Label>
+            <Input
+              id="timeAvailableSeconds"
+              type="number"
+              min={1}
+              value={timeAvailableSeconds}
+              onChange={(e: any) =>
+                setTimeAvailableSeconds(
+                  isNaN(e.target.value) ? 10 : parseInt(e.target.value)
+                )
+              }
+              className="w-full"
+            />
+          </div>
+          <div className="mb-4">
+            <Label htmlFor="percentageAgreement">Percentage Agreement</Label>
+            <Input
+              id="percentageAgreement"
+              type="number"
+              min={0}
+              max={100}
+              value={percentageAgreement}
+              onChange={(e: any) =>
+                setPercentageAgreement(parseInt(e.target.value))
+              }
+              className="w-full"
+            />
+          </div>
+          <Button
+            onClick={handleInferenceSubmit}
+            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
+          >
+            Send Inference Request
+          </Button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-10rem)] overflow-auto">
         <div className="lg:col-span-1">
           <LLMWorkerStatesAndLogs
@@ -160,7 +272,7 @@ function DashboardContent({
   );
 }
 
-export function LLMWorkerStatesAndLogs({
+function LLMWorkerStatesAndLogs({
   llmWorkerStates,
   llmEngineLog,
 }: {
@@ -277,7 +389,7 @@ export function LLMWorkerStatesAndLogs({
   );
 }
 
-export function PeerTable({ peers }: { peers: Peer[] }) {
+function PeerTable({ peers }: { peers: Peer[] }) {
   return (
     <Card className="lg:h-[50vh] overflow-y-auto bg-green-50">
       <CardHeader>
@@ -301,7 +413,11 @@ export function PeerTable({ peers }: { peers: Peer[] }) {
                     {peer.synthientId.slice(0, 10)}
                   </TableCell>
                   <TableCell className="text-xs">
-                    {peer.seenOn.join(", ")}
+                    {peer.seenOn
+                      .map((network) =>
+                        network === "gun" ? "pewpew" : network
+                      )
+                      .join(", ")}
                     <span className="ml-1 text-gray-400 text-[10px]">
                       ({peer.seenOn.length})
                     </span>
@@ -348,7 +464,7 @@ export default function Home() {
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-96">
           <CardHeader>
-            <CardTitle>Authentication</CardTitle>
+            <CardTitle>Log into Rakis</CardTitle>
           </CardHeader>
           <CardContent>
             <input
@@ -365,11 +481,16 @@ export default function Home() {
             />
             <div className="mt-4">
               <Checkbox
+                id="overwriteIdentity"
                 checked={overwriteIdentity}
                 onCheckedChange={(checked) => setOverwriteIdentity(!!checked)}
+              />
+              <label
+                htmlFor="overwriteIdentity"
+                className="text-sm ml-2 font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
-                Overwrite existing identity
-              </Checkbox>
+                Overwrite existing identity?
+              </label>
             </div>
           </CardContent>
           <CardFooter>
@@ -377,7 +498,7 @@ export default function Home() {
               onClick={handlePasswordSubmit}
               className="px-4 py-2 font-bold text-white bg-blue-500 rounded-full hover:bg-blue-700"
             >
-              Submit
+              Enter A Rakis
             </button>
           </CardFooter>
         </Card>
