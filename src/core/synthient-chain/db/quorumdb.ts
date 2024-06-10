@@ -1,6 +1,7 @@
 import Dexie from "dexie";
 import {
   InferenceCommit,
+  InferenceQuorumComputed,
   InferenceRequest,
   InferenceReveal,
   PeerPacket,
@@ -38,9 +39,21 @@ class ConsensusResultsDatabase extends Dexie {
   }
 }
 
+class ExternalConsensusResultsDatabase extends Dexie {
+  consensusResults!: Dexie.Table<InferenceQuorumComputed, string>;
+
+  constructor() {
+    super("ExternalConsensusResultsDatabase");
+    this.version(1).stores({
+      consensusResults: "[requestId+verifiedBy]",
+    });
+  }
+}
+
 export class QuorumDB extends EventEmitter<QuorumDBEvents> {
   private db: QuorumDatabase;
   private consensusResultsDB: ConsensusResultsDatabase;
+  private externalConsensusResultsDB: ExternalConsensusResultsDatabase;
   private quorumRevealTimeout: NodeJS.Timeout | null = null;
   private quorumConsensusTimeout: NodeJS.Timeout | null = null;
 
@@ -48,6 +61,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     super();
     this.db = new QuorumDatabase();
     this.consensusResultsDB = new ConsensusResultsDatabase();
+    this.externalConsensusResultsDB = new ExternalConsensusResultsDatabase();
   }
 
   async getQuorum(requestId: string) {
@@ -60,6 +74,13 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
   async getConsensusResults(requestIds: string[]) {
     return this.consensusResultsDB.consensusResults
+      .where("requestId")
+      .anyOf(requestIds)
+      .toArray();
+  }
+
+  async getExternalConsensusResults(requestIds: string[]) {
+    return this.externalConsensusResultsDB.consensusResults
       .where("requestId")
       .anyOf(requestIds)
       .toArray();
@@ -312,6 +333,25 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
         setTimeout(() => this.refreshQuorumRevealTimeout(), 0); // polite timeout
       }, quorums[0].endingAt.getTime() - Date.now());
     }
+  }
+
+  async processExternalConsensus(consensusPacket: InferenceQuorumComputed) {
+    const existingExternalConsensus =
+      await this.externalConsensusResultsDB.consensusResults.get([
+        consensusPacket.requestId,
+        consensusPacket.verifiedBy,
+      ]);
+
+    if (existingExternalConsensus) {
+      logger.debug(
+        "External consensus already exists for this request and synthientId: ",
+        consensusPacket,
+        ", dropping"
+      );
+      return;
+    }
+
+    this.externalConsensusResultsDB.consensusResults.put(consensusPacket);
   }
 
   async processVerifiedConsensusEmbeddings(

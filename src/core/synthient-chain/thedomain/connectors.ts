@@ -2,6 +2,7 @@ import { InferenceDB } from "../db/inferencedb";
 import {
   InferenceCommit,
   InferenceEmbedding,
+  InferenceQuorumComputed,
   InferenceReveal,
   InferenceRevealRequest,
   P2PInferenceRequestPacket,
@@ -67,10 +68,18 @@ export function saveInferencePacketsFromP2PToInferenceDB(
     }, 0);
   };
 
+  const externalConsensusPacketListener = (packet: InferenceQuorumComputed) => {
+    setTimeout(() => {
+      logger.debug("Processing new consensus packet");
+      inferenceDB.processExternalConsensus(packet);
+    }, 0);
+  };
+
   packetDB.on("newP2PInferenceRequest", inferenceRequestListener);
   packetDB.on("newInferenceCommit", inferenceCommitListener);
   packetDB.on("newInferenceRevealRequest", inferenceRevealRequestListener);
   packetDB.on("newInferenceRevealed", inferenceRevealListener);
+  packetDB.on("consensusPacketReceived", externalConsensusPacketListener);
 
   return () => {
     packetDB.removeListener("newP2PInferenceRequest", inferenceRequestListener);
@@ -80,6 +89,10 @@ export function saveInferencePacketsFromP2PToInferenceDB(
       inferenceRevealRequestListener
     );
     packetDB.removeListener("newInferenceRevealed", inferenceRevealListener);
+    packetDB.removeListener(
+      "consensusPacketReceived",
+      externalConsensusPacketListener
+    );
   };
 }
 

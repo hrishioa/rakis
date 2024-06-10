@@ -2,6 +2,7 @@ import Dexie, { type DexieOptions } from "dexie";
 import {
   InferenceCommit,
   InferenceEmbedding,
+  InferenceQuorumComputed,
   InferenceRequest,
   InferenceResult,
   InferenceReveal,
@@ -81,6 +82,23 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     });
   }
 
+  async processExternalConsensus(consensusPacket: InferenceQuorumComputed) {
+    const matchingRequest = await this.inferenceRequestDb.inferenceRequests.get(
+      consensusPacket.requestId
+    );
+
+    if (!matchingRequest) {
+      logger.error(
+        "No matching request for consensus packet ",
+        consensusPacket,
+        ", dropping"
+      );
+      return;
+    }
+
+    await this.quorumDb.processExternalConsensus(consensusPacket);
+  }
+
   async getInferences(lastN: number) {
     const lastInferenceRequests: InferenceRequest[] =
       await this.inferenceRequestDb.inferenceRequests
@@ -100,6 +118,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
         .where("requestId")
         .anyOf(lastInferenceRequests.map((request) => request.requestId))
         .toArray();
+
+    const externalConsensuses = await this.quorumDb.getExternalConsensusResults(
+      lastInferenceRequests.map((request) => request.requestId)
+    );
 
     const matchingQuorums: InferenceQuorum[] = await this.quorumDb.getQuorums(
       lastInferenceRequests.map((request) => request.requestId)
@@ -174,6 +196,14 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
             },
           },
         },
+        externalConsensuses: externalConsensuses
+          .filter((consensus) => consensus.requestId === request.requestId)
+          .map((consensus) => ({
+            verifiedBy: consensus.verifiedBy,
+            bEmbeddingHash: consensus.validSingleInference.bEmbeddingHash,
+            output: consensus.validSingleInference.output,
+            validInferenceBy: consensus.validSingleInference.fromSynthientId,
+          })),
       };
     });
   }

@@ -98,6 +98,12 @@ export type InferencesForDisplay = {
       };
     };
   };
+  externalConsensuses: {
+    verifiedBy: string;
+    bEmbeddingHash: string;
+    output: string;
+    validInferenceBy: string;
+  }[];
 };
 
 export function useTheDomain(

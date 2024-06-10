@@ -76,6 +76,7 @@ export type PacketDBEvents = {
       packet: InferenceReveal;
     }
   ) => void;
+  consensusPacketReceived: (packet: InferenceQuorumComputed) => void;
   peerHeart: (packet: ReceivedPeerPacket & { packet: PeerHeart }) => void;
 };
 

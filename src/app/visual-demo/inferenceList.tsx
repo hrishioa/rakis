@@ -6,6 +6,24 @@ const InferenceCard: React.FC<{ inference: InferencesForDisplay }> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
+  const getInferenceStatus = () => {
+    if (inference.endingAt > new Date()) {
+      return "Waiting for commitments";
+    } else if (inference.quorum) {
+      return inference.quorum.status
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    } else if (inference.consensusResult) {
+      return inference.consensusResult.status
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+    } else {
+      return "Unknown";
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-4 hover:bg-gray-50 transition-colors">
       <div
@@ -20,25 +38,9 @@ const InferenceCard: React.FC<{ inference: InferencesForDisplay }> = ({
         </span>
       </div>
       <div className="mt-4 space-y-2">
-        {inference.endingAt > new Date() ? (
-          <p>
-            <strong>Ending in:</strong>
-            <span className="text-red-500">
-              {" "}
-              {((inference.endingAt.getTime() - Date.now()) / 1000).toFixed(
-                0
-              )}{" "}
-              seconds
-            </span>
-          </p>
-        ) : (
-          <p>
-            <strong>Ended At:</strong>{" "}
-            <span className="text-green-500">
-              {inference.endingAt.toLocaleString()}
-            </span>
-          </p>
-        )}
+        <p>
+          <strong>Status:</strong> {getInferenceStatus()}
+        </p>
         <p>
           <strong>From Chain:</strong> {inference.requestPayload.fromChain}
         </p>
@@ -102,7 +104,11 @@ const InferenceCard: React.FC<{ inference: InferencesForDisplay }> = ({
             <div className="mb-4 p-4 border-l-4 border-green-400 bg-gray-100 rounded">
               <h4 className="text-lg font-semibold text-teal-700">Quorum</h4>
               <p>
-                <strong>Status:</strong> {inference.quorum.status}
+                <strong>Status:</strong>{" "}
+                {inference.quorum.status
+                  .split("_")
+                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(" ")}
               </p>
               <p>
                 <strong>Quorum Threshold:</strong>{" "}
@@ -155,7 +161,11 @@ const InferenceCard: React.FC<{ inference: InferencesForDisplay }> = ({
                 Consensus Result
               </h4>
               <p>
-                <strong>Status:</strong> {inference.consensusResult.status}
+                <strong>Status:</strong>{" "}
+                {inference.consensusResult.status
+                  .split("_")
+                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(" ")}
               </p>
               {inference.consensusResult.result && (
                 <>
@@ -198,6 +208,33 @@ const InferenceCard: React.FC<{ inference: InferencesForDisplay }> = ({
                   </p>
                 </>
               )}
+            </div>
+          )}
+          {inference.externalConsensuses.length > 0 && (
+            <div className="p-4 border-l-4 border-purple-400 bg-gray-100 rounded">
+              <h4 className="text-lg font-semibold text-purple-700">
+                External Consensuses
+              </h4>
+              <ul className="list-disc pl-5">
+                {inference.externalConsensuses.map((consensus, index) => (
+                  <li key={index}>
+                    <p>
+                      <strong>Verified By:</strong> {consensus.verifiedBy}
+                    </p>
+                    <p>
+                      <strong>B Embedding Hash:</strong>{" "}
+                      {consensus.bEmbeddingHash}
+                    </p>
+                    <p>
+                      <strong>Output:</strong> {consensus.output}
+                    </p>
+                    <p>
+                      <strong>Valid Inference By:</strong>{" "}
+                      {consensus.validInferenceBy}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

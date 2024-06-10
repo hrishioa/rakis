@@ -2,6 +2,7 @@ import Dexie, { DexieOptions } from "dexie";
 import * as ed from "@noble/ed25519";
 import {
   InferenceCommit,
+  InferenceQuorumComputed,
   InferenceReveal,
   InferenceRevealRequest,
   KnownPeers,
@@ -83,6 +84,21 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         "newP2PInferenceRequest",
         packet.packet as P2PInferenceRequestPacket
       );
+    }
+
+    if (packet.packet.type === "inferenceQuorumComputed") {
+      if (packet.packet.verifiedBy !== packet.synthientId) {
+        // TODO: In the future we can add some actual verification and propagation between nodes in case we want to implement that *above* the p2p layer, for now you shouldn't really be getting them from someone else
+        logger.debug(
+          "Received inferenceQuorumComputed not directly from the sender, dropping",
+          packet
+        );
+      } else {
+        this.emit(
+          "consensusPacketReceived",
+          packet.packet as InferenceQuorumComputed
+        );
+      }
     }
 
     if (packet.packet.type === "inferenceCommit") {

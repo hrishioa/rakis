@@ -359,7 +359,7 @@ function LLMWorkerStatesAndLogs({
               {llmEngineLog
                 .sort((a, b) => b.at!.getTime() - a.at!.getTime())
                 .map((entry, index) => (
-                  <TableRow key={entry.workerId + entry.at!.toISOString()}>
+                  <TableRow key={index}>
                     <TableCell className="text-xs">{entry.workerId}</TableCell>
                     <TableCell className="text-xs">
                       {entry.type.replace("_", " ")}
