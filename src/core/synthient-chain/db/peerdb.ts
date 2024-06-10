@@ -1,5 +1,5 @@
 import Dexie, { type DexieOptions } from "dexie";
-import { ChainIdentity, Peer } from "./entities";
+import { ChainIdentity, Peer, SupportedP2PDeliveryNetwork } from "./entities";
 import {
   KnownPeers,
   PeerConnectedChain,
@@ -78,9 +78,9 @@ export class PeerDB {
         updatedPeer.seenOn = Array.from(
           new Set([
             ...updatedPeer.seenOn,
-            ...peerPackets
+            ...(peerPackets
               .map((packet) => packet.deliveredThrough)
-              .filter((dT) => !!dT),
+              .filter((dT) => !!dT) as SupportedP2PDeliveryNetwork[]),
           ])
         );
 

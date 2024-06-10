@@ -2,6 +2,7 @@
   "name": "synthient-core",
   "version": "0.1.0",
   "private": true,
+  "license": "by-nc-4.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

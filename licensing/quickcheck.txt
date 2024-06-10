@@ -1,0 +1,74 @@
+MIT License:
+
+The MIT License is a permissive license that allows for free use, modification, and distribution of the code, with minimal restrictions.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
+
+
+Apache-2.0 License:
+
+The Apache License 2.0 is a permissive license that allows for free use, modification, and distribution of the code, with certain conditions.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
+
+
+ISC License:
+
+The ISC License is a permissive license similar to the MIT License, allowing for free use, modification, and distribution of the code.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
+
+
+BSD-3-Clause License:
+
+The BSD 3-Clause License is a permissive license that allows for free use, modification, and distribution of the code, with certain conditions.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
+
+
+BSD-2-Clause License:
+
+The BSD 2-Clause License is a permissive license similar to the BSD 3-Clause License, allowing for free use, modification, and distribution of the code.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
+
+
+Unlicense:
+
+The Unlicense is a public domain dedication that allows for free use, modification, and distribution of the code without any restrictions.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
+
+
+BlueOak-1.0.0 License:
+
+The BlueOak-1.0.0 License is a permissive license that allows for free use, modification, and distribution of the code, with certain conditions.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
+
+
+Custom License (https://github.com/tmcw/jsonlint):
+
+You would need to review the specific terms of this custom license to determine its compatibility with the CC-BY-NC license.
+
+
+Python-2.0 License:
+
+The Python-2.0 License is a permissive license that allows for free use, modification, and distribution of the code, with certain conditions.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
+
+
+CC-BY-4.0 License:
+
+The Creative Commons Attribution 4.0 International (CC-BY-4.0) License allows for free use, modification, and distribution of the code, with attribution requirements.
+It is compatible with the CC-BY-NC license, as both licenses allow for non-commercial use and redistribution of the code, with attribution.
+
+
+Zlib License:
+
+The Zlib License is a permissive license that allows for free use, modification, and distribution of the code, with certain conditions.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
+
+
+UNLICENSED:
+
+The "UNLICENSED" status suggests that the code may not have a clear license. You should reach out to the maintainer of that dependency to clarify the licensing terms and ensure compatibility with CC-BY-NC.
+
+
+0BSD License:
+
+The 0BSD License is a permissive license that allows for free use, modification, and distribution of the code without any restrictions.
+It is compatible with the CC-BY-NC license, as it allows for non-commercial use and redistribution of the code.
