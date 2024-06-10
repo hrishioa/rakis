@@ -153,7 +153,7 @@ type PeerStatusUpdate = PeerPacketAttributes &
     type: "peerStatusUpdate";
   };
 
-type PeerHeart = PeerPacketAttributes & {
+export type PeerHeart = PeerPacketAttributes & {
   type: "peerHeart";
   windowX: number; // X coordinate of the window
   windowY: number;

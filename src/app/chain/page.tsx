@@ -141,18 +141,18 @@ const Home = () => {
       gunInstance.listenForPacket(async (packet) => {
         console.log("Received packet from Gun:", packet);
         const success = await packetDB.receivePacket(packet);
-        if (success && packet.packet.type === "peerHeart") {
-          const heart = packet.packet;
-          setHearts((prevHearts) => [
-            ...prevHearts,
-            {
-              x: heart.windowX,
-              y: heart.windowY,
-              id: packet.signature,
-              source: packet.deliveredThrough || "unknown",
-            },
-          ]);
-        }
+        // if (success && packet.packet.type === "peerHeart") {
+        //   const heart = packet.packet;
+        //   setHearts((prevHearts) => [
+        //     ...prevHearts,
+        //     {
+        //       x: heart.windowX,
+        //       y: heart.windowY,
+        //       id: packet.signature,
+        //       source: packet.deliveredThrough || "unknown",
+        //     },
+        //   ]);
+        // }
       });
     }
   }, [gunInstance, packetDB]);
@@ -163,18 +163,18 @@ const Home = () => {
       nknInstance.listenForPacket(async (packet) => {
         console.log("Received packet from NKN:", packet);
         const success = await packetDB.receivePacket(packet);
-        if (success && packet.packet.type === "peerHeart") {
-          const heart = packet.packet;
-          setHearts((prevHearts) => [
-            ...prevHearts,
-            {
-              x: heart.windowX,
-              y: heart.windowY,
-              id: packet.signature,
-              source: packet.deliveredThrough || "unknown",
-            },
-          ]);
-        }
+        // if (success && packet.packet.type === "peerHeart") {
+        //   const heart = packet.packet;
+        //   setHearts((prevHearts) => [
+        //     ...prevHearts,
+        //     {
+        //       x: heart.windowX,
+        //       y: heart.windowY,
+        //       id: packet.signature,
+        //       source: packet.deliveredThrough || "unknown",
+        //     },
+        //   ]);
+        // }
       });
     }
   }, [nknInstance, packetDB]);
@@ -185,18 +185,18 @@ const Home = () => {
       nostrInstance.listenForPacket(async (packet) => {
         console.log("Received packet from Trystero:", packet);
         const success = await packetDB.receivePacket(packet);
-        if (success && packet.packet.type === "peerHeart") {
-          const heart = packet.packet;
-          setHearts((prevHearts) => [
-            ...prevHearts,
-            {
-              x: heart.windowX,
-              y: heart.windowY,
-              id: packet.signature,
-              source: packet.deliveredThrough || "unknown",
-            },
-          ]);
-        }
+        // if (success && packet.packet.type === "peerHeart") {
+        //   const heart = packet.packet;
+        //   setHearts((prevHearts) => [
+        //     ...prevHearts,
+        //     {
+        //       x: heart.windowX,
+        //       y: heart.windowY,
+        //       id: packet.signature,
+        //       source: packet.deliveredThrough || "unknown",
+        //     },
+        //   ]);
+        // }
       });
     }
   }, [nostrInstance, packetDB]);

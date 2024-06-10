@@ -11,6 +11,7 @@ import type {
   InferenceRevealRejected,
   InferenceQuorumComputed,
   PeerPacket,
+  PeerHeart,
 } from "./packet-types";
 
 // TODO: Move this elsewhere
@@ -74,6 +75,7 @@ export type PacketDBEvents = {
       packet: InferenceReveal;
     }
   ) => void;
+  peerHeart: (packet: ReceivedPeerPacket & { packet: PeerHeart }) => void;
 };
 
 // Quorum DB

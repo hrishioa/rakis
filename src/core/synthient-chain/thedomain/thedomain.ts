@@ -75,7 +75,7 @@ export class TheDomain {
     // Connect received packets from p2p to the packetdb
     for (const p2pNetwork of this.p2pNetworkInstances) {
       const listener = p2pNetwork.listenForPacket(async (packet) => {
-        await this.packetDB.receivePacket(packet);
+        this.packetDB.receivePacket(packet);
       });
 
       // TODO: Move all the listeners below into proper named functions and then add unloading them to the shutdown listeners

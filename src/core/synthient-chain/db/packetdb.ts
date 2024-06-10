@@ -5,6 +5,7 @@ import {
   InferenceReveal,
   InferenceRevealRequest,
   P2PInferenceRequestPacket,
+  PeerHeart,
   type PeerPacket,
   type ReceivedPeerPacket,
   type TransmittedPeerPacket,
@@ -19,6 +20,8 @@ import EventEmitter from "eventemitter3";
 import { PeerDB } from "./peerdb";
 import { createLogger, logStyles } from "../utils/logger";
 import { PacketDBEvents } from "./entities";
+import { PACKET_DB_SETTINGS } from "../thedomain/settings";
+import { debounce } from "lodash";
 
 const logger = createLogger("PacketDB", logStyles.databases.packetDB);
 
@@ -44,6 +47,7 @@ class PacketDatabase extends Dexie {
 export class PacketDB extends EventEmitter<PacketDBEvents> {
   private db: PacketDatabase;
   public peerDB: PeerDB;
+  private receivedPacketQueue: ReceivedPeerPacket[] = [];
 
   constructor(
     private clientInfo: ClientInfo,
@@ -183,69 +187,186 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     return await this.db.packets.get({ synthientId, signature });
   }
 
-  async receivePacket(receivedPacket: ReceivedPeerPacket): Promise<boolean> {
-    logger.debug("Received packet:", receivedPacket);
-
-    try {
-      // Validate the signature
-      const signatureValid = verifySignatureOnJSONObject(
-        receivedPacket.synthientId,
-        receivedPacket.signature,
-        receivedPacket.packet
+  private verifyAndDedupeReceivedPacketQueue(
+    queue: ReceivedPeerPacket[]
+  ): ReceivedPeerPacket[] {
+    const signatureCheckedPackets = queue.filter((packet) => {
+      const validSignature = verifySignatureOnJSONObject(
+        packet.synthientId,
+        packet.signature,
+        packet.packet
       );
 
-      if (!signatureValid) {
-        logger.debug("Invalid signature. Dropping packet.");
-        logger.debug(
-          "Signature ",
-          receivedPacket.signature,
-          " is invalid for packet ",
-          JSON.stringify(receivedPacket.packet)
-        );
-        return false;
+      if (!validSignature) {
+        logger.debug("Invalid signature on packet, dropping", packet);
       }
-    } catch (err) {
-      logger.error(
-        "Error verifying signature for packet ",
-        receivedPacket,
-        err
-      );
-      return false;
-    }
 
-    // Check if the packet already exists in the database
-    const existingPacket = await this.db.packets.get({
-      synthientId: receivedPacket.synthientId,
-      signature: receivedPacket.signature,
+      return validSignature;
     });
 
-    if (existingPacket) {
-      logger.debug("Packet already exists in the database. Dropping.");
-      return false;
-    }
+    const uniquePackets: { [key: string]: ReceivedPeerPacket } = {};
 
-    logger.debug("Actually adding packet!");
+    signatureCheckedPackets.forEach((packet) => {
+      const key = packet.synthientId + packet.signature;
+      if (!uniquePackets[key]) {
+        uniquePackets[key] = packet;
+      }
+    });
 
-    this.fixEmbeddingArraysInPackets(receivedPacket);
-
-    // Add the packet to the database
-    try {
-      await this.db.packets.add({
-        ...receivedPacket,
-        // receivedTime: new Date(), // Set the receivedTime to the current timestamp
-      });
-    } catch (err) {
-      logger.error("Error adding packet to the database", err);
-      return false;
-    }
-
-    if (receivedPacket.receivedTime || new Date())
-      this.peerDB.processPacket(receivedPacket);
-
-    this.emitNewPacketEvents(receivedPacket);
-
-    return true;
+    return Object.values(uniquePackets);
   }
+
+  processReceivedPacketQueue = debounce(
+    async () => {
+      const queueCopy = this.receivedPacketQueue;
+      this.receivedPacketQueue = [];
+
+      const dedupedQueue = this.verifyAndDedupeReceivedPacketQueue(queueCopy);
+
+      const existingPackets = await this.db.packets
+        .where("[synthientId+signature]")
+        .anyOf(
+          dedupedQueue.map((packet) => [packet.synthientId, packet.signature])
+        )
+        .toArray();
+
+      const dedupedWithExisting = dedupedQueue.filter((packet) => {
+        const packetExists = !existingPackets.some(
+          (existingPacket) =>
+            existingPacket.synthientId === packet.synthientId &&
+            existingPacket.signature === packet.signature
+        );
+
+        if (!packetExists) {
+          logger.debug(
+            "Packet already exists in the database, dropping",
+            packet
+          );
+        }
+
+        return packetExists;
+      });
+
+      const fixedPackets = dedupedWithExisting.map((packet) => {
+        this.fixEmbeddingArraysInPackets(packet);
+        return packet;
+      });
+
+      try {
+        await this.db.packets
+          .bulkAdd(fixedPackets)
+          .catch(Dexie.BulkError, function (e) {
+            // Explicitly catching the bulkAdd() operation makes those successful
+            // additions commit despite that there were errors.
+            logger.error(
+              e.failures.length +
+                " packets were added successfully, but some others could not be ",
+              e
+            );
+          });
+      } catch (err) {
+        logger.error("Different error adding packets to the database", err);
+      }
+
+      fixedPackets.forEach((packet) => this.peerDB.processPacket(packet));
+
+      fixedPackets.forEach((packet) => this.emitNewPacketEvents(packet));
+
+      // Peerhearts are special and throttled
+      const peerHearts = fixedPackets
+        .filter((packet) => packet.packet.type === "peerHeart")
+        .slice(0, PACKET_DB_SETTINGS.peerHeartLimit) as (ReceivedPeerPacket & {
+        packet: PeerHeart;
+      })[];
+
+      peerHearts.forEach((packet) => this.emitPeerHeart(packet));
+    },
+    PACKET_DB_SETTINGS.receivePacketQueueDebounceMs,
+    { trailing: true }
+  );
+
+  emitPeerHeart(heartPacket: ReceivedPeerPacket & { packet: PeerHeart }) {
+    this.emit("peerHeart", heartPacket);
+  }
+
+  receivePacket(receivedPacket: ReceivedPeerPacket): void {
+    logger.debug("Queued received packet: ", receivedPacket);
+
+    this.receivedPacketQueue.push(receivedPacket);
+
+    this.processReceivedPacketQueue();
+
+    if (
+      this.receivedPacketQueue.length >=
+      PACKET_DB_SETTINGS.maxReceivedPacketQueueSize
+    ) {
+      this.processReceivedPacketQueue.flush();
+    }
+  }
+
+  // async receivePacket(receivedPacket: ReceivedPeerPacket): Promise<boolean> {
+  //   logger.debug("Received packet:", receivedPacket);
+
+  //   try {
+  //     // Validate the signature
+  //     const signatureValid = verifySignatureOnJSONObject(
+  //       receivedPacket.synthientId,
+  //       receivedPacket.signature,
+  //       receivedPacket.packet
+  //     );
+
+  //     if (!signatureValid) {
+  //       logger.debug("Invalid signature. Dropping packet.");
+  //       logger.debug(
+  //         "Signature ",
+  //         receivedPacket.signature,
+  //         " is invalid for packet ",
+  //         JSON.stringify(receivedPacket.packet)
+  //       );
+  //       return false;
+  //     }
+  //   } catch (err) {
+  //     logger.error(
+  //       "Error verifying signature for packet ",
+  //       receivedPacket,
+  //       err
+  //     );
+  //     return false;
+  //   }
+
+  //   // Check if the packet already exists in the database
+  //   const existingPacket = await this.db.packets.get({
+  //     synthientId: receivedPacket.synthientId,
+  //     signature: receivedPacket.signature,
+  //   });
+
+  //   if (existingPacket) {
+  //     logger.debug("Packet already exists in the database. Dropping.");
+  //     return false;
+  //   }
+
+  //   logger.debug("Actually adding packet!");
+
+  //   this.fixEmbeddingArraysInPackets(receivedPacket);
+
+  //   // Add the packet to the database
+  //   try {
+  //     await this.db.packets.add({
+  //       ...receivedPacket,
+  //       // receivedTime: new Date(), // Set the receivedTime to the current timestamp
+  //     });
+  //   } catch (err) {
+  //     logger.error("Error adding packet to the database", err);
+  //     return false;
+  //   }
+
+  //   if (receivedPacket.receivedTime || new Date())
+  //     this.peerDB.processPacket(receivedPacket);
+
+  //   this.emitNewPacketEvents(receivedPacket);
+
+  //   return true;
+  // }
 
   async printPackets(): Promise<void> {
     const packets = await this.db.packets.toArray();

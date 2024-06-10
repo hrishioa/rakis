@@ -1,5 +1,15 @@
 import { SupportedP2PDeliveryNetwork } from "../db/entities";
 
+export const PACKET_DB_SETTINGS: {
+  maxReceivedPacketQueueSize: number;
+  receivePacketQueueDebounceMs: number;
+  peerHeartLimit: number;
+} = {
+  maxReceivedPacketQueueSize: 100,
+  receivePacketQueueDebounceMs: 100,
+  peerHeartLimit: 20,
+};
+
 export const THEDOMAIN_SETTINGS: {
   enabledP2PNetworks: SupportedP2PDeliveryNetwork[];
   waitForP2PBootupMs: number;
