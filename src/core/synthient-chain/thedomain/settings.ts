@@ -12,6 +12,8 @@ export const PACKET_DB_SETTINGS: {
   peerCommunicationCount: 40,
 };
 
+export const IDENTITY_ENCRYPTED_KEY = "encSynthientId";
+
 export const THEDOMAIN_SETTINGS: {
   enabledP2PNetworks: SupportedP2PDeliveryNetwork[];
   waitForP2PBootupMs: number;

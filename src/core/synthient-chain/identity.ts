@@ -1,9 +1,9 @@
 import { ChainIdentity } from "./db/entities";
-import { IDENTITY_ENCRYPTED_KEY } from "./config";
 import { decryptData, encryptData } from "./utils/simple-crypto";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
 import { getDeviceInfo } from "./utils/utils";
+import { IDENTITY_ENCRYPTED_KEY } from "./thedomain/settings";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 // Personal persisted information about this particular client

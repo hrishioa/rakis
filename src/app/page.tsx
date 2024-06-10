@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -46,6 +46,9 @@ import InferenceList from "./visual-demo/inferenceList";
 import { Label } from "../components/ui/label";
 import { Input } from "../components/ui/input";
 import { MultiSelect } from "../components/ui/multi-select";
+import { IDENTITY_ENCRYPTED_KEY } from "../core/synthient-chain/thedomain/settings";
+import { initClientInfo } from "../core/synthient-chain/identity";
+import { useToast } from "../components/ui/use-toast";
 
 function DashboardContent({
   identityPassword,
@@ -92,8 +95,6 @@ function DashboardContent({
       if (selectedModel) scaleLLMWorkers(selectedModel, numWorkers);
     }
   };
-
-  const scaleWorkers = (modelName: LLMModelName, numWorkers: number) => {};
 
   return (
     <div className="p-8 overflow-auto">
@@ -457,10 +458,45 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [overwriteIdentity, setOverwriteIdentity] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [existingIdentity, setExistingIdentity] = useState(false);
+
+  const { toast } = useToast();
 
   const handlePasswordSubmit = () => {
-    setIsAuthenticated(true);
+    console.log("Trying to decrypt identity");
+    (async () => {
+      try {
+        const testClientInfo = await initClientInfo(
+          password,
+          overwriteIdentity
+        );
+
+        if (testClientInfo) {
+          console.log("Client info initialized successfully");
+          setIsAuthenticated(true);
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Could not decrypt identity.",
+            description: "Please try again or overwrite!",
+          });
+        }
+      } catch (err) {
+        toast({
+          variant: "destructive",
+          title: "Could not decrypt identity.",
+          description: "Please try again!",
+        });
+      }
+    })();
   };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (window.localStorage.getItem(IDENTITY_ENCRYPTED_KEY))
+        setExistingIdentity(true);
+    }
+  }, []);
 
   if (!isAuthenticated) {
     return (
@@ -472,7 +508,9 @@ export default function Home() {
           <CardContent>
             <input
               type="password"
-              placeholder="Enter password"
+              placeholder={
+                existingIdentity ? "Enter password" : "Create a password"
+              }
               value={password}
               onKeyPress={(e) => {
                 if (e.key === "Enter") {
@@ -482,19 +520,21 @@ export default function Home() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-600"
             />
-            <div className="mt-4">
-              <Checkbox
-                id="overwriteIdentity"
-                checked={overwriteIdentity}
-                onCheckedChange={(checked) => setOverwriteIdentity(!!checked)}
-              />
-              <label
-                htmlFor="overwriteIdentity"
-                className="text-sm ml-2 font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Overwrite existing identity?
-              </label>
-            </div>
+            {existingIdentity && (
+              <div className="mt-4">
+                <Checkbox
+                  id="overwriteIdentity"
+                  checked={overwriteIdentity}
+                  onCheckedChange={(checked) => setOverwriteIdentity(!!checked)}
+                />
+                <label
+                  htmlFor="overwriteIdentity"
+                  className="text-sm ml-2 font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Overwrite existing identity?
+                </label>
+              </div>
+            )}
           </CardContent>
           <CardFooter>
             <button
@@ -512,7 +552,7 @@ export default function Home() {
   return (
     <DashboardContent
       identityPassword={password}
-      overwriteIdentity={overwriteIdentity}
+      overwriteIdentity={false} // Already created when we test it
     />
   );
 }
