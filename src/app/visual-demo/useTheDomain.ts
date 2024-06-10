@@ -125,6 +125,7 @@ export function useTheDomain(
   }>({});
   const [llmEngineLog, setLLMEngineLog] = useState<LLMEngineLogEntry[]>([]);
   const [inferences, setInferences] = useState<InferencesForDisplay[]>([]);
+  const [peerCount, setPeerCount] = useState<number | null>(null);
 
   function scaleLLMWorkers(modelName: LLMModelName, count: number) {
     domainRef.current?.llmEngine.scaleLLMWorkers(modelName, count);
@@ -226,18 +227,20 @@ export function useTheDomain(
     const pollData = async () => {
       if (!domainRef.current) return;
 
-      const [latestPeers, latestPackets, llmEngineLogs, inferences] =
+      const [latestPeers, latestPackets, llmEngineLogs, inferences, peerCount] =
         await Promise.all([
           domainRef.current.packetDB.peerDB.getLastPeers(last24HoursDate, 100),
           domainRef.current.packetDB.getLastPackets(100),
           domainRef.current.llmEngine.getEngineLogs(100),
           domainRef.current.inferenceDB.getInferences(10),
+          domainRef.current.packetDB.peerDB.getPeerCount(),
         ]);
 
       setPeers(latestPeers || []);
       setPackets(latestPackets);
       setLLMEngineLog(llmEngineLogs);
       setInferences(inferences);
+      setPeerCount(peerCount);
     };
 
     const intervalId = setInterval(pollData, POLLING_INTERVAL);
@@ -311,5 +314,6 @@ export function useTheDomain(
     inferences,
     scaleLLMWorkers,
     submitInferenceRequest,
+    peerCount,
   };
 }

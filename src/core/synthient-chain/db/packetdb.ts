@@ -4,6 +4,7 @@ import {
   InferenceCommit,
   InferenceReveal,
   InferenceRevealRequest,
+  KnownPeers,
   P2PInferenceRequestPacket,
   PeerHeart,
   type PeerPacket,
@@ -22,6 +23,7 @@ import { createLogger, logStyles } from "../utils/logger";
 import { PacketDBEvents } from "./entities";
 import { PACKET_DB_SETTINGS } from "../thedomain/settings";
 import { debounce } from "lodash";
+import { stringifyDateWithOffset } from "../utils/utils";
 
 const logger = createLogger("PacketDB", logStyles.databases.packetDB);
 
@@ -254,7 +256,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
       try {
         await this.db.packets
-          .bulkAdd(fixedPackets)
+          .bulkPut(fixedPackets)
           .catch(Dexie.BulkError, function (e) {
             // Explicitly catching the bulkAdd() operation makes those successful
             // additions commit despite that there were errors.
@@ -268,7 +270,17 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         logger.error("Different error adding packets to the database", err);
       }
 
-      fixedPackets.forEach((packet) => this.peerDB.processPacket(packet));
+      const bootPacketsInQueue = !!fixedPackets.some(
+        (packet) =>
+          packet.packet.type === "peerStatusUpdate" &&
+          packet.packet.status === "boot"
+      );
+
+      this.peerDB.processPackets(fixedPackets).then((newPeersSeen) => {
+        if (newPeersSeen || bootPacketsInQueue) {
+          this.transmitPeerList();
+        }
+      });
 
       fixedPackets.forEach((packet) => this.emitNewPacketEvents(packet));
 
@@ -284,6 +296,36 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     PACKET_DB_SETTINGS.receivePacketQueueDebounceMs,
     { trailing: true }
   );
+
+  async transmitPeerList() {
+    logger.debug("Might transmit peer list");
+
+    // Calculate if we should be the ones sending
+    const lastTwelveHours = new Date(Date.now() - 12 * 60 * 60 * 1000);
+
+    // TODO: These are magic constants for now, move them to settings later
+    const peerList = await this.peerDB.getLastPeers(lastTwelveHours, 200);
+
+    const commsProbability =
+      PACKET_DB_SETTINGS.peerCommunicationCount / peerList.length;
+
+    if (Math.random() < commsProbability) {
+      const knownPeers: KnownPeers = {
+        type: "knownPeers",
+        peerList: peerList.map((peer) => ({
+          synthientId: peer.synthientId,
+          identities: peer.chainIds,
+          lastSeen: peer.lastSeen && stringifyDateWithOffset(peer.lastSeen),
+          seenOn: peer.seenOn,
+        })),
+        createdAt: stringifyDateWithOffset(new Date()),
+      };
+
+      console.log("Transmitting peer list ", knownPeers);
+
+      await this.transmitPacket(knownPeers);
+    }
+  }
 
   emitPeerHeart(heartPacket: ReceivedPeerPacket & { packet: PeerHeart }) {
     this.emit("peerHeart", heartPacket);
@@ -303,70 +345,6 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
       this.processReceivedPacketQueue.flush();
     }
   }
-
-  // async receivePacket(receivedPacket: ReceivedPeerPacket): Promise<boolean> {
-  //   logger.debug("Received packet:", receivedPacket);
-
-  //   try {
-  //     // Validate the signature
-  //     const signatureValid = verifySignatureOnJSONObject(
-  //       receivedPacket.synthientId,
-  //       receivedPacket.signature,
-  //       receivedPacket.packet
-  //     );
-
-  //     if (!signatureValid) {
-  //       logger.debug("Invalid signature. Dropping packet.");
-  //       logger.debug(
-  //         "Signature ",
-  //         receivedPacket.signature,
-  //         " is invalid for packet ",
-  //         JSON.stringify(receivedPacket.packet)
-  //       );
-  //       return false;
-  //     }
-  //   } catch (err) {
-  //     logger.error(
-  //       "Error verifying signature for packet ",
-  //       receivedPacket,
-  //       err
-  //     );
-  //     return false;
-  //   }
-
-  //   // Check if the packet already exists in the database
-  //   const existingPacket = await this.db.packets.get({
-  //     synthientId: receivedPacket.synthientId,
-  //     signature: receivedPacket.signature,
-  //   });
-
-  //   if (existingPacket) {
-  //     logger.debug("Packet already exists in the database. Dropping.");
-  //     return false;
-  //   }
-
-  //   logger.debug("Actually adding packet!");
-
-  //   this.fixEmbeddingArraysInPackets(receivedPacket);
-
-  //   // Add the packet to the database
-  //   try {
-  //     await this.db.packets.add({
-  //       ...receivedPacket,
-  //       // receivedTime: new Date(), // Set the receivedTime to the current timestamp
-  //     });
-  //   } catch (err) {
-  //     logger.error("Error adding packet to the database", err);
-  //     return false;
-  //   }
-
-  //   if (receivedPacket.receivedTime || new Date())
-  //     this.peerDB.processPacket(receivedPacket);
-
-  //   this.emitNewPacketEvents(receivedPacket);
-
-  //   return true;
-  // }
 
   async printPackets(): Promise<void> {
     const packets = await this.db.packets.toArray();

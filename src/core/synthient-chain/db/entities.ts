@@ -42,6 +42,7 @@ export type Peer = {
   lastSeen: Date;
   chainIds: ChainIdentity[];
   deviceInfo?: string;
+  nickName?: string;
 };
 
 // Inference DB

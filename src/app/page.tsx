@@ -63,6 +63,7 @@ function DashboardContent({
     scaleLLMWorkers,
     inferences,
     submitInferenceRequest,
+    peerCount,
   } = useTheDomain(identityPassword, overwriteIdentity);
 
   const [open, setOpen] = useState(false);
@@ -265,7 +266,7 @@ function DashboardContent({
           )}
         </div>
         <div className="lg:col-span-1">
-          {peers && <PeerTable peers={peers} />}
+          {peers && <PeerTable peers={peers} peerCount={peerCount || 0} />}
         </div>
       </div>
     </div>
@@ -389,11 +390,13 @@ function LLMWorkerStatesAndLogs({
   );
 }
 
-function PeerTable({ peers }: { peers: Peer[] }) {
+function PeerTable({ peers, peerCount }: { peers: Peer[]; peerCount: number }) {
   return (
     <Card className="lg:h-[50vh] overflow-y-auto bg-green-50">
       <CardHeader>
-        <CardTitle className="text-xl">Peers (last 24h)</CardTitle>
+        <CardTitle className="text-xl">
+          Peers (last 24h) ({peerCount} total)
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <Table>

@@ -1,6 +1,10 @@
 import Dexie, { type DexieOptions } from "dexie";
-import { Peer } from "./entities";
-import { ReceivedPeerPacket } from "./packet-types";
+import { ChainIdentity, Peer } from "./entities";
+import {
+  KnownPeers,
+  PeerConnectedChain,
+  ReceivedPeerPacket,
+} from "./packet-types";
 import { createLogger, logStyles } from "../utils/logger";
 
 const logger = createLogger("PeerDB", logStyles.databases.peerDB);
@@ -31,64 +35,144 @@ export class PeerDB {
       .toArray();
   }
 
-  async processPacket(packet: ReceivedPeerPacket) {
-    const { synthientId } = packet;
+  async getPeerCount(lastSeenAfter?: Date) {
+    return lastSeenAfter
+      ? this.db.peers.where("lastSeen").aboveOrEqual(lastSeenAfter).count()
+      : this.db.peers.count();
+  }
 
-    // Check if the peer already exists in the database
-    let peer = await this.getPeer(synthientId);
+  async processPackets(packets: ReceivedPeerPacket[]): Promise<boolean> {
+    const synthientIds = packets.map((packet) => packet.synthientId);
 
-    if (peer) {
-      // Update the existing peer
-      // Update the seenOn array if the delivery network is not already present
-      if (!peer.seenOn.includes(packet.deliveredThrough!)) {
-        peer.seenOn.push(packet.deliveredThrough!);
-      }
+    const existingPeers = (await this.db.peers.bulkGet(synthientIds)).filter(
+      (peer: Peer | undefined) => !!peer
+    ) as Peer[];
 
-      // Update the lastSeen timestamp
-      peer.lastSeen = packet.receivedTime || new Date();
+    let newPeersSeen: boolean = false;
 
-      // Update the deviceInfo if provided in the packet
-      if (packet.packet.type === "peerInfo") {
-        peer.deviceInfo = packet.packet.deviceInfo;
-      }
+    const peers: Peer[] = Array.from(new Set(synthientIds)).map(
+      (synthientId) => {
+        const peerPackets = packets
+          .filter((packet) => packet.synthientId === synthientId)
+          .sort(
+            (a, b) =>
+              (b.receivedTime?.getTime() || 0) -
+              (a.receivedTime?.getTime() || 0)
+          );
 
-      // Update the chainIds array if new identities are provided in the packet
-      if (packet.packet.type === "peerConnectedChain") {
-        const newChainIds = packet.packet.identities;
-
-        // Merge the new chainIds with the existing ones
-        peer.chainIds = peer.chainIds.filter(
-          (existingChainId) =>
-            !newChainIds.some(
-              (newChainId) =>
-                newChainId.chain === existingChainId.chain &&
-                newChainId.address === existingChainId.address
-            )
+        const existingPeer = existingPeers.find(
+          (peer) => peer.synthientId === synthientId
         );
-        peer.chainIds.push(...newChainIds);
-      }
-    } else {
-      // Create a new peer
-      peer = {
-        synthientId,
-        seenOn: [packet.deliveredThrough!],
-        lastSeen: packet.receivedTime || new Date(),
-        chainIds: [],
-      };
 
-      // Add deviceInfo if provided in the packet
-      if (packet.packet.type === "peerInfo") {
-        peer.deviceInfo = packet.packet.deviceInfo;
-      }
+        if (!existingPeer) {
+          newPeersSeen = true;
+        }
 
-      // Add chainIds if provided in the packet
-      if (packet.packet.type === "peerConnectedChain") {
-        peer.chainIds = packet.packet.identities;
+        const updatedPeer: Peer = existingPeer || {
+          synthientId,
+          seenOn: [],
+          lastSeen: peerPackets[0].receivedTime || new Date(),
+          chainIds: [],
+        };
+
+        updatedPeer.seenOn = Array.from(
+          new Set([
+            ...updatedPeer.seenOn,
+            ...peerPackets
+              .map((packet) => packet.deliveredThrough)
+              .filter((dT) => !!dT),
+          ])
+        );
+
+        // TODO: This is way too complicated I know but we're just
+        // deduping the chainIds array in the end
+        updatedPeer.chainIds = Object.values(
+          [
+            ...updatedPeer.chainIds,
+            ...peerPackets
+              .filter((packet) => packet.packet.type === "peerConnectedChain")
+              .map((packet) => (packet.packet as PeerConnectedChain).identities)
+              .flat(),
+          ].reduce((acc, cur) => {
+            acc[cur.chain + cur.address] = cur;
+            return acc;
+          }, {} as { [key: string]: ChainIdentity })
+        );
+
+        return updatedPeer;
       }
+    );
+
+    await this.db.peers.bulkPut(peers);
+
+    const knownPeerPackets = packets.filter(
+      (packet) => packet.packet.type === "knownPeers"
+    ) as (ReceivedPeerPacket & { packet: KnownPeers })[];
+
+    if (knownPeerPackets.length > 0) {
+      this.loadKnownPeerPackets(knownPeerPackets);
     }
 
-    // Update or add the peer using the put method
-    await this.db.peers.put(peer);
+    console.log("New peers seen: ", newPeersSeen);
+
+    return newPeersSeen;
+  }
+
+  async loadKnownPeerPackets(
+    packets: (ReceivedPeerPacket & { packet: KnownPeers })[]
+  ): Promise<void> {
+    console.log("received known peer packets ", packets);
+
+    const synthientIds = packets.flatMap((packet) =>
+      packet.packet.peerList.map((peer) => peer.synthientId)
+    );
+
+    const existingPeers = (await this.db.peers.bulkGet(synthientIds)).filter(
+      (peer: Peer | undefined) => !!peer
+    ) as Peer[];
+
+    const newPeers: { [synthientId: string]: Peer } = {};
+
+    packets.forEach((packet) => {
+      packet.packet.peerList.forEach((peer) => {
+        const updatedPeer: Peer = existingPeers.find(
+          (p) => p.synthientId === peer.synthientId
+        ) ||
+          newPeers[peer.synthientId] || {
+            synthientId: peer.synthientId,
+            seenOn: peer.seenOn,
+            lastSeen: new Date(peer.lastSeen),
+            chainIds: peer.identities,
+          };
+
+        updatedPeer.seenOn = Array.from(
+          new Set([...updatedPeer.seenOn, ...peer.seenOn])
+        );
+
+        updatedPeer.chainIds = Object.values(
+          [...updatedPeer.chainIds, ...(peer.identities || [])].reduce(
+            (acc, cur) => {
+              acc[cur.chain + cur.address] = cur;
+              return acc;
+            },
+            {} as { [key: string]: ChainIdentity }
+          )
+        );
+
+        updatedPeer.lastSeen =
+          updatedPeer.lastSeen &&
+          new Date(
+            Math.max(
+              updatedPeer.lastSeen.getTime(),
+              new Date(peer.lastSeen).getTime()
+            ) || new Date(peer.lastSeen)
+          );
+
+        newPeers[peer.synthientId] = updatedPeer;
+      });
+    });
+
+    await this.db.peers.bulkPut(Object.values(newPeers));
   }
 
   async getPeer(synthientId: string): Promise<Peer | undefined> {

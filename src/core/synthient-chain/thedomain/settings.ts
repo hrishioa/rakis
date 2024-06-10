@@ -4,10 +4,12 @@ export const PACKET_DB_SETTINGS: {
   maxReceivedPacketQueueSize: number;
   receivePacketQueueDebounceMs: number;
   peerHeartLimit: number;
+  peerCommunicationCount: number; // Expected number of people (probabilistically enforced) who will pipe up with a peer list when you join
 } = {
   maxReceivedPacketQueueSize: 100,
   receivePacketQueueDebounceMs: 100,
   peerHeartLimit: 20,
+  peerCommunicationCount: 40,
 };
 
 export const THEDOMAIN_SETTINGS: {

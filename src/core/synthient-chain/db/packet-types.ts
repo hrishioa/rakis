@@ -109,6 +109,7 @@ export type PeerPacket =
   | PeerConnectedChain
   | InferenceCommit
   | InferenceRevealRequest
+  | KnownPeers
   | InferenceReveal
   | P2PInferenceRequestPacket
   | InferenceRevealRejected
@@ -153,6 +154,16 @@ type PeerStatusUpdate = PeerPacketAttributes &
     type: "peerStatusUpdate";
   };
 
+export type KnownPeers = PeerPacketAttributes & {
+  type: "knownPeers";
+  peerList: {
+    synthientId: string;
+    identities?: ChainIdentity[];
+    lastSeen: string;
+    seenOn: SupportedP2PDeliveryNetwork[];
+  }[];
+};
+
 export type PeerHeart = PeerPacketAttributes & {
   type: "peerHeart";
   windowX: number; // X coordinate of the window
@@ -165,7 +176,7 @@ type PeerInfo = PeerPacketAttributes & {
   // benchmarkResuts?: any; // To be defined, mostly about what kind of models they can run and at what TPS
 };
 
-type PeerConnectedChain = PeerPacketAttributes & {
+export type PeerConnectedChain = PeerPacketAttributes & {
   type: "peerConnectedChain";
   identities: ChainIdentity[];
 };
