@@ -1,21 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ConsensusResults,
-  InferenceQuorum,
-  Peer,
-} from "../../core/synthient-chain/db/entities";
+import { Peer } from "../../core/synthient-chain/db/entities";
 import { TheDomain } from "../../core/synthient-chain/thedomain/thedomain";
-import {
-  InferenceEmbedding,
-  InferenceResult,
-  ReceivedPeerPacket,
-  UnprocessedInferenceRequest,
-} from "../../core/synthient-chain/db/packet-types";
+import { ReceivedPeerPacket } from "../../core/synthient-chain/db/packet-types";
 import {
   LLMEngineLogEntry,
   LLMModelName,
 } from "../../core/synthient-chain/llm/types";
-import { debounce, set } from "lodash";
+import { debounce } from "lodash";
 import { EmbeddingModelName } from "../../core/synthient-chain/embeddings/types";
 import {
   generateRandomString,
