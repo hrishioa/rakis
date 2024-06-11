@@ -6,6 +6,8 @@ import {
   LLMModelName,
   availableModels,
 } from "../../rakis-core/synthient-chain/llm/types";
+import Lottie from "react-lottie";
+import * as sandwormAnimationData from "./sandworms.json";
 import { cn } from "../../lib/utils";
 import LLMWorkers from "./llmworkers";
 import PeerTable from "./peertable";
@@ -85,7 +87,7 @@ const Dashboard: React.FC<{
   };
 
   return (
-    mySynthientId && (
+    (mySynthientId && (
       <div className="p-8 overflow-auto">
         <div className="flex items-center justify-between mb-8">
           <div className="flex flex-col  mb-8">
@@ -271,6 +273,25 @@ const Dashboard: React.FC<{
           <div className="lg:col-span-1">
             {peers && <PeerTable peers={peers} peerCount={peerCount || 0} />}
           </div>
+        </div>
+      </div>
+    )) || (
+      <div className=" h-dvh w-full flex justify-center items-center">
+        <div className="w-1/4">
+          <Lottie
+            options={{
+              loop: true,
+              autoplay: true,
+              animationData: sandwormAnimationData,
+              rendererSettings: {
+                preserveAspectRatio: "xMidYMid slice",
+              },
+            }}
+            style={{
+              width: "100%",
+              height: "auto",
+            }}
+          />
         </div>
       </div>
     )
