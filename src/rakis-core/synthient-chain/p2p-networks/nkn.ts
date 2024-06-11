@@ -52,7 +52,6 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
     logger.debug(`NKN client created with id ${synthientId}`);
 
     this.nknClient.onMessage(({ src, payload }) => {
-      logger.debug(`Received message from `, src, "payload", payload);
       const packet: ReceivedPeerPacket = JSON.parse(payload as string);
       packet.receivedTime = new Date();
       packet.deliveredThrough = "nkn";
@@ -84,7 +83,7 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
         ""
       )
       .then((txnHash) => {
-        logger.debug("Subscribed to events in tx ", txnHash);
+        logger.debug(`Subscribed to events in tx ${txnHash}`);
         this.renewalIntervalId = setInterval(async () => {
           await wallet
             .subscribe(
@@ -94,7 +93,7 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
               ""
             )
             .then((txnHash) => {
-              logger.debug("Renewed subscription in tx ", txnHash);
+              logger.debug(`Renewed subscription in tx ${txnHash}`);
             });
         }, SUBSCRIPTION_RENEWAL_INTERVAL_MS);
       });

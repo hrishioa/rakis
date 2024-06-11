@@ -65,7 +65,7 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
       packet: JSON.stringify(packet.packet),
     };
 
-    logger.debug("Transmitting through gun: ", serializedPacket);
+    logger.debug("Transmitting packet with gun", serializedPacket);
 
     return new Promise((resolve) => {
       this.gun
@@ -95,7 +95,7 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
         return;
       }
 
-      logger.debug("Got packet ", data, " from gun");
+      logger.debug("Received packet", data);
 
       const packet: ReceivedPeerPacket = {
         ...data,

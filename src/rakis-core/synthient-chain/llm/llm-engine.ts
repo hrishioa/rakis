@@ -41,7 +41,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     if (!entry.at) entry.at = new Date();
     const logLength = this.engineLog.length;
 
-    logger.debug("Engine event ", logLength, " - ", entry);
+    logger.debug(`Engine event ${entry.type}`, entry);
 
     this.engineLog.push(entry);
 
@@ -219,7 +219,10 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         workerId,
         error: err,
       });
-      logger.error(`Worker ${workerId}: Error loading ${modelName}`, err);
+      logger.error(
+        `Worker ${workerId}: Error loading ${modelName}: ${err}`,
+        err
+      );
       this.llmWorkers[workerId].modelLoadingPromise?.reject(err);
     }
 
@@ -460,10 +463,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
 
       if (numberOfExistingWorkers < count) {
         logger.debug(
-          "Scaling up number of llm workers for ",
-          modelName,
-          " to ",
-          count
+          `Scaling up number of llm workers for ${modelName} to ${count}`
         );
         const scaleUpPromises: Promise<any>[] = [];
         for (let i = 0; i < count - numberOfExistingWorkers; i++) {
@@ -474,10 +474,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         // TODO: Process errors
       } else {
         logger.debug(
-          "Scaling down number of llm workers for ",
-          modelName,
-          " to ",
-          count
+          `Scaling down number of llm workers for ${modelName} to ${count}`
         );
 
         const workerIdsByLoad = Object.keys(this.llmWorkers).sort((a, b) =>
@@ -502,7 +499,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         // TODO: Process errors
       }
     } catch (err) {
-      logger.error("Domain: Error updating LLM workers", err);
+      logger.error("Error updating LLM workers", err);
     }
   }
 }

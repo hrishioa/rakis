@@ -61,13 +61,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
               this.options.trysteroTopic
             );
 
-      this.logger.debug("Trystero: Trystero client created", this.trysteroRoom);
-
-      // this.trysteroRoom.onPeerJoin((peerId: string) => {
-      //   this.logger.debug("Trystero: Peer joined", peerId);
-
-      //   this.loadingPromise.resolve(true);
-      // });
+      this.logger.debug("Trystero client created", this.trysteroRoom);
 
       const [, getMessages] = this.trysteroRoom.makeAction(
         this.options.trysteroTopic
@@ -86,7 +80,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
 
       this.loadingPromise.resolve(true); // Best we can do 🤷
     } catch (error) {
-      this.logger.error("Trystero: Error setting up Trystero", error);
+      this.logger.error("Error setting up Trystero", error);
       this.loadingPromise.resolve(false);
       this.errorHandlers.forEach((handler) => handler(error as Error, true));
 
@@ -109,7 +103,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
       } catch (error) {
         this.transmissionErrorCount++;
 
-        this.logger.error("Trystero: Error sending message", error);
+        this.logger.error("Error sending message", error);
         this.errorHandlers.forEach((handler) =>
           handler(
             error as Error,

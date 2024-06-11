@@ -96,7 +96,7 @@ async function embedText(
 
   try {
     logger.debug(
-      `Worker ${workerInstance.workerId} is embedding ${batchId}: `,
+      `Worker ${workerInstance.workerId} is now embedding ${batchId}`,
       JSON.stringify(texts)
     );
     const embeddings = await workerInstance!.pipeline!(texts, {

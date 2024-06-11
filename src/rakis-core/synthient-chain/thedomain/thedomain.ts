@@ -109,10 +109,7 @@ export class TheDomain {
       "newQuorumAwaitingConsensus",
       (requestId, embeddingModel, consensusRequestedAt, hasMyContribution) => {
         logger.debug(
-          "New quorum awaiting consensus verification - ",
-          requestId,
-          "with our work in there? ",
-          hasMyContribution
+          `New quorum awaiting consensus verification - ${requestId} with our work included: ${hasMyContribution}`
         );
         if (
           !this.inferenceStatus.embeddingQueue.find(
@@ -249,12 +246,15 @@ export class TheDomain {
     );
 
     if (this.chainIdentities.find((identity) => identity.address === address)) {
-      logger.debug("Identity already exists for this address ", address);
+      logger.debug(`Identity already exists for this address ${address}`);
       return true;
     }
 
     if (!address) {
-      logger.error("Could not recover address from signature ", signature);
+      logger.error(
+        "Could not recover address from signed chain identity",
+        signature
+      );
       return false;
     }
 
@@ -276,7 +276,7 @@ export class TheDomain {
         identities: this.chainIdentities,
       });
     } catch (err) {
-      logger.error("Could not save new chain identity ", err);
+      logger.error("Could not save new chain identity", err);
       return false;
     }
 
@@ -286,15 +286,12 @@ export class TheDomain {
   private async processEmbeddingQueue() {
     const runId = generateRandomString(3); // Just for debugging purposes
 
-    logger.debug("EmbeddingQueue: ", runId, ": Starting embedding process.");
+    logger.debug(`EmbeddingQueue: ${runId}: Processing embedding queue.`);
 
     const availableModels = this.embeddingEngine.getAvailableModels();
 
     logger.debug(
-      "EmbeddingQueue: ",
-      runId,
-      ": Available models - ",
-      availableModels
+      `EmbeddingQueue: ${runId}: Available models - ${availableModels}`
     );
 
     // Put the soonest ending ones first, let's try and race
@@ -332,7 +329,7 @@ export class TheDomain {
         }
       });
 
-    logger.debug(
+    logger.trace(
       "EmbeddingQueue: ",
       runId,
       ": Sorted embedding queue - ",
@@ -344,9 +341,7 @@ export class TheDomain {
     );
 
     logger.debug(
-      "EmbeddingQueue: ",
-      runId,
-      ": Items to process - ",
+      `EmbeddingQueue: ${runId}: Items to process - ${itemsToProcess.length}`,
       itemsToProcess
     );
 
@@ -354,7 +349,7 @@ export class TheDomain {
       new Set(itemsToProcess.map((item) => item.model))
     );
 
-    logger.debug("EmbeddingQueue: ", runId, ": Usable models - ", usableModels);
+    logger.debug(`EmbeddingQueue: ${runId}: Usable models - ${usableModels}`);
 
     const availableWorkers = Object.values(
       this.embeddingEngine.embeddingWorkers
@@ -363,10 +358,7 @@ export class TheDomain {
     );
 
     logger.debug(
-      "EmbeddingQueue: ",
-      runId,
-      ": Available workers - ",
-      availableWorkers
+      `EmbeddingQueue: ${runId}: Available workers - ${availableWorkers.length}`
     );
 
     if (availableWorkers.length && itemsToProcess.length)
@@ -390,10 +382,7 @@ export class TheDomain {
       // as a batch will influence the embeddings
       // TODO: For someone else to test
       logger.debug(
-        "EmbeddingQueue: ",
-        "Embedding ",
-        item.request.type,
-        " - ",
+        `EmbeddingQueue: ${runId}: Embedding ${item.request.type}`,
         item.request.type === "resultEmbedding"
           ? item.request.result!.result
           : item.request.requestId
@@ -408,7 +397,7 @@ export class TheDomain {
 
         if (!matchingQuorum) {
           logger.error(
-            "Could not find quorum for consensus verification - ",
+            "EmbeddingQueue: Could not find quorum for consensus verification",
             item.request.requestId
           );
 
@@ -433,7 +422,10 @@ export class TheDomain {
       }
 
       if (!embeddingPayload.length) {
-        logger.error("No embeddings to embed for ", item);
+        logger.error(
+          "EmbeddingQueue: No embeddings to embed for payload",
+          item
+        );
 
         this.inferenceStatus.embeddingQueue =
           this.inferenceStatus.embeddingQueue.filter(
@@ -443,21 +435,16 @@ export class TheDomain {
         continue;
       }
 
-      logger.debug(
-        "EmbeddingQueue: ",
-        "Embedding payload - ",
-        embeddingPayload
-      );
+      logger.debug("EmbeddingQueue: Embedding now", embeddingPayload);
 
       this.embeddingEngine
         .embedText(embeddingPayload, item.model)
         .then((embeddingResults) => {
           logger.debug(
-            "EmbeddingQueue: ",
-            "Embedded ",
+            "EmbeddingQueue: Embedding completed",
             item,
             " - ",
-            embeddingResults
+            embeddingResults && embeddingResults?.length
           );
 
           if (embeddingResults && embeddingResults.length) {
@@ -479,14 +466,12 @@ export class TheDomain {
           } else {
             // TODO: Log an error?
             logger.error(
-              "Could not inference ",
-              item,
-              " for unknown reason to caller"
+              `EmbeddingQueue: Embedding failed for ${item.request.type}`
             );
           }
         })
         .catch((err) => {
-          logger.error("Error embedding ", item, " - ", err);
+          logger.error(`EmbeddingQueue: Error embedding - ${err}`);
         });
     }
   }
@@ -505,11 +490,7 @@ export class TheDomain {
         );
 
       logger.debug(
-        "Request Inference Queue: ",
-        cycleId,
-        ": Found ",
-        availableInferenceRequests.length,
-        " available inference requests."
+        `Request Inference Queue: ${cycleId}: Processing inference request queue: ${availableInferenceRequests.length} available.`
       );
 
       const neededModels = Array.from(
@@ -521,16 +502,16 @@ export class TheDomain {
       );
 
       logger.debug(
-        "Request Inference Queue: ",
-        cycleId,
-        ": Models needed - ",
-        neededModels
+        `Request Inference Queue: ${cycleId}: Models needed - ${neededModels}`
       );
 
       const llmWorkerAvailability =
         this.llmEngine.getWorkerAvailability(neededModels);
 
-      logger.debug(cycleId, ": Worker availability - ", llmWorkerAvailability);
+      logger.debug(
+        `Request Inference Queue: ${cycleId}: Worker availability - `,
+        llmWorkerAvailability
+      );
 
       const possibleInferences = availableInferenceRequests.filter(
         (inferenceRequest) =>
@@ -542,14 +523,13 @@ export class TheDomain {
       );
 
       logger.debug(
-        "Request Inference Queue: ",
-        cycleId,
-        ": Possible inferences - ",
-        possibleInferences
+        `Request Inference Queue: ${cycleId}: Possible inferences - ${possibleInferences.length}`
       );
 
       if (!possibleInferences.length) {
-        logger.debug(cycleId, ": No possible inferences, going back to sleep.");
+        logger.debug(
+          `Request Inference Queue: ${cycleId}: No inferences to process.`
+        );
         return;
       }
 
@@ -558,10 +538,7 @@ export class TheDomain {
       })[0];
 
       logger.debug(
-        "Request Inference Queue: ",
-        cycleId,
-        ": Selected inference - ",
-        selectedInference.requestId
+        `Request Inference Queue: ${cycleId}: Selected inference - ${selectedInference.requestId}`
       );
 
       this.inferenceStatus.inferenceIdsInProcess.push(
@@ -586,11 +563,7 @@ export class TheDomain {
         })
         .then((response) => {
           logger.debug(
-            "Request Inference Queue: ",
-            cycleId,
-            ": Inference completed for ",
-            selectedInference.requestId,
-            " - ",
+            `Request Inference Queue: ${cycleId}: Inference completed for ${selectedInference.requestId}`,
             response
           );
 
@@ -630,7 +603,9 @@ export class TheDomain {
             );
         })
         .catch((err) => {
-          logger.error(cycleId, ": Error running inference - ", err);
+          logger.error(
+            `Request Inference Queue: Error running inference - ${err}`
+          );
 
           return this.inferenceDB.saveInferenceResult({
             requestId: selectedInference.requestId,
@@ -646,8 +621,7 @@ export class TheDomain {
         });
 
       logger.debug(
-        "Request Inference Queue: ",
-        "looking for next inference, waiting a tick."
+        `Request Inference Queue: ${cycleId}: Waiting a tick before next inference.`
       );
       setTimeout(() => this.processInferenceRequestQueue(), 0);
     },

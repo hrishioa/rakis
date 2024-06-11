@@ -1,5 +1,4 @@
 import { SupportedP2PDeliveryNetwork } from "../db/entities";
-import { ClientInfo } from "../identity";
 import { timeoutPromise } from "../utils/utils";
 import { NknP2PNetworkInstance } from "./nkn";
 import { P2P_CONFIG } from "./p2p-config";
