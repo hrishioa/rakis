@@ -3,8 +3,36 @@
 import { Buffer } from "buffer";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
-import { recoverMessageAddress } from "viem";
+import { recoverMessageAddress, verifyMessage } from "viem";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+
+// TODO: only works for external accounts, which is fine for us
+// and to actually do account abstraction you need to drill in
+// the actual wallet client which is a massive pain
+export async function verifyEthChainSignature(
+  message: string,
+  signature: `0x${string}`
+) {
+  try {
+    const address = await recoverEthChainAddressFromSignature(
+      message,
+      signature
+    );
+
+    if (!address) {
+      return false;
+    }
+
+    return await verifyMessage({
+      address,
+      message,
+      signature,
+    });
+  } catch (err) {
+    console.error("Could not verify signature", err);
+    return false;
+  }
+}
 
 export async function recoverEthChainAddressFromSignature(
   message: string,

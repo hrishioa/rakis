@@ -228,6 +228,14 @@ export class TheDomain {
       status: "boot",
       createdAt: stringifyDateWithOffset(new Date()),
     });
+
+    if (this.chainIdentities.length) {
+      this.packetDB.transmitPacket({
+        type: "peerConnectedChain",
+        createdAt: stringifyDateWithOffset(new Date()),
+        identities: this.chainIdentities,
+      });
+    }
   }
 
   async addChainIdentity(

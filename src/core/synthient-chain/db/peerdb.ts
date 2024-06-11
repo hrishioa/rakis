@@ -6,6 +6,7 @@ import {
   ReceivedPeerPacket,
 } from "./packet-types";
 import { createLogger, logStyles } from "../utils/logger";
+import { verifyEthChainSignature } from "../utils/simple-crypto";
 
 const logger = createLogger("PeerDB", logStyles.databases.peerDB);
 
@@ -25,6 +26,43 @@ export class PeerDB {
 
   constructor(dbOptions: DexieOptions = {}) {
     this.db = new PeerDatabase(dbOptions);
+  }
+
+  private async updateChainIdentities(
+    existingChainIds: ChainIdentity[],
+    synthientId: string,
+    identitiesToVerify: ChainIdentity[]
+  ) {
+    // TODO: I know this is a side-effect but I don't have the time to actually work through the memory cost of making this copy
+    const chainIds = existingChainIds;
+
+    await Promise.all(
+      identitiesToVerify.map(async (identity) => {
+        if (
+          chainIds.find(
+            (id) =>
+              id.chain === identity.chain && id.address === identity.address
+          )
+        ) {
+          return;
+        }
+
+        if (
+          await verifyEthChainSignature(
+            synthientId,
+            identity.synthientIdSignature as `0x${string}`
+          )
+        ) {
+          chainIds.push(identity);
+        } else {
+          logger.error(
+            `Could not verify identity for ${synthientId} on chain ${identity.chain} with address ${identity.address}`
+          );
+        }
+      })
+    );
+
+    return chainIds;
   }
 
   async getLastPeers(lastSeenAfter: Date, maxCount: number): Promise<Peer[]> {
@@ -50,8 +88,8 @@ export class PeerDB {
 
     let newPeersSeen: boolean = false;
 
-    const peers: Peer[] = Array.from(new Set(synthientIds)).map(
-      (synthientId) => {
+    const peers: Peer[] = await Promise.all(
+      Array.from(new Set(synthientIds)).map(async (synthientId) => {
         const peerPackets = packets
           .filter((packet) => packet.synthientId === synthientId)
           .sort(
@@ -67,6 +105,12 @@ export class PeerDB {
         if (!existingPeer) {
           newPeersSeen = true;
         }
+
+        const newIdentities = (
+          peerPackets.filter(
+            (packet) => packet.packet.type === "peerConnectedChain"
+          ) as (ReceivedPeerPacket & { packet: PeerConnectedChain })[]
+        ).flatMap((packet) => packet.packet.identities);
 
         const updatedPeer: Peer = existingPeer || {
           synthientId,
@@ -86,21 +130,14 @@ export class PeerDB {
 
         // TODO: This is way too complicated I know but we're just
         // deduping the chainIds array in the end
-        updatedPeer.chainIds = Object.values(
-          [
-            ...updatedPeer.chainIds,
-            ...peerPackets
-              .filter((packet) => packet.packet.type === "peerConnectedChain")
-              .map((packet) => (packet.packet as PeerConnectedChain).identities)
-              .flat(),
-          ].reduce((acc, cur) => {
-            acc[cur.chain + cur.address] = cur;
-            return acc;
-          }, {} as { [key: string]: ChainIdentity })
+        updatedPeer.chainIds = await this.updateChainIdentities(
+          updatedPeer.chainIds,
+          synthientId,
+          newIdentities
         );
 
         return updatedPeer;
-      }
+      })
     );
 
     await this.db.peers.bulkPut(peers);
@@ -133,30 +170,59 @@ export class PeerDB {
 
     const newPeers: { [synthientId: string]: Peer } = {};
 
+    // Flatten the peer lists and only keep the latest ones.
+    const flattenedIncomingPeerList: {
+      [synthientId: string]: {
+        peer: Peer;
+        latestUpdate: Date;
+      };
+    } = {};
+
     packets.forEach((packet) => {
+      // TODO: Maybe we should do a more comprehensive merge to keep as many chainidentities as we can?
       packet.packet.peerList.forEach((peer) => {
-        const updatedPeer: Peer = existingPeers.find(
+        if (
+          flattenedIncomingPeerList[peer.synthientId] &&
+          flattenedIncomingPeerList[peer.synthientId].latestUpdate >=
+            new Date(packet.packet.createdAt)
+        ) {
+          return;
+        }
+
+        flattenedIncomingPeerList[peer.synthientId] = {
+          peer: {
+            synthientId: peer.synthientId,
+            seenOn: peer.seenOn,
+            lastSeen: new Date(peer.lastSeen),
+            chainIds: peer.identities || [],
+          },
+          latestUpdate: new Date(packet.packet.createdAt),
+        };
+      });
+    });
+
+    await Promise.all(
+      Object.values(flattenedIncomingPeerList).map(async ({ peer }) => {
+        const existingPeer = existingPeers.find(
           (p) => p.synthientId === peer.synthientId
-        ) ||
+        );
+
+        const updatedPeer: Peer = existingPeer ||
           newPeers[peer.synthientId] || {
             synthientId: peer.synthientId,
             seenOn: peer.seenOn,
             lastSeen: new Date(peer.lastSeen),
-            chainIds: peer.identities,
+            chainIds: [],
           };
 
         updatedPeer.seenOn = Array.from(
           new Set([...updatedPeer.seenOn, ...peer.seenOn])
         );
 
-        updatedPeer.chainIds = Object.values(
-          [...updatedPeer.chainIds, ...(peer.identities || [])].reduce(
-            (acc, cur) => {
-              acc[cur.chain + cur.address] = cur;
-              return acc;
-            },
-            {} as { [key: string]: ChainIdentity }
-          )
+        updatedPeer.chainIds = await this.updateChainIdentities(
+          updatedPeer.chainIds,
+          peer.synthientId,
+          peer.chainIds
         );
 
         updatedPeer.lastSeen =
@@ -169,8 +235,8 @@ export class PeerDB {
           );
 
         newPeers[peer.synthientId] = updatedPeer;
-      });
-    });
+      })
+    );
 
     await this.db.peers.bulkPut(Object.values(newPeers));
   }
