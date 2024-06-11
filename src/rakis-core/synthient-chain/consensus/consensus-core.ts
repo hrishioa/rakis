@@ -23,11 +23,8 @@ export async function runFinalConsensus(
   securityFrame: InferenceSecurityFrame
 ): Promise<ConsensusResults> {
   logger.debug(
-    "Running final consensus for ",
-    quorum,
-    " with ",
-    quorum.quorum.length,
-    " commits"
+    `Consensus ${quorum.requestId}: Running final consensus with ${quorum.quorum.length} commits `,
+    quorum
   );
 
   const clusterSizeNeeded = Math.ceil(
@@ -39,9 +36,7 @@ export async function runFinalConsensus(
   quorum.quorum = quorum.quorum.filter((inference) => inference.reveal);
 
   logger.debug(
-    "Removed non-revealed commits, ",
-    quorum.quorum.length,
-    " commits remaining"
+    `Consensus ${quorum.requestId}: Removed non-revealed commits, ${quorum.quorum.length} commits remaining`
   );
 
   // Next we want to remove any non-verified embeddings and generate a series of rejection packets
@@ -65,7 +60,7 @@ export async function runFinalConsensus(
 
         if (!verifiedEmbedding) {
           logger.error(
-            "Could not find verified embedding for ",
+            `Consensus ${quorum.requestId}: Could not find verified embedding for revealed commit `,
             revealedCommit,
             " from results ",
             verifiedEmbeddingResults
@@ -80,7 +75,7 @@ export async function runFinalConsensus(
 
         if (similarity < 1 - QUORUM_SETTINGS.bEmbeddingThreshold) {
           logger.warn(
-            "Rejecting reveal for ",
+            `Consensus ${quorum.requestId}: Rejecting reveal for ${revealedCommit.inferenceId} from ${revealedCommit.synthientId} - our embeddings didn't match`,
             revealedCommit,
             " with similarity ",
             similarity,
@@ -114,7 +109,7 @@ export async function runFinalConsensus(
 
         if (rehash !== revealedCommit.bEmbeddingHash) {
           logger.warn(
-            "Rejecting reveal for ",
+            `Consensus ${quorum.requestId}: Rejecting reveal for ${revealedCommit.inferenceId} from ${revealedCommit.synthientId} - our hash didn't match`,
             revealedCommit,
             " with hash mismatch ",
             rehash,
@@ -144,17 +139,12 @@ export async function runFinalConsensus(
   ).filter((q) => q !== false) as InferenceQuorum["quorum"];
 
   logger.debug(
-    "Removed non-verified commits, ",
-    quorum.quorum.length,
-    " commits remaining"
+    `Consensus ${quorum.requestId}: Removed non-verified commits, ${quorum.quorum.length} commits remaining`
   );
 
   if (quorum.quorum.length < quorum.quorumThreshold) {
     logger.debug(
-      "Quorum did not reach threshold, ",
-      quorum.quorum.length,
-      " < ",
-      quorum.quorumThreshold
+      `Consensus ${quorum.requestId}: Quorum for ${quorum.requestId} did not reach threshold, ${quorum.quorum.length} < threshold ${quorum.quorumThreshold}`
     );
 
     return {
@@ -199,9 +189,7 @@ export async function runFinalConsensus(
   }
 
   logger.debug(
-    "Computed distances for ",
-    quorum.quorum.length,
-    " commits - ",
+    `Consensus ${quorum.requestId}: Computed distances for ${quorum.quorum.length} commits`,
     distances
   );
 
@@ -215,17 +203,12 @@ export async function runFinalConsensus(
     }));
 
   logger.debug(
-    "Computed cluster sizes for ",
-    quorum.quorum.length,
-    " commits - ",
+    `Consensus ${quorum.requestId}: Computed cluster sizes for ${quorum.quorum.length} commits`,
     clusterSizes
   );
 
   logger.debug(
-    "Computed cluster size needed for ",
-    quorum.quorum.length,
-    " commits - ",
-    clusterSizeNeeded
+    `Consensus ${quorum.requestId}: Computed cluster size needed for ${quorum.quorum.length} commits: ${clusterSizeNeeded}`
   );
 
   const largestSizes = clusterSizes
@@ -233,9 +216,7 @@ export async function runFinalConsensus(
     .sort((a, b) => b.clusterSize - a.clusterSize);
 
   logger.debug(
-    "Computed largest cluster sizes for ",
-    quorum.quorum.length,
-    " commits - ",
+    `Consensus ${quorum.requestId}: Computed largest cluster sizes for ${quorum.quorum.length} commits`,
     largestSizes
   );
 
@@ -243,9 +224,7 @@ export async function runFinalConsensus(
 
   if (!largestSizes.length) {
     logger.debug(
-      "No clusters found with size ",
-      clusterSizeNeeded,
-      " or greater"
+      `Consensus ${quorum.requestId}: No clusters found with size ${clusterSizeNeeded} or greater`
     );
 
     return {
@@ -263,10 +242,7 @@ export async function runFinalConsensus(
   const largestCluster = largestSizes[0];
 
   logger.debug(
-    "Found largest cluster with size ",
-    largestCluster.clusterSize,
-    " at index ",
-    largestCluster.commitIndex
+    `Consensus ${quorum.requestId}: Found largest cluster with size ${largestCluster.clusterSize} at index ${largestCluster.commitIndex}`
   );
 
   const acceptedInferenceIndices: number[] = distances[
@@ -278,7 +254,7 @@ export async function runFinalConsensus(
     .filter((index) => index !== false) as number[];
 
   logger.debug(
-    "Accepted inferences for largest cluster: ",
+    `Consensus ${quorum.requestId}: Accepted ${acceptedInferenceIndices.length} inferences for largest cluster`,
     acceptedInferenceIndices
   );
 
@@ -286,7 +262,10 @@ export async function runFinalConsensus(
     (index) => quorum.quorum[index]
   );
 
-  logger.debug("Accepted inferences for largest cluster: ", acceptedInferences);
+  logger.debug(
+    `Consensus ${quorum.requestId}: Accepted inferences for largest cluster`,
+    acceptedInferences
+  );
 
   const inferenceJointHash = await hashString(
     quorum.requestId +
@@ -319,7 +298,10 @@ export async function runFinalConsensus(
     },
   };
 
-  logger.debug("Final Computed inference quorum: ", inferenceQuorumComputed);
+  logger.debug(
+    "Consensus ${quorum.requestId}: Computed Final inference quorum",
+    inferenceQuorumComputed
+  );
 
   return {
     rejectionPackets,

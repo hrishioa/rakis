@@ -89,9 +89,8 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
 
     if (!matchingRequest) {
       logger.error(
-        "No matching request for consensus packet ",
-        consensusPacket,
-        ", dropping"
+        `No matching request for consensus packet for ${consensusPacket.requestId}, dropping`,
+        consensusPacket
       );
       return;
     }
@@ -221,7 +220,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       timeoutMs: QUORUM_SETTINGS.quorumRevealTimeoutMs,
     }));
 
-    logger.debug("Emitting reveal requests ", revealPackets);
+    logger.debug(
+      `Emitting reveal requests for ${revealPackets.length} packets`,
+      revealPackets
+    );
 
     this.emit("requestQuorumReveal", revealPackets);
   }
@@ -261,8 +263,6 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
         .toArray()
     ).map((result) => result.requestId);
 
-    logger.debug("Got matching results ", matchingResults);
-
     this.activeInferenceRequests = this.activeInferenceRequests.filter(
       (inference) =>
         !(inference.endingAt <= now) &&
@@ -270,7 +270,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     logger.debug(
-      "Active inferences after cleanup",
+      `Active inferences after cleanup: ${this.activeInferenceRequests.length}`,
       this.activeInferenceRequests.length
     );
 
@@ -291,7 +291,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
 
     if (!matchingRequest) {
       logger.error(
-        "No matching request for revealed inference, skipping ",
+        `No matching request for revealed inference, skipping ${revealPacket.packet.requestId}`,
         revealPacket
       );
       return;
@@ -306,7 +306,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   }) {
     if (!embeddingResults.results) {
       logger.error(
-        "No results to process for verified embeddings",
+        `No results to process for verified embeddings we just did`,
         embeddingResults
       );
       return;
@@ -318,7 +318,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
 
     if (!matchingRequest) {
       logger.error(
-        "No matching request for verified embeddings to run final consensus",
+        `No matching request for verified embeddings to run final consensus`,
         embeddingResults
       );
       return;
@@ -341,12 +341,17 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!matchingRequest) {
-      logger.error("No matching request for reveal request ", requestPacket);
+      logger.error(
+        `We were asked to reveal our inference. No matching request for reveal request ${requestPacket.packet.requestId}`,
+        requestPacket
+      );
       return;
     }
 
     if (matchingRequest.endingAt > new Date()) {
-      logger.error("Request is still active. Not revealing embeddings.");
+      logger.error(
+        `We were asked to reveal our inference. Request ${matchingRequest.requestId} is still active. Not revealing embeddings.`
+      );
       return;
     }
 
@@ -355,7 +360,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!ourCommit) {
-      logger.error("No matching commit with our synthient id ", requestPacket);
+      logger.error(
+        `We were asked to reveal our inference. No matching commit with our synthient id for ${requestPacket.packet.requestId}`,
+        requestPacket
+      );
       return;
     }
 
@@ -365,12 +373,17 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!matchingResult) {
-      logger.error("No matching result for reveal request ", requestPacket);
+      logger.error(
+        `We were asked to reveal our inference. No matching result for reveal request ${requestPacket.packet.requestId}`,
+        requestPacket
+      );
       return;
     }
 
     if (!matchingResult.result.success) {
-      logger.error("Result was not successful. Not revealing embeddings.");
+      logger.error(
+        `We were asked to reveal our inference for ${requestPacket.packet.requestId} - Result was not successful. Not revealing embeddings.`
+      );
       return;
     }
 
@@ -380,13 +393,18 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       );
 
     if (!matchingEmbedding) {
-      logger.error("No matching embedding for reveal request ", requestPacket);
+      logger.error(
+        `No matching embedding for reveal request ${requestPacket.packet.requestId}`,
+        requestPacket
+      );
       return;
     }
 
     // Get the embeddings for the result
 
-    logger.debug("Revealing our inference to ", requestPacket.synthientId);
+    logger.debug(
+      `Revealing our inference for ${requestPacket.packet.requestId} to ${requestPacket.synthientId}`
+    );
 
     this.emit("revealedInference", {
       createdAt: stringifyDateWithOffset(new Date()),
@@ -463,7 +481,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       );
 
     if (!matchingInferenceRequest) {
-      logger.error("No matching inference request for commit ", packet);
+      logger.error(
+        `No matching inference request for commit to save ${packet.packet.requestId}`,
+        packet
+      );
       return;
     }
 
@@ -487,7 +508,9 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       request.requestId
     );
     if (existingRequest) {
-      logger.debug("Inference request already exists. Skipping save.");
+      logger.trace(
+        `Inference request ${request.requestId} already exists. Skipping save.`
+      );
       return;
     }
 
@@ -504,7 +527,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       requestId: request.requestId!,
     };
 
-    logger.debug("Saving ", processedRequest);
+    logger.debug(`Saving ${processedRequest.requestId}`, processedRequest);
 
     // Save the request to the database
     await this.inferenceRequestDb.inferenceRequests.put(processedRequest);
@@ -514,8 +537,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       this.activeInferenceRequests.push(processedRequest);
 
       logger.debug(
-        "Active inferences after save",
-        this.activeInferenceRequests.length
+        `${this.activeInferenceRequests.length} Active inferences after save`
       );
 
       this.refreshCleanupTimeout();
