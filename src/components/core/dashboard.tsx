@@ -23,6 +23,7 @@ import { MultiSelect } from "../ui/multi-select";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
+import ChainConnections from "./chain-connections";
 
 const Dashboard: React.FC<{
   identityPassword: string;
@@ -76,63 +77,65 @@ const Dashboard: React.FC<{
             ID: {mySynthientId?.slice(0, 50)}...
           </h2>
         </div>
-
-        <div className="flex items-center space-x-4">
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                className="w-[300px] justify-between"
-              >
-                {selectedModel || "Select model..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0 z-50">
-              <Command>
-                <CommandInput placeholder="Search model..." />
-                <CommandList>
-                  <CommandEmpty>No model found.</CommandEmpty>
-                  <CommandGroup>
-                    {availableModels.map((model) => (
-                      <CommandItem
-                        key={model}
-                        value={model}
-                        onSelect={(currentValue) => {
-                          setSelectedModel(
-                            currentValue === selectedModel
-                              ? ""
-                              : (currentValue as LLMModelName)
-                          );
-                          setOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            selectedModel === model
-                              ? "opacity-100"
-                              : "opacity-0"
-                          )}
-                        />
-                        {model}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-          <input
-            type="number"
-            min={1}
-            value={numWorkers}
-            onChange={(e) => setNumWorkers(parseInt(e.target.value))}
-            className="w-20 px-2 py-1 border rounded-md"
-          />
-          <Button onClick={handleScale}>Scale Workers</Button>
+        <div className="flex flex-col space-y-4">
+          <div className="flex flex-row items-center space-x-4">
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={open}
+                  className="w-[300px] justify-between"
+                >
+                  {selectedModel || "Select model..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0 z-50">
+                <Command>
+                  <CommandInput placeholder="Search model..." />
+                  <CommandList>
+                    <CommandEmpty>No model found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableModels.map((model) => (
+                        <CommandItem
+                          key={model}
+                          value={model}
+                          onSelect={(currentValue) => {
+                            setSelectedModel(
+                              currentValue === selectedModel
+                                ? ""
+                                : (currentValue as LLMModelName)
+                            );
+                            setOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedModel === model
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {model}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <input
+              type="number"
+              min={1}
+              value={numWorkers}
+              onChange={(e) => setNumWorkers(parseInt(e.target.value))}
+              className="w-20 px-2 py-1 border rounded-md"
+            />
+            <Button onClick={handleScale}>Scale Workers</Button>
+          </div>
+          <ChainConnections />
         </div>
       </div>
 

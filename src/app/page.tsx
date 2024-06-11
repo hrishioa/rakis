@@ -13,6 +13,12 @@ import { IDENTITY_ENCRYPTED_KEY } from "../core/synthient-chain/thedomain/settin
 import { initClientInfo } from "../core/synthient-chain/identity";
 import { useToast } from "../components/ui/use-toast";
 import Dashboard from "../components/core/dashboard";
+import { WagmiProvider } from "wagmi";
+import { wagmiConfig } from "../core/chains/wagmi-config";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import ChainConnections from "../components/core/chain-connections";
+
+const queryClient = new QueryClient();
 
 export default function Home() {
   const [password, setPassword] = useState("");
@@ -58,8 +64,17 @@ export default function Home() {
     }
   }, []);
 
-  if (!isAuthenticated) {
-    return (
+  return (
+    (isAuthenticated && (
+      <WagmiProvider config={wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          <Dashboard
+            identityPassword={password}
+            overwriteIdentity={false} // Already created when we test it
+          />
+        </QueryClientProvider>
+      </WagmiProvider>
+    )) || (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-96">
           <CardHeader>
@@ -106,13 +121,6 @@ export default function Home() {
           </CardFooter>
         </Card>
       </div>
-    );
-  }
-
-  return (
-    <Dashboard
-      identityPassword={password}
-      overwriteIdentity={false} // Already created when we test it
-    />
+    )
   );
 }

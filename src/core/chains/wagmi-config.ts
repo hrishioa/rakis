@@ -1,14 +1,16 @@
 import { createConfig, http } from "wagmi";
 import { mainnet, sepolia, polygon, arbitrum, avalanche } from "wagmi/chains";
+import { injected, metaMask } from "wagmi/connectors";
 
 declare module "wagmi" {
   interface Register {
-    config: typeof config;
+    config: typeof wagmiConfig;
   }
 }
 
-export const config = createConfig({
+export const wagmiConfig = createConfig({
   chains: [mainnet, sepolia, polygon, arbitrum, avalanche],
+  connectors: [metaMask()],
   transports: {
     [mainnet.id]: http(),
     [sepolia.id]: http(),
