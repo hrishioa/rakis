@@ -150,7 +150,7 @@ export class PeerDB {
       this.loadKnownPeerPackets(knownPeerPackets);
     }
 
-    console.log("New peers seen: ", newPeersSeen);
+    logger.debug("New peers seen: ", newPeersSeen);
 
     return newPeersSeen;
   }
@@ -158,8 +158,6 @@ export class PeerDB {
   async loadKnownPeerPackets(
     packets: (ReceivedPeerPacket & { packet: KnownPeers })[]
   ): Promise<void> {
-    console.log("received known peer packets ", packets);
-
     const synthientIds = packets.flatMap((packet) =>
       packet.packet.peerList.map((peer) => peer.synthientId)
     );

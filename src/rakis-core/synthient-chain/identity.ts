@@ -28,8 +28,6 @@ export function createNewEmptyIdentity(): ClientInfo {
     deviceInfo: getDeviceInfo(),
   };
 
-  console.log("Created identity: ", newIdentity);
-
   return newIdentity;
 }
 
@@ -59,8 +57,6 @@ export async function initClientInfo(
         console.log("Could not properly decrypt with this password");
       }
 
-      console.log("Decrypted identity: ", decryptedIdentity);
-
       clientInfo = decryptedIdentity;
     } catch (err) {
       console.error("Could not decrypt saved identity", err);
@@ -73,8 +69,6 @@ export async function initClientInfo(
 
     // Encrypt and save
     await saveIdentity(newIdentity, password);
-
-    console.log("Encrypted and saved to localStorage.");
 
     clientInfo = newIdentity;
   }

@@ -9,12 +9,12 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Checkbox } from "../components/ui/checkbox";
-import { IDENTITY_ENCRYPTED_KEY } from "../core/synthient-chain/thedomain/settings";
-import { initClientInfo } from "../core/synthient-chain/identity";
+import { IDENTITY_ENCRYPTED_KEY } from "../rakis-core/synthient-chain/thedomain/settings";
+import { initClientInfo } from "../rakis-core/synthient-chain/identity";
 import { useToast } from "../components/ui/use-toast";
 import Dashboard from "../components/core/dashboard";
 import { WagmiProvider } from "wagmi";
-import { wagmiConfig } from "../core/chains/wagmi-config";
+import { wagmiConfig } from "../rakis-core/blockchains/wagmi-config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const queryClient = new QueryClient();

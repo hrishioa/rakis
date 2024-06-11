@@ -7,7 +7,7 @@ import {
   InferenceParams,
   LLMEngineLogEntry,
   LLMModelName,
-} from "../../../core/synthient-chain/llm/types";
+} from "../../../rakis-core/synthient-chain/llm/types";
 import {
   Select,
   SelectContent,
@@ -29,10 +29,10 @@ import { ChevronsUpDown, X } from "lucide-react";
 import {
   EmbeddingEngineLogEntry,
   EmbeddingResult,
-} from "../../../core/synthient-chain/embeddings/types";
+} from "../../../rakis-core/synthient-chain/embeddings/types";
 import { modelColors } from "./colors";
-import { EmbeddingEngine } from "../../../core/synthient-chain/embeddings/embedding-engine";
-import { LLMEngine } from "../../../core/synthient-chain/llm/llm-engine";
+import { EmbeddingEngine } from "../../../rakis-core/synthient-chain/embeddings/embedding-engine";
+import { LLMEngine } from "../../../rakis-core/synthient-chain/llm/llm-engine";
 
 const EmbeddingChart = dynamic(() => import("./embedding-chart"), {
   ssr: false,

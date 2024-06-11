@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import {
   PeerPacket,
   ReceivedPeerPacket,
-} from "../../core/synthient-chain/db/packet-types";
+} from "../../rakis-core/synthient-chain/db/packet-types";
 import { cn } from "../../lib/utils";
 
 const packetTypeIcons: Record<string, string> = {

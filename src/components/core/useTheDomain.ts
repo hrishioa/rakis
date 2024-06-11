@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { ChainIdentity, Peer } from "../../core/synthient-chain/db/entities";
-import { TheDomain } from "../../core/synthient-chain/thedomain/thedomain";
-import { ReceivedPeerPacket } from "../../core/synthient-chain/db/packet-types";
+import {
+  ChainIdentity,
+  Peer,
+} from "../../rakis-core/synthient-chain/db/entities";
+import { TheDomain } from "../../rakis-core/synthient-chain/thedomain/thedomain";
+import { ReceivedPeerPacket } from "../../rakis-core/synthient-chain/db/packet-types";
 import {
   LLMEngineLogEntry,
   LLMModelName,
-} from "../../core/synthient-chain/llm/types";
+} from "../../rakis-core/synthient-chain/llm/types";
 import { debounce } from "lodash";
-import { EmbeddingModelName } from "../../core/synthient-chain/embeddings/types";
+import { EmbeddingModelName } from "../../rakis-core/synthient-chain/embeddings/types";
 import {
   generateRandomString,
   stringifyDateWithOffset,
-} from "../../core/synthient-chain/utils/utils";
+} from "../../rakis-core/synthient-chain/utils/utils";
 
 const POLLING_INTERVAL = 3000; // 5 seconds
 

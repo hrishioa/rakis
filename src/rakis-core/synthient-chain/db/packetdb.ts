@@ -337,7 +337,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         createdAt: stringifyDateWithOffset(new Date()),
       };
 
-      console.log("Transmitting peer list ", knownPeers);
+      logger.debug("Transmitting peer list ", knownPeers);
 
       await this.transmitPacket(knownPeers);
     }

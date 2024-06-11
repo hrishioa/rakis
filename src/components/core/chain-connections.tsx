@@ -9,7 +9,7 @@ import {
 import { Button } from "../ui/button";
 import { useEffect, useRef } from "react";
 import { Label } from "../ui/label";
-import { ChainIdentity } from "../../core/synthient-chain/db/entities";
+import { ChainIdentity } from "../../rakis-core/synthient-chain/db/entities";
 import { Badge } from "../ui/badge";
 import {
   Tooltip,

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Plot from "react-plotly.js";
 import { UMAP } from "umap-js";
-import { EmbeddingResult } from "../../../core/synthient-chain/embeddings/types";
-import { LLMModelName } from "../../../core/synthient-chain/llm/types";
+import { EmbeddingResult } from "../../../rakis-core/synthient-chain/embeddings/types";
+import { LLMModelName } from "../../../rakis-core/synthient-chain/llm/types";
 import { borderColorToHex, modelColors } from "./colors";
 
 type EmbeddingChartProps = {

@@ -26,11 +26,11 @@ export const logStyles = {
 };
 
 export type SynthientLogger = {
-  trace: (...args: any[]) => void;
-  debug: (...args: any[]) => void;
-  info: (...args: any[]) => void;
-  warn: (...args: any[]) => void;
-  error: (...args: any[]) => void;
+  trace: (firstArg: string, ...args: any[]) => void;
+  debug: (firstArg: string, ...args: any[]) => void;
+  info: (firstArg: string, ...args: any[]) => void;
+  warn: (firstArg: string, ...args: any[]) => void;
+  error: (firstArg: string, ...args: any[]) => void;
 };
 
 export function createLogger(
@@ -46,50 +46,50 @@ export function createLogger(
   }
 
   const logger = {
-    trace: (...args: any[]) => {
+    trace: (firstArg: string, ...args: any[]) => {
       if (
         !noWindow &&
         ((window as any)?.blockedLogLevels?.includes("trace") ||
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
-      console.log(`%c[T] ${name}:`, style, ...args);
+      console.log(`%c[T] ${name}:`, style, firstArg, ...args);
     },
-    debug: (...args: any[]) => {
+    debug: (firstArg: string, ...args: any[]) => {
       if (
         !noWindow &&
         ((window as any)?.blockedLogLevels?.includes("debug") ||
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
-      console.log(`%c[D] ${name}:`, style, ...args);
+      console.log(`%c[D] ${name}:`, style, firstArg, ...args);
     },
-    info: (...args: any[]) => {
+    info: (firstArg: string, ...args: any[]) => {
       if (
         !noWindow &&
         ((window as any)?.blockedLogLevels?.includes("info") ||
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
-      console.log(`%c[I] ${name}:`, style, ...args);
+      console.log(`%c[I] ${name}:`, style, firstArg, ...args);
     },
-    warn: (...args: any[]) => {
+    warn: (firstArg: string, ...args: any[]) => {
       if (
         !noWindow &&
         ((window as any)?.blockedLogLevels?.includes("warn") ||
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
-      console.warn(`%c[W] ${name}:`, style, ...args);
+      console.warn(`%c[W] ${name}:`, style, firstArg, ...args);
     },
-    error: (...args: any[]) => {
+    error: (firstArg: string, ...args: any[]) => {
       if (
         !noWindow &&
         ((window as any)?.blockedLogLevels?.includes("error") ||
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
-      console.error(`%c[ERROR] ${name}:`, style, ...args);
+      console.error(`%c[ERROR] ${name}:`, style, firstArg, ...args);
     },
   };
 

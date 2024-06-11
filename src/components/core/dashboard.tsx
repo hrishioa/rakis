@@ -5,7 +5,7 @@ import { useTheDomain } from "./useTheDomain";
 import {
   LLMModelName,
   availableModels,
-} from "../../core/synthient-chain/llm/types";
+} from "../../rakis-core/synthient-chain/llm/types";
 import { cn } from "../../lib/utils";
 import LLMWorkers from "./llmworkers";
 import PeerTable from "./peertable";

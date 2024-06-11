@@ -1,4 +1,4 @@
-import { Peer } from "../../core/synthient-chain/db/entities";
+import { Peer } from "../../rakis-core/synthient-chain/db/entities";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import {
   TableHeader,

@@ -319,7 +319,7 @@ export async function runFinalConsensus(
     },
   };
 
-  console.log("Final Computed inference quorum: ", inferenceQuorumComputed);
+  logger.debug("Final Computed inference quorum: ", inferenceQuorumComputed);
 
   return {
     rejectionPackets,

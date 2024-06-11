@@ -1,7 +1,7 @@
 import {
   LLMModelName,
   LLMEngineLogEntry,
-} from "../../core/synthient-chain/llm/types";
+} from "../../rakis-core/synthient-chain/llm/types";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import {
   TableHeader,
