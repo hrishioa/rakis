@@ -30,6 +30,7 @@
     "@react-three/drei": "^9.105.6",
     "@react-three/fiber": "^8.16.6",
     "@shopify/react-web-worker": "^5.0.17",
+    "@tanstack/react-query": "^5.40.1",
     "@types/jest": "^29.5.12",
     "@types/three": "^0.164.1",
     "@waku/discovery": "0.0.2-73d4f19.0",
@@ -58,7 +59,9 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.164.1",
     "trystero": "^0.18.0",
-    "umap-js": "^1.4.0"
+    "umap-js": "^1.4.0",
+    "viem": "2.x",
+    "wagmi": "^2.9.11"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.4",
