@@ -150,11 +150,6 @@ export class PeerDB {
       this.loadKnownPeerPackets(knownPeerPackets);
     }
 
-    logger.debug(
-      `New peers seen, deciding whether to transmit our peers over`,
-      newPeersSeen
-    );
-
     return newPeersSeen;
   }
 

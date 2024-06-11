@@ -1,5 +1,9 @@
 // Custom logger function
 
+import EventEmitter from "eventemitter3";
+import { LOGGER_SETTINGS } from "../thedomain/settings";
+import { debounce } from "lodash";
+
 export const logStyles = {
   llmEngine: {
     main: "background: #f0f8ff; color: #1e90ff; font-weight: bold;",
@@ -25,6 +29,8 @@ export const logStyles = {
   },
 };
 
+export type LogType = "trace" | "debug" | "info" | "warn" | "error";
+
 export type SynthientLogger = {
   trace: (firstArg: string, ...args: any[]) => void;
   debug: (firstArg: string, ...args: any[]) => void;
@@ -32,6 +38,51 @@ export type SynthientLogger = {
   warn: (firstArg: string, ...args: any[]) => void;
   error: (firstArg: string, ...args: any[]) => void;
 };
+
+export type INLogsEvents = {
+  newLog: () => void;
+};
+
+export type StringLog = {
+  at: Date;
+  logger: string;
+  type: LogType;
+  message: string;
+};
+
+export class InMemoryLogs extends EventEmitter {
+  private static instance: InMemoryLogs;
+  public logs: StringLog[] = [];
+
+  private constructor() {
+    super();
+  }
+
+  static getInstance() {
+    if (!InMemoryLogs.instance) {
+      InMemoryLogs.instance = new InMemoryLogs();
+    }
+    return InMemoryLogs.instance;
+  }
+
+  private emitNewLogs = debounce(() => {
+    this.emit("newLog");
+  }, LOGGER_SETTINGS.newLogEventDebounceMs);
+
+  static addLog(logger: string, type: LogType, message: string) {
+    InMemoryLogs.getInstance().logs.push({
+      at: new Date(),
+      logger,
+      type,
+      message,
+    });
+    InMemoryLogs.getInstance().logs = InMemoryLogs.getInstance()
+      .logs.slice(-LOGGER_SETTINGS.maxLogsInMemory)
+      .sort((a, b) => b.at.getTime() - a.at.getTime());
+
+    InMemoryLogs.getInstance().emitNewLogs();
+  }
+}
 
 export function createLogger(
   name: string,
@@ -62,6 +113,8 @@ export function createLogger(
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
+      if (!LOGGER_SETTINGS.loggersToSkipForInMemoryLog.includes(name))
+        InMemoryLogs.addLog(name, "debug", firstArg);
       console.log(`%c[D] ${name}:`, style, firstArg, ...args);
     },
     info: (firstArg: string, ...args: any[]) => {
@@ -71,6 +124,9 @@ export function createLogger(
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
+
+      if (!LOGGER_SETTINGS.loggersToSkipForInMemoryLog.includes(name))
+        InMemoryLogs.addLog(name, "info", firstArg);
       console.log(`%c[I] ${name}:`, style, firstArg, ...args);
     },
     warn: (firstArg: string, ...args: any[]) => {
@@ -80,6 +136,9 @@ export function createLogger(
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
+
+      if (!LOGGER_SETTINGS.loggersToSkipForInMemoryLog.includes(name))
+        InMemoryLogs.addLog(name, "warn", firstArg);
       console.warn(`%c[W] ${name}:`, style, firstArg, ...args);
     },
     error: (firstArg: string, ...args: any[]) => {
@@ -89,6 +148,9 @@ export function createLogger(
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
+
+      if (!LOGGER_SETTINGS.loggersToSkipForInMemoryLog.includes(name))
+        InMemoryLogs.addLog(name, "error", firstArg);
       console.error(`%c[ERROR] ${name}:`, style, firstArg, ...args);
     },
   };

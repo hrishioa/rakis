@@ -24,6 +24,7 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import ChainConnections from "./chain-connections";
+import LogViewer from "./logviewer";
 
 const Dashboard: React.FC<{
   identityPassword: string;
@@ -48,12 +49,23 @@ const Dashboard: React.FC<{
   const [numWorkers, setNumWorkers] = useState(1);
 
   const [prompt, setPrompt] = useState("");
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [minimumParticipants, setMinimumParticipants] = useState(1);
-  const [timeAvailableSeconds, setTimeAvailableSeconds] = useState(60);
+  const [selectedModels, setSelectedModels] = useState<string[]>([
+    "gemma-2b-it-q4f16_1",
+  ]);
+  const [minimumParticipants, setMinimumParticipants] = useState(2);
+  const [timeAvailableSeconds, setTimeAvailableSeconds] = useState(20);
   const [percentageAgreement, setPercentageAgreement] = useState(50);
 
   const handleInferenceSubmit = () => {
+    if (
+      !prompt ||
+      !selectedModels ||
+      !selectedModels.length ||
+      !minimumParticipants ||
+      !timeAvailableSeconds ||
+      !percentageAgreement
+    )
+      return;
     submitInferenceRequest(
       prompt,
       selectedModels as LLMModelName[],
@@ -61,6 +73,8 @@ const Dashboard: React.FC<{
       timeAvailableSeconds,
       percentageAgreement
     );
+
+    setPrompt("");
   };
 
   const handleScale = () => {
@@ -146,7 +160,7 @@ const Dashboard: React.FC<{
           </div>
         </div>
 
-        <div className="mb-8 grid grid-cols-2 gap-8">
+        <div className="mb-8 grid grid-cols-3 gap-8">
           {inferences && (
             <div className="bg-white rounded-lg shadow-lg p-6 col-span-1">
               <InferenceList inferences={inferences} />
@@ -161,6 +175,9 @@ const Dashboard: React.FC<{
                 value={prompt}
                 onChange={(e: any) => setPrompt(e.target.value)}
                 className="w-full"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleInferenceSubmit();
+                }}
               />
             </div>
             <div className="mb-4">
@@ -230,6 +247,10 @@ const Dashboard: React.FC<{
             >
               Send Inference Request
             </Button>
+          </div>
+          <div className="ml-8 col-span-1">
+            <h2 className="text-2xl font-bold mb-4">Rakis Logs</h2>
+            <LogViewer />
           </div>
         </div>
 

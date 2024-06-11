@@ -8,7 +8,8 @@ export function stringifyDateWithOffset(date: Date) {
   // Replace 'Z' with the actual timezone offset formatted as `±hh:mm`
   const timezoneOffset = date.getTimezoneOffset();
   const offsetSign = timezoneOffset > 0 ? "-" : "+";
-  const offsetHours = Math.abs(Math.floor(timezoneOffset / 60))
+  // Jesus H Christ the abs and floor being switched around from Claude was such a wild goose chase
+  const offsetHours = Math.floor(Math.abs(timezoneOffset / 60))
     .toString()
     .padStart(2, "0");
   const offsetMinutes = Math.abs(timezoneOffset % 60)

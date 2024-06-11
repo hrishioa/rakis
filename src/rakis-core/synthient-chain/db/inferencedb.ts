@@ -527,7 +527,12 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       requestId: request.requestId!,
     };
 
-    logger.debug(`Saving ${processedRequest.requestId}`, processedRequest);
+    logger.debug(
+      `Saving ${processedRequest.requestId} ending in ${
+        (processedRequest.endingAt.getTime() - Date.now()) / 1000
+      }s`,
+      processedRequest
+    );
 
     // Save the request to the database
     await this.inferenceRequestDb.inferenceRequests.put(processedRequest);

@@ -22,6 +22,7 @@ import {
 } from "./connectors";
 import { ChainIdentity } from "../db/entities";
 import { recoverEthChainAddressFromSignature } from "../utils/simple-crypto";
+import { DeferredPromise } from "../utils/deferredpromise";
 
 const logger = createLogger("Domain", logStyles.theDomain);
 
@@ -39,6 +40,7 @@ export type DomainStartOptions = {
 };
 
 export class TheDomain {
+  private static loadingPromise: DeferredPromise<TheDomain> | null = null;
   private static instance: TheDomain;
   public synthientId: string;
   public packetDB: PacketDB;
@@ -647,6 +649,10 @@ export class TheDomain {
   }: DomainStartOptions) {
     if (TheDomain.instance) return TheDomain.instance;
 
+    if (TheDomain.loadingPromise) return TheDomain.loadingPromise.promise;
+
+    TheDomain.loadingPromise = new DeferredPromise();
+
     logger.debug("Booting up the the domain...");
 
     // Initialize client info
@@ -683,6 +689,8 @@ export class TheDomain {
       initialEmbeddingWorkers,
       initialLLMWorkers
     );
+
+    TheDomain.loadingPromise.resolve(this.instance);
 
     return this.instance;
   }

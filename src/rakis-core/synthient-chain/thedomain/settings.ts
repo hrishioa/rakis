@@ -22,6 +22,22 @@ export const CHAIN_CONNECTION_SETTINGS: {
 
 export const IDENTITY_ENCRYPTED_KEY = "encSynthientId";
 
+export const LOGGER_SETTINGS: {
+  maxLogsInMemory: number;
+  loggersToSkipForInMemoryLog: string[];
+  newLogEventDebounceMs: number;
+} = {
+  maxLogsInMemory: 1000,
+  loggersToSkipForInMemoryLog: [
+    "P2P: NKN",
+    "P2P: PewPewDB",
+    "P2P: nostr (trystero)",
+    "P2P: torrent (trystero)",
+    "PacketDB",
+  ],
+  newLogEventDebounceMs: 150,
+};
+
 export const THEDOMAIN_SETTINGS: {
   enabledP2PNetworks: SupportedP2PDeliveryNetwork[];
   waitForP2PBootupMs: number;
