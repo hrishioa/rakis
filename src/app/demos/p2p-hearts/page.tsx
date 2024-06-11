@@ -4,19 +4,19 @@ import { useState, useEffect, useRef } from "react";
 import {
   ClientInfo,
   initClientInfo,
-} from "../../core/synthient-chain/identity";
-import { GunP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/pewpewdb";
-import { PacketDB } from "../../core/synthient-chain/db/packetdb";
+} from "../../../core/synthient-chain/identity";
+import { GunP2PNetworkInstance } from "../../../core/synthient-chain/p2p-networks/pewpewdb";
+import { PacketDB } from "../../../core/synthient-chain/db/packetdb";
 import {
   PeerPacket,
   TransmittedPeerPacket,
-} from "../../core/synthient-chain/db/packet-types";
-import { Card } from "../../components/ui/card";
-import { Input } from "../../components/ui/input";
-import { stringifyDateWithOffset } from "../../core/synthient-chain/utils/utils";
-import { NknP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/nkn";
-import { TrysteroP2PNetworkInstance } from "../../core/synthient-chain/p2p-networks/trystero";
-import { P2P_CONFIG } from "../../core/synthient-chain/p2p-networks/p2p-config";
+} from "../../../core/synthient-chain/db/packet-types";
+import { Card } from "../../../components/ui/card";
+import { Input } from "../../../components/ui/input";
+import { stringifyDateWithOffset } from "../../../core/synthient-chain/utils/utils";
+import { NknP2PNetworkInstance } from "../../../core/synthient-chain/p2p-networks/nkn";
+import { TrysteroP2PNetworkInstance } from "../../../core/synthient-chain/p2p-networks/trystero";
+import { P2P_CONFIG } from "../../../core/synthient-chain/p2p-networks/p2p-config";
 
 const Heart = ({ x, y, source }: { x: number; y: number; source: string }) => {
   const [visible, setVisible] = useState(true);

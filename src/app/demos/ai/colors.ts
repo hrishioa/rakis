@@ -1,4 +1,4 @@
-import { LLMModelName } from "../../core/synthient-chain/llm/types";
+import { LLMModelName } from "../../../core/synthient-chain/llm/types";
 
 export const modelColors: Record<LLMModelName, string> = {
   "Llama-3-8B-Instruct-q4f32_1": "border-blue-500",

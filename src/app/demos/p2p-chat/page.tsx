@@ -1,24 +1,24 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import useTrystero from "../../core/p2p/useTrystero";
-import useWaku from "../../core/p2p/useWaku";
-import useNKN from "../../core/p2p/useNKN";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
+import useTrystero from "../../../core/p2p/useTrystero";
+import useWaku from "../../../core/p2p/useWaku";
+import useNKN from "../../../core/p2p/useNKN";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "../../components/ui/card";
+} from "../../../components/ui/card";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from "../../components/ui/avatar";
-import { Switch } from "../../components/ui/switch";
+} from "../../../components/ui/avatar";
+import { Switch } from "../../../components/ui/switch";
 import Image from "next/image";
-import useGun from "../../core/p2p/useGun";
+import useGun from "../../../core/p2p/useGun";
 
 const P2PContainer: React.FC = () => {
   const [nodeName, setNodeName] = useState<string>("");

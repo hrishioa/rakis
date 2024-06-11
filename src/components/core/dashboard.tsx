@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import InferenceList from "../../app/visual-demo/inferenceList";
-import PacketCards from "../../app/visual-demo/packetCards";
-import { useTheDomain } from "../../app/visual-demo/useTheDomain";
+import InferenceList from "./inference-list";
+import PacketCards from "./packet-cards";
+import { useTheDomain } from "./useTheDomain";
 import {
   LLMModelName,
   availableModels,

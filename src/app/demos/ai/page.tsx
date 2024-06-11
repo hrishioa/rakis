@@ -7,7 +7,7 @@ import {
   InferenceParams,
   LLMEngineLogEntry,
   LLMModelName,
-} from "../../core/synthient-chain/llm/types";
+} from "../../../core/synthient-chain/llm/types";
 import {
   Select,
   SelectContent,
@@ -16,23 +16,23 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from "../../components/ui/select";
-import { Button } from "../../components/ui/button";
-import { Textarea } from "../../components/ui/textarea";
-import { Progress } from "../../components/ui/progress";
+} from "../../../components/ui/select";
+import { Button } from "../../../components/ui/button";
+import { Textarea } from "../../../components/ui/textarea";
+import { Progress } from "../../../components/ui/progress";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "../../components/ui/collapsible";
+} from "../../../components/ui/collapsible";
 import { ChevronsUpDown, X } from "lucide-react";
 import {
   EmbeddingEngineLogEntry,
   EmbeddingResult,
-} from "../../core/synthient-chain/embeddings/types";
+} from "../../../core/synthient-chain/embeddings/types";
 import { modelColors } from "./colors";
-import { EmbeddingEngine } from "../../core/synthient-chain/embeddings/embedding-engine";
-import { LLMEngine } from "../../core/synthient-chain/llm/llm-engine";
+import { EmbeddingEngine } from "../../../core/synthient-chain/embeddings/embedding-engine";
+import { LLMEngine } from "../../../core/synthient-chain/llm/llm-engine";
 
 const EmbeddingChart = dynamic(() => import("./embedding-chart"), {
   ssr: false,
