@@ -108,19 +108,25 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       (quorum) => quorum.quorum.length < quorum.quorumThreshold
     );
 
-    logger.debug("Quorums that failed: ", failedQuorums);
+    logger.debug(
+      `${failedQuorums.length} quorums failed to reach threshold`,
+      failedQuorums
+    );
 
     failedQuorums.forEach((quorum) => (quorum.status = "failed"));
 
     await this.db.quorums.bulkPut(failedQuorums).catch(Dexie.BulkError, (e) => {
-      logger.error("Failed to update quorums to failed for these quorums: ", e);
+      logger.error("Failed to update quorums to failed", e);
     });
 
     const successfulQuorums = candidateQuorums.filter(
       (quorum) => quorum.quorum.length >= quorum.quorumThreshold
     );
 
-    logger.debug("Quorums that passed: ", successfulQuorums);
+    logger.debug(
+      `${successfulQuorums.length} quorums passed commitment thresholds`,
+      successfulQuorums
+    );
 
     successfulQuorums.forEach((quorum) => (quorum.status = "awaiting_reveal"));
 
@@ -148,7 +154,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     const quorum = await this.db.quorums.get(revealPacket.packet.requestId);
 
     if (!quorum) {
-      logger.debug("No quorum found for reveal packet ", revealPacket);
+      logger.debug(
+        `No quorum found for reveal packet ${revealPacket.packet.requestId}`,
+        revealPacket
+      );
       return;
     }
 
@@ -158,9 +167,8 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
         quorum.endingAt.getTime() + QUORUM_SETTINGS.quorumRevealTimeoutMs
     ) {
       logger.debug(
-        "Received reveal packet after reveal timeout ",
-        revealPacket,
-        " discarding"
+        "Received reveal packet after reveal timeout, discarding.",
+        revealPacket
       );
       return;
     }
@@ -172,7 +180,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     );
 
     if (!commit) {
-      logger.debug("No commit found for reveal packet ", revealPacket);
+      logger.debug("No commit found for reveal packet", revealPacket);
       return;
     }
 
@@ -194,7 +202,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
     await this.db.quorums.put(quorum);
 
-    logger.debug("Updated quorum with reveal: ", quorum);
+    logger.debug("Updated quorum with reveal", quorum);
 
     await this.checkQuorumsReadyForConsensus();
   }
@@ -222,12 +230,15 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
         quorum.status === "awaiting_reveal" && !quorum.consensusRequestedAt
     );
 
-    logger.debug("Quorums ready for consensus processing: ", quorums);
+    logger.debug(
+      `${quorums.length} Quorums ready for consensus processing`,
+      quorums
+    );
 
     for (const quorum of quorums) {
       if (quorum.quorumRevealed < quorum.quorumThreshold) {
         logger.debug(
-          "Quorum didn't meet threshold for consensus processing: ",
+          `${quorum.requestId} Quorum didn't meet threshold for consensus processing`,
           quorum
         );
 
@@ -238,7 +249,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       quorum.status = "awaiting_consensus";
       quorum.consensusRequestedAt = new Date();
 
-      logger.debug("Emitting newQuorumAwaitingConsensus for quorum: ", quorum);
+      logger.debug(
+        `Emitting newQuorumAwaitingConsensus for quorum ${quorum.requestId}`,
+        quorum
+      );
       this.emit(
         "newQuorumAwaitingConsensus",
         quorum.requestId,
@@ -251,10 +265,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     }
 
     await this.db.quorums.bulkPut(quorums).catch(Dexie.BulkError, (e) => {
-      logger.error(
-        "Failed to update quorums to awaiting_consensus for these quorums: ",
-        e
-      );
+      logger.error(`Failed to update quorums to awaiting_consensus`, e);
     });
 
     const quorumsAboutToNeedChecking = (
@@ -268,13 +279,13 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
     if (quorumsAboutToNeedChecking.length) {
       logger.debug(
-        "Setting timeout for next quorum check: ",
-        quorumsAboutToNeedChecking[0],
-        " as ",
-        quorumsAboutToNeedChecking[0].endingAt.getTime() -
+        `Setting timeout for next quorum check: ${
+          quorumsAboutToNeedChecking[0].endingAt.getTime() -
           Date.now() +
           QUORUM_SETTINGS.quorumRevealTimeoutMs -
           10
+        }`,
+        quorumsAboutToNeedChecking[0]
       );
 
       this.quorumConsensusTimeout = setTimeout(
@@ -322,11 +333,11 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       .filter((quorum) => quorum.status === "awaiting_commitments")
       .sort((a, b) => a.endingAt.getTime() - b.endingAt.getTime());
 
-    logger.debug("Got quorums for setting Timeout: ", quorums);
+    logger.trace("Got quorums for setting Timeout: ", quorums);
 
     if (quorums.length) {
       this.quorumRevealTimeout = setTimeout(async () => {
-        logger.debug("Timeout for quorum reveal");
+        logger.debug("Checking to see if any quorums are ready for reveal");
 
         await this.checkQuorumsReadyForReveal();
 
@@ -344,9 +355,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
     if (existingExternalConsensus) {
       logger.debug(
-        "External consensus already exists for this request and synthientId: ",
-        consensusPacket,
-        ", dropping"
+        `Received redundant external consensus for ${consensusPacket.requestId} from ${consensusPacket.verifiedBy}, dropping`
       );
       return;
     }
@@ -359,7 +368,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     results: EmbeddingResult[]
   ) {
     logger.debug(
-      "Processing verified consensus embeddings: ",
+      `Processing verified consensus embeddings for ${request.requestId}`,
       results,
       " for request: ",
       request
@@ -372,7 +381,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     const quorum = await this.db.quorums.get(request.requestId);
 
     if (!quorum) {
-      logger.error("No quorum found for request ", request);
+      logger.error(`No quorum found for request ${request.requestId}`, request);
       return;
     }
 
@@ -383,7 +392,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       request.payload.securityFrame
     );
 
-    logger.debug("Final results: ", finalResults);
+    logger.debug(
+      `Final consensus computed for ${request.requestId}`,
+      finalResults
+    );
 
     this.consensusResultsDB.consensusResults.put(finalResults);
 
@@ -414,10 +426,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
     const quorum = await this.db.quorums.get(packet.packet.requestId);
 
-    logger.debug("Seeing if we should insert commit ", packet);
+    logger.debug("Received inference commit", packet);
 
     if (!quorum) {
-      logger.debug("Creating new quorum for commit - ", packet);
+      logger.debug("Creating new quorum for commit", packet);
 
       this.db.quorums.put({
         requestId: packet.packet.requestId,
@@ -444,7 +456,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
             commit.inferenceId === packet.packet.inferenceId
         )
       ) {
-        logger.debug("Adding new commit to quorum - ", quorum);
+        logger.debug("Adding new commit to quorum", quorum);
 
         quorum.quorum.push({
           inferenceId: packet.packet.inferenceId,
@@ -455,11 +467,9 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
         quorum.quorumCommitted += 1;
 
-        logger.debug("New commit to add to quorum - ", quorum);
-
         this.db.quorums.put(quorum);
       } else {
-        logger.debug("Commit already exists in quorum - ", quorum);
+        logger.debug("Commit already exists in quorum", quorum);
       }
     }
 

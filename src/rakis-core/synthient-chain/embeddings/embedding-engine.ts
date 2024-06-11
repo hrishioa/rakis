@@ -59,7 +59,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     if (!entry.at) entry.at = new Date();
     const logLength = this.embeddingEngineLog.length;
 
-    logger.debug("Embedding engine event ", logLength, " - ", entry);
+    logger.debug(`Embedding engine event ${entry.type}`);
 
     this.embeddingEngineLog.push(entry);
     return logLength;
@@ -77,10 +77,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
 
     if (numberOfExistingWorkers < count) {
       logger.debug(
-        "Scaling up number of embedding workers for ",
-        modelName,
-        " to ",
-        count
+        `Scaling up number of embedding workers for ${modelName} to ${count}`
       );
       for (let i = 0; i < count - numberOfExistingWorkers; i++) {
         const workerId = `embedding-${modelName}-${generateRandomString()}`;
@@ -88,10 +85,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       }
     } else {
       logger.debug(
-        "Scaling down number of embedding workers for ",
-        modelName,
-        " to ",
-        count
+        `Scaling down number of embedding workers for ${modelName} to ${count}`
       );
 
       const workerIdsByLoad = Object.keys(this.embeddingWorkers).sort((a, b) =>
@@ -118,7 +112,9 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       return;
     }
 
-    logger.debug("Trying to create new embedding worker", modelName, workerId);
+    logger.debug(
+      `Trying to create new embedding worker ${workerId} for model ${modelName}`
+    );
 
     const worker = new Worker(new URL("./embedding-worker", import.meta.url));
 
@@ -234,11 +230,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       this.queuesRunning++;
 
       logger.debug(
-        "Trying to run a job from the queue, queue length is",
-        this.embeddingJobQueue.length,
-        "jobs, with ",
-        this.queuesRunning,
-        " queues running"
+        `Trying to run a job from the queue, queue length is ${this.embeddingJobQueue.length} jobs, with ${this.queuesRunning} queues running`
       );
 
       const unassignedJobs = this.embeddingJobQueue.filter(
@@ -303,12 +295,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
         });
 
         logger.debug(
-          `Embedding ${selectedJob.batchId}`,
-          selectedJob.params.texts.length,
-          " texts with ",
-          selectedJob.modelName,
-          " on worker ",
-          selectedWorkerId
+          `Embedding ${selectedJob.batchId}: ${selectedJob.params.texts.length} texts with ${selectedJob.modelName} on worker ${selectedWorkerId}`
         );
 
         try {

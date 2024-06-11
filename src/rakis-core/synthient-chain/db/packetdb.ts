@@ -166,7 +166,10 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
     this.emitNewPacketEvents(transmittedPacket);
 
-    logger.debug("Transmitting packet:", transmittedPacket);
+    logger.debug(
+      `Transmitting packet ${transmittedPacket.packet.type}`,
+      transmittedPacket
+    );
 
     // Send the packet over the P2P network
     await this.sendPacketOverP2P(transmittedPacket);
@@ -216,7 +219,10 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
       );
 
       if (!validSignature) {
-        logger.debug("Invalid signature on packet, dropping", packet);
+        logger.debug(
+          `Invalid signature on packet, dropping packet from ${packet.synthientId}`,
+          packet
+        );
       }
 
       return validSignature;
@@ -255,12 +261,12 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
             existingPacket.signature === packet.signature
         );
 
-        if (!packetExists) {
-          logger.debug(
-            "Packet already exists in the database, dropping",
-            packet
-          );
-        }
+        // if (!packetExists) {
+        //   logger.debug(
+        //     "Packet already exists in the database, dropping",
+        //     packet
+        //   );
+        // }
 
         return packetExists;
       });
@@ -277,8 +283,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
             // Explicitly catching the bulkAdd() operation makes those successful
             // additions commit despite that there were errors.
             logger.error(
-              e.failures.length +
-                " packets were added successfully, but some others could not be ",
+              `${e.failures.length} packets were added successfully, but some others could not be. Check console for errors`,
               e
             );
           });
@@ -314,8 +319,6 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
   );
 
   async transmitPeerList() {
-    logger.debug("Might transmit peer list");
-
     // Calculate if we should be the ones sending
     const lastTwelveHours = new Date(Date.now() - 12 * 60 * 60 * 1000);
 
@@ -337,7 +340,10 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         createdAt: stringifyDateWithOffset(new Date()),
       };
 
-      logger.debug("Transmitting peer list ", knownPeers);
+      logger.debug(
+        `Transmitting peer list with ${Object.values(knownPeers).length}`,
+        knownPeers
+      );
 
       await this.transmitPacket(knownPeers);
     }
@@ -348,7 +354,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
   }
 
   receivePacket(receivedPacket: ReceivedPeerPacket): void {
-    logger.debug("Queued received packet: ", receivedPacket);
+    logger.trace("Queued received packet: ", receivedPacket);
 
     this.receivedPacketQueue.push(receivedPacket);
 
@@ -364,14 +370,12 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
   async printPackets(): Promise<void> {
     const packets = await this.db.packets.toArray();
-    logger.debug("Packets in the database:", packets);
   }
 
   async dropOldPackets(maxAgeMs: number): Promise<void> {
     const cutoffTime = new Date(Date.now() - maxAgeMs);
 
     // Won't drop our packets at any length of time because they don't have receivedTime set, this is intentional - for now
-
     await this.db.packets.where("receivedTime").below(cutoffTime).delete();
 
     logger.debug(`Dropped packets older than ${maxAgeMs}ms`);
