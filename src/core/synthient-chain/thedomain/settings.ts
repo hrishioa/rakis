@@ -12,6 +12,14 @@ export const PACKET_DB_SETTINGS: {
   peerCommunicationCount: 40,
 };
 
+export const CHAIN_CONNECTION_SETTINGS: {
+  dAppName: string;
+  url: string;
+} = {
+  dAppName: "Rakis",
+  url: "https://rakis.ai",
+};
+
 export const IDENTITY_ENCRYPTED_KEY = "encSynthientId";
 
 export const THEDOMAIN_SETTINGS: {

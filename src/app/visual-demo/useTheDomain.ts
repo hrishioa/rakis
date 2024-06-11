@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Peer } from "../../core/synthient-chain/db/entities";
+import { ChainIdentity, Peer } from "../../core/synthient-chain/db/entities";
 import { TheDomain } from "../../core/synthient-chain/thedomain/thedomain";
 import { ReceivedPeerPacket } from "../../core/synthient-chain/db/packet-types";
 import {
@@ -123,6 +123,7 @@ export function useTheDomain(
   const [llmEngineLog, setLLMEngineLog] = useState<LLMEngineLogEntry[]>([]);
   const [inferences, setInferences] = useState<InferencesForDisplay[]>([]);
   const [peerCount, setPeerCount] = useState<number | null>(null);
+  const [chainIdentities, setChainIdentities] = useState<ChainIdentity[]>([]);
 
   function scaleLLMWorkers(modelName: LLMModelName, count: number) {
     domainRef.current?.llmEngine.scaleLLMWorkers(modelName, count);
@@ -140,7 +141,7 @@ export function useTheDomain(
         type: "p2pInferenceRequest",
         requestId: generateRandomString(10),
         payload: {
-          fromChain: "ecumene",
+          fromChain: "rakis",
           blockNumber: 0,
           createdAt: stringifyDateWithOffset(new Date()),
           prompt,
@@ -160,6 +161,27 @@ export function useTheDomain(
     },
     500
   );
+
+  // TODO: Need to type this function later so its easier to propdrill
+  async function addNewChainIdentity(
+    signature: `0x${string}`,
+    chain: string,
+    signedWithWallet: string
+  ) {
+    const res = await domainRef.current?.addChainIdentity(
+      signature,
+      chain,
+      signedWithWallet
+    );
+
+    if (res) {
+      const newIdentities = domainRef.current?.chainIdentities;
+
+      if (newIdentities) {
+        setChainIdentities(newIdentities);
+      }
+    }
+  }
 
   useEffect(() => {
     const updateEngines = debounce(() => {
@@ -195,6 +217,7 @@ export function useTheDomain(
       domainRef.current = domain;
 
       setMySynthientId(domain.synthientId);
+      setChainIdentities(domain.chainIdentities || []);
 
       domain.llmEngine.on("workerFree", updateEngines);
       domain.llmEngine.on("workerLoadFailed", updateEngines);
@@ -312,5 +335,7 @@ export function useTheDomain(
     scaleLLMWorkers,
     submitInferenceRequest,
     peerCount,
+    chainIdentities,
+    addNewChainIdentity,
   };
 }

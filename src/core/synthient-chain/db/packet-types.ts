@@ -1,10 +1,6 @@
 import { EmbeddingModelName } from "../embeddings/types";
 import { LLMModelName } from "../llm/types";
-import {
-  ChainIdentity,
-  SupportedChains,
-  SupportedP2PDeliveryNetwork,
-} from "./entities";
+import { ChainIdentity, SupportedP2PDeliveryNetwork } from "./entities";
 
 // Things from chain to client
 
@@ -57,7 +53,7 @@ export type UnprocessedInferenceRequest = {
 };
 
 type InferenceRequestPayload = {
-  fromChain: SupportedChains;
+  fromChain: string;
   blockNumber: number;
   createdAt: string;
   prompt: string;

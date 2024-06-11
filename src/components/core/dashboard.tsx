@@ -39,6 +39,8 @@ const Dashboard: React.FC<{
     inferences,
     submitInferenceRequest,
     peerCount,
+    chainIdentities,
+    addNewChainIdentity,
   } = useTheDomain(identityPassword, overwriteIdentity);
 
   const [open, setOpen] = useState(false);
@@ -69,182 +71,188 @@ const Dashboard: React.FC<{
   };
 
   return (
-    <div className="p-8 overflow-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex flex-col  mb-8">
-          <h1 className="text-4xl font-bold mb-2">Started A Rakis</h1>
-          <h2 className="text-sm font-bold">
-            ID: {mySynthientId?.slice(0, 50)}...
-          </h2>
-        </div>
-        <div className="flex flex-col space-y-4">
-          <div className="flex flex-row items-center space-x-4">
-            <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={open}
-                  className="w-[300px] justify-between"
-                >
-                  {selectedModel || "Select model..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[300px] p-0 z-50">
-                <Command>
-                  <CommandInput placeholder="Search model..." />
-                  <CommandList>
-                    <CommandEmpty>No model found.</CommandEmpty>
-                    <CommandGroup>
-                      {availableModels.map((model) => (
-                        <CommandItem
-                          key={model}
-                          value={model}
-                          onSelect={(currentValue) => {
-                            setSelectedModel(
-                              currentValue === selectedModel
-                                ? ""
-                                : (currentValue as LLMModelName)
-                            );
-                            setOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              selectedModel === model
-                                ? "opacity-100"
-                                : "opacity-0"
-                            )}
-                          />
-                          {model}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            <input
-              type="number"
-              min={1}
-              value={numWorkers}
-              onChange={(e) => setNumWorkers(parseInt(e.target.value))}
-              className="w-20 px-2 py-1 border rounded-md"
-            />
-            <Button onClick={handleScale}>Scale Workers</Button>
+    mySynthientId && (
+      <div className="p-8 overflow-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col  mb-8">
+            <h1 className="text-4xl font-bold mb-2">Started A Rakis</h1>
+            <h2 className="text-sm font-bold">
+              ID: {mySynthientId?.slice(0, 50)}...
+            </h2>
           </div>
-          <ChainConnections />
+          <div className="flex flex-col space-y-4">
+            <div className="flex flex-row items-center space-x-4">
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-[300px] justify-between"
+                  >
+                    {selectedModel || "Select model..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0 z-50">
+                  <Command>
+                    <CommandInput placeholder="Search model..." />
+                    <CommandList>
+                      <CommandEmpty>No model found.</CommandEmpty>
+                      <CommandGroup>
+                        {availableModels.map((model) => (
+                          <CommandItem
+                            key={model}
+                            value={model}
+                            onSelect={(currentValue) => {
+                              setSelectedModel(
+                                currentValue === selectedModel
+                                  ? ""
+                                  : (currentValue as LLMModelName)
+                              );
+                              setOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedModel === model
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                            {model}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <input
+                type="number"
+                min={1}
+                value={numWorkers}
+                onChange={(e) => setNumWorkers(parseInt(e.target.value))}
+                className="w-20 px-2 py-1 border rounded-md"
+              />
+              <Button onClick={handleScale}>Scale Workers</Button>
+            </div>
+            <ChainConnections
+              chainIdentities={chainIdentities}
+              synthientId={mySynthientId}
+              addNewChainIdentity={addNewChainIdentity}
+            />
+          </div>
         </div>
-      </div>
 
-      <div className="mb-8 grid grid-cols-2 gap-8">
-        {inferences && (
-          <div className="bg-white rounded-lg shadow-lg p-6 col-span-1">
-            <InferenceList inferences={inferences} />
-          </div>
-        )}
-        <div className="ml-8 col-span-1">
-          <h2 className="text-2xl font-bold mb-4">Inference Request</h2>
-          <div className="mb-4">
-            <Label htmlFor="prompt">Prompt</Label>
-            <Input
-              id="prompt"
-              value={prompt}
-              onChange={(e: any) => setPrompt(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <div className="mb-4">
-            <Label>Models</Label>
-            <MultiSelect
-              options={availableModels.map((model) => ({
-                value: model,
-                label: model,
-              }))}
-              defaultValue={selectedModels}
-              onValueChange={setSelectedModels}
-              placeholder="Select models..."
-              animation={2}
-              maxCount={3}
-              className="w-full"
-            />
-          </div>
-          <div className="mb-4">
-            <Label htmlFor="minimumParticipants">Minimum Participants</Label>
-            <Input
-              id="minimumParticipants"
-              type="number"
-              min={1}
-              value={minimumParticipants}
-              onChange={(e: any) =>
-                setMinimumParticipants(
-                  isNaN(e.target.value) ? 1 : parseInt(e.target.value)
-                )
-              }
-              className="w-full"
-            />
-          </div>
-          <div className="mb-4">
-            <Label htmlFor="timeAvailableSeconds">
-              Time Available (seconds)
-            </Label>
-            <Input
-              id="timeAvailableSeconds"
-              type="number"
-              min={1}
-              value={timeAvailableSeconds}
-              onChange={(e: any) =>
-                setTimeAvailableSeconds(
-                  isNaN(e.target.value) ? 10 : parseInt(e.target.value)
-                )
-              }
-              className="w-full"
-            />
-          </div>
-          <div className="mb-4">
-            <Label htmlFor="percentageAgreement">Percentage Agreement</Label>
-            <Input
-              id="percentageAgreement"
-              type="number"
-              min={0}
-              max={100}
-              value={percentageAgreement}
-              onChange={(e: any) =>
-                setPercentageAgreement(parseInt(e.target.value))
-              }
-              className="w-full"
-            />
-          </div>
-          <Button
-            onClick={handleInferenceSubmit}
-            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
-          >
-            Send Inference Request
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-10rem)] overflow-auto">
-        <div className="lg:col-span-1">
-          <LLMWorkers
-            llmWorkerStates={llmWorkerStates}
-            llmEngineLog={llmEngineLog}
-          />
-        </div>
-        <div className="lg:col-span-1">
-          {packets && (
-            <div className="bg-white rounded-lg shadow-lg p-6 lg:h-[50vh]">
-              <PacketCards packets={packets.packets} total={packets.total} />
+        <div className="mb-8 grid grid-cols-2 gap-8">
+          {inferences && (
+            <div className="bg-white rounded-lg shadow-lg p-6 col-span-1">
+              <InferenceList inferences={inferences} />
             </div>
           )}
+          <div className="ml-8 col-span-1">
+            <h2 className="text-2xl font-bold mb-4">Inference Request</h2>
+            <div className="mb-4">
+              <Label htmlFor="prompt">Prompt</Label>
+              <Input
+                id="prompt"
+                value={prompt}
+                onChange={(e: any) => setPrompt(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="mb-4">
+              <Label>Models</Label>
+              <MultiSelect
+                options={availableModels.map((model) => ({
+                  value: model,
+                  label: model,
+                }))}
+                defaultValue={selectedModels}
+                onValueChange={setSelectedModels}
+                placeholder="Select models..."
+                animation={2}
+                maxCount={3}
+                className="w-full"
+              />
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="minimumParticipants">Minimum Participants</Label>
+              <Input
+                id="minimumParticipants"
+                type="number"
+                min={1}
+                value={minimumParticipants}
+                onChange={(e: any) =>
+                  setMinimumParticipants(
+                    isNaN(e.target.value) ? 1 : parseInt(e.target.value)
+                  )
+                }
+                className="w-full"
+              />
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="timeAvailableSeconds">
+                Time Available (seconds)
+              </Label>
+              <Input
+                id="timeAvailableSeconds"
+                type="number"
+                min={1}
+                value={timeAvailableSeconds}
+                onChange={(e: any) =>
+                  setTimeAvailableSeconds(
+                    isNaN(e.target.value) ? 10 : parseInt(e.target.value)
+                  )
+                }
+                className="w-full"
+              />
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="percentageAgreement">Percentage Agreement</Label>
+              <Input
+                id="percentageAgreement"
+                type="number"
+                min={0}
+                max={100}
+                value={percentageAgreement}
+                onChange={(e: any) =>
+                  setPercentageAgreement(parseInt(e.target.value))
+                }
+                className="w-full"
+              />
+            </div>
+            <Button
+              onClick={handleInferenceSubmit}
+              className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
+            >
+              Send Inference Request
+            </Button>
+          </div>
         </div>
-        <div className="lg:col-span-1">
-          {peers && <PeerTable peers={peers} peerCount={peerCount || 0} />}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-10rem)] overflow-auto">
+          <div className="lg:col-span-1">
+            <LLMWorkers
+              llmWorkerStates={llmWorkerStates}
+              llmEngineLog={llmEngineLog}
+            />
+          </div>
+          <div className="lg:col-span-1">
+            {packets && (
+              <div className="bg-white rounded-lg shadow-lg p-6 lg:h-[50vh]">
+                <PacketCards packets={packets.packets} total={packets.total} />
+              </div>
+            )}
+          </div>
+          <div className="lg:col-span-1">
+            {peers && <PeerTable peers={peers} peerCount={peerCount || 0} />}
+          </div>
         </div>
       </div>
-    </div>
+    )
   );
 };
 

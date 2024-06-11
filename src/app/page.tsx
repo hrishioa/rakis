@@ -16,7 +16,6 @@ import Dashboard from "../components/core/dashboard";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "../core/chains/wagmi-config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import ChainConnections from "../components/core/chain-connections";
 
 const queryClient = new QueryClient();
 

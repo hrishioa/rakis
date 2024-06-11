@@ -27,6 +27,7 @@
     "@radix-ui/react-switch": "^1.0.3",
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
+    "@radix-ui/react-tooltip": "^1.0.7",
     "@react-three/drei": "^9.105.6",
     "@react-three/fiber": "^8.16.6",
     "@shopify/react-web-worker": "^5.0.17",

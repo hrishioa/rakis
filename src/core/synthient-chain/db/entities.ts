@@ -25,15 +25,16 @@ export const P2PDeliveryNetworks = [
 
 export type SupportedP2PDeliveryNetwork = (typeof P2PDeliveryNetworks)[number];
 
-export type SupportedChains = "eth" | "arbitrum" | "ecumene";
+// export type SupportedChains = "eth" | "arbitrum" | "ecumene";
 // | "solana"; // Coming soon?
+// TODO: ^ Need to figure out how to get types across from wagmi here
 
 export type ChainIdentity = {
-  chain: SupportedChains;
+  chain: string;
   address: string;
   // Signature of the synthientId from this node with the chain address
   synthientIdSignature: string;
-  signedWithWallet: "metamask"; // TODO: Change to a proper enum later, like metamask, phantom, etc
+  signedWithWallet: string; // TODO: Change to a proper enum later, like metamask, phantom, etc
 };
 
 export type Peer = {

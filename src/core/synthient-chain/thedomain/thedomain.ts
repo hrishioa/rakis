@@ -9,7 +9,7 @@ import {
   TransmittedPeerPacket,
 } from "../db/packet-types";
 import { PacketDB } from "../db/packetdb";
-import { ClientInfo, initClientInfo } from "../identity";
+import { ClientInfo, initClientInfo, saveIdentity } from "../identity";
 import { P2PNetworkFactory } from "../p2p-networks/networkfactory";
 import { P2PNetworkInstance } from "../p2p-networks/p2pnetwork-types";
 import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
@@ -20,6 +20,8 @@ import {
   propagateInferencePacketsFromInferenceDBtoP2P,
   saveInferencePacketsFromP2PToInferenceDB,
 } from "./connectors";
+import { ChainIdentity } from "../db/entities";
+import { recoverEthChainAddressFromSignature } from "../utils/simple-crypto";
 
 const logger = createLogger("Domain", logStyles.theDomain);
 
@@ -44,6 +46,7 @@ export class TheDomain {
   public embeddingEngine: EmbeddingEngine;
   public llmEngine: LLMEngine;
   public inferenceDB: InferenceDB;
+  public chainIdentities: ChainIdentity[];
   private inferenceStatus: {
     inferenceIdsInProcess: string[];
     inferenceCompletionInterval: NodeJS.Timeout | null;
@@ -175,6 +178,7 @@ export class TheDomain {
   }
 
   private constructor(
+    private identityPassword: string,
     private clientInfo: ClientInfo,
     private p2pNetworkInstances: P2PNetworkInstance<any, any>[],
     initialEmbeddingWorkers: { modelName: EmbeddingModelName; count: number }[],
@@ -187,6 +191,7 @@ export class TheDomain {
     };
 
     this.synthientId = clientInfo.synthientId;
+    this.chainIdentities = clientInfo.chainIds;
 
     this.packetDB = new PacketDB(clientInfo, broadcastPacket);
     this.inferenceDB = new InferenceDB(clientInfo.synthientId);
@@ -223,46 +228,51 @@ export class TheDomain {
       status: "boot",
       createdAt: stringifyDateWithOffset(new Date()),
     });
+  }
 
-    // Await the promise if we want to block, but we're fine without I think
-    // TODO: This is just for testing!
-    if (typeof window !== "undefined") {
-      (window as any).theDomain = {
-        runInference: (
-          prompt: string,
-          model: LLMModelName,
-          maxTimeMs: number
-        ) => {
-          this.packetDB.transmitPacket({
-            type: "p2pInferenceRequest",
-            requestId: generateRandomString(10),
-            payload: {
-              fromChain: "ecumene",
-              blockNumber: 0,
-              createdAt: stringifyDateWithOffset(new Date()),
-              prompt,
-              acceptedModels: [model],
-              temperature: 1,
-              maxTokens: 2048,
-              securityFrame: {
-                quorum: 2,
-                maxTimeMs,
-                secDistance: 4500,
-                secPercentage: 0.5, // TODO: Important maybe we need to change this to base 100, or are we too late for that?
-                embeddingModel: "nomic-ai/nomic-embed-text-v1.5",
-              },
-            },
-            createdAt: stringifyDateWithOffset(new Date()),
-          });
-        },
-        updateLLMWorkers: (modelName: LLMModelName, count: number) => {
-          this.llmEngine.scaleLLMWorkers(modelName, count);
-        },
-        llmEngine: this.llmEngine,
-      };
+  async addChainIdentity(
+    signature: `0x${string}`,
+    chain: string,
+    signedWithWallet: string
+  ) {
+    const address = await recoverEthChainAddressFromSignature(
+      this.synthientId,
+      signature
+    );
 
-      logger.debug("Inference request function exposed.");
+    if (this.chainIdentities.find((identity) => identity.address === address)) {
+      logger.debug("Identity already exists for this address ", address);
+      return true;
     }
+
+    if (!address) {
+      logger.error("Could not recover address from signature ", signature);
+      return false;
+    }
+
+    try {
+      this.chainIdentities.push({
+        address,
+        chain,
+        signedWithWallet,
+        synthientIdSignature: signature,
+      });
+
+      await saveIdentity(this.clientInfo, this.identityPassword);
+
+      logger.debug("Updated local identity with new chain ids.");
+
+      await this.packetDB.transmitPacket({
+        type: "peerConnectedChain",
+        createdAt: stringifyDateWithOffset(new Date()),
+        identities: this.chainIdentities,
+      });
+    } catch (err) {
+      logger.error("Could not save new chain identity ", err);
+      return false;
+    }
+
+    return true;
   }
 
   private async processEmbeddingQueue() {
@@ -685,6 +695,7 @@ export class TheDomain {
     logger.debug("Connecting up working networks.");
 
     this.instance = new TheDomain(
+      identityPassword,
       clientInfo,
       workingP2PNetworkInstances,
       initialEmbeddingWorkers,

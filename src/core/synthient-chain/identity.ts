@@ -33,6 +33,13 @@ export function createNewEmptyIdentity(): ClientInfo {
   return newIdentity;
 }
 
+export async function saveIdentity(identity: ClientInfo, password: string) {
+  // Encrypt and save
+  const encryptedIdentity: string = await encryptData(identity, password);
+
+  localStorage.setItem(IDENTITY_ENCRYPTED_KEY, encryptedIdentity);
+}
+
 export async function initClientInfo(
   password: string,
   overwrite: boolean = false
@@ -65,9 +72,7 @@ export async function initClientInfo(
     const newIdentity: ClientInfo = createNewEmptyIdentity();
 
     // Encrypt and save
-    const encryptedIdentity: string = await encryptData(newIdentity, password);
-
-    localStorage.setItem(IDENTITY_ENCRYPTED_KEY, encryptedIdentity);
+    await saveIdentity(newIdentity, password);
 
     console.log("Encrypted and saved to localStorage.");
 

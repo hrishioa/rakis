@@ -3,7 +3,23 @@
 import { Buffer } from "buffer";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
+import { recoverMessageAddress } from "viem";
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+
+export async function recoverEthChainAddressFromSignature(
+  message: string,
+  signature: `0x${string}`
+) {
+  try {
+    return await recoverMessageAddress({
+      message,
+      signature,
+    });
+  } catch (err) {
+    console.error("Could not recover address from signature", err);
+    return null;
+  }
+}
 
 export async function hashBinaryEmbedding(bEmbedding: number[]) {
   const uint8Array = new Uint8Array(bEmbedding);
