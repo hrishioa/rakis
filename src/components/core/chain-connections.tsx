@@ -1,5 +1,11 @@
 "use client";
-import { useAccount, useConnect, useDisconnect, useSignMessage } from "wagmi";
+import {
+  Connector,
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useSignMessage,
+} from "wagmi";
 import { Button } from "../ui/button";
 import { useEffect, useRef, useState } from "react";
 import { Label } from "../ui/label";
@@ -30,6 +36,18 @@ const ChainConnections: React.FC<{
   useEffect(() => {
     console.log("Got chain connectors ", connectors);
   }, [connectors]);
+
+  function getFilteredConnectors(connectors: readonly Connector[]) {
+    const firstPartyConnectors = connectors.filter(
+      (connector) => connector.type === "injected"
+    );
+
+    if (firstPartyConnectors.length) {
+      return firstPartyConnectors;
+    } else {
+      return connectors;
+    }
+  }
 
   useEffect(() => {
     if (
@@ -117,11 +135,10 @@ const ChainConnections: React.FC<{
           </Button>
         </div>
       ) : (
-        <div className="flex flex-grow space-x-4 justify-end">
-          <span className="mr-2 pt-2">Connect New </span>
-          {connectors
-            .filter((connector) => connector.type === "injected")
-            .map((connector) => (
+        (getFilteredConnectors(connectors).length && (
+          <div className="flex flex-grow space-x-4 justify-end">
+            <span className="mr-2 pt-2">Connect New </span>
+            {getFilteredConnectors(connectors).map((connector) => (
               <Button
                 key={connector.uid}
                 onClick={() => connect({ connector })}
@@ -137,7 +154,9 @@ const ChainConnections: React.FC<{
                 {connector.name}
               </Button>
             ))}
-        </div>
+          </div>
+        )) ||
+        null
       )}
     </div>
   );
