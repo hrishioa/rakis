@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "jest"
+    "test": "jest",
+    "licenses": "license-checker --production --direct --json | jq 'map_values(del(.path, .licenseFile))' > licensing/sublicenses.json && license-checker --production --direct --summary > licensing/summary.txt"
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.35",
@@ -75,6 +76,7 @@
     "@types/react-plotly.js": "^2.6.3",
     "eslint": "^8",
     "eslint-config-next": "14.2.3",
+    "license-checker": "^25.0.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
