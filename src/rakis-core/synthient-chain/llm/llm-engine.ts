@@ -25,6 +25,7 @@ type LLMEngineEvents = {
     error: any;
   }) => void;
   workerLoaded: (data: { modelName: LLMModelName; workerId: string }) => void;
+  workerLoading: (data: { modelName: LLMModelName; workerId: string }) => void;
   workerUnloaded: (data: { workerId: string }) => void;
   workerFree: (data: { workerId: string }) => void;
 };
@@ -51,6 +52,27 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
       );
 
     return logLength;
+  }
+
+  // This is likely to be fragile since it relies on the specific implementation for logging from the engine
+  private parseCustomLoadingProgress(progressString: string) {
+    const example = `Loading model from cache[38/38]`;
+
+    const regex = /Loading model from cache\[(\d+)\/(\d+)\]/;
+
+    const match = regex.exec(progressString);
+
+    if (!match) return;
+
+    try {
+      const current = parseInt(match[1]);
+      const total = parseInt(match[2]);
+
+      // Don't let it get to 1.0 since there might be more steps after
+      return current / total - 0.01;
+    } catch (err) {
+      return;
+    }
   }
 
   public searchEngineLogs(type: string, workerId: string): LLMEngineLogEntry[] {
@@ -83,7 +105,11 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
   }
 
   public getWorkerStates(): {
-    [workerId: string]: { modelName: LLMModelName; state: string };
+    [workerId: string]: {
+      modelName: LLMModelName;
+      state: string;
+      loadingProgress: number;
+    };
   } {
     return Object.keys(this.llmWorkers).reduce((acc, cur) => {
       acc[cur] = {
@@ -93,9 +119,10 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
           : this.llmWorkers[cur].modelLoadingProgress < 1
           ? "loading"
           : "idle",
+        loadingProgress: this.llmWorkers[cur].modelLoadingProgress,
       };
       return acc;
-    }, {} as { [workerId: string]: { modelName: LLMModelName; state: string } });
+    }, {} as { [workerId: string]: { modelName: LLMModelName; state: string; loadingProgress: number } });
   }
 
   public getWorkerAvailability(modelNames: LLMModelName[]): {
@@ -174,6 +201,8 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         workerId,
       });
 
+      this.emit("workerLoading", { modelName, workerId });
+
       this.llmWorkers[workerId].llmEngine =
         await webllm.CreateWebWorkerMLCEngine(
           new Worker(new URL("./mlc-worker.ts", import.meta.url), {
@@ -187,7 +216,26 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
                 report
               );
 
-              this.llmWorkers[workerId].modelLoadingProgress = report.progress;
+              if (report.progress === 0) {
+                const customParsedProgress = this.parseCustomLoadingProgress(
+                  report.text
+                );
+
+                if (customParsedProgress) {
+                  this.llmWorkers[workerId].modelLoadingProgress =
+                    customParsedProgress;
+                  logger.debug(
+                    `Worker ${workerId}: Custom progress parsed - ${customParsedProgress}`
+                  );
+                } else {
+                  this.llmWorkers[workerId].modelLoadingProgress =
+                    report.progress;
+                }
+              } else {
+                this.llmWorkers[workerId].modelLoadingProgress =
+                  report.progress;
+              }
+
               if (report.progress === 1) {
                 if (
                   !this.searchEngineLogs("engine_loaded", workerId).filter(
@@ -224,6 +272,8 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         err
       );
       this.llmWorkers[workerId].modelLoadingPromise?.reject(err);
+
+      this.unloadWorker(workerId, true);
     }
 
     return await this.llmWorkers[workerId]!.modelLoadingPromise!.promise;

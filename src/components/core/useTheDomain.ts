@@ -223,6 +223,7 @@ export function useTheDomain(
       setChainIdentities(domain.chainIdentities || []);
 
       domain.llmEngine.on("workerFree", updateEngines);
+      domain.llmEngine.on("workerLoading", updateEngines);
       domain.llmEngine.on("workerLoadFailed", updateEngines);
       domain.llmEngine.on("workerLoaded", updateEngines);
       domain.llmEngine.on("workerUnloaded", updateEngines);
