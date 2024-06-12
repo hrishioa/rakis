@@ -121,6 +121,8 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     worker.onmessage = (event: MessageEvent<EmbeddingWorkerSentMessage>) => {
       const message = event.data;
 
+      logger.debug(`Received message from worker ${workerId}: ${message.type}`);
+
       switch (message.type) {
         case "workerLoaded":
           this.embeddingWorkers[workerId].status = "loaded";

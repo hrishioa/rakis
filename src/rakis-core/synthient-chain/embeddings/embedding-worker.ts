@@ -15,6 +15,8 @@ const logger = createLogger(
   true
 );
 
+console.log("Created embedding worker logger ", logger);
+
 let workerInstance: EmbeddingWorker | null = null;
 
 function sendMessageToParent(message: EmbeddingWorkerSentMessage) {

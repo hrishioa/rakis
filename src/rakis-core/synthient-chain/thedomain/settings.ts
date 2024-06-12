@@ -33,8 +33,8 @@ let lastLoadedStoredSettings: STORED_SETTINGS | null = null;
 export function loadSettings() {
   let loadedSettings: STORED_SETTINGS = {};
 
-  if (typeof window !== "undefined" && window.localStorage) {
-    try {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
       if (
         typeof window !== "undefined" &&
         window.localStorage &&
@@ -45,13 +45,16 @@ export function loadSettings() {
         );
         lastLoadedStoredSettings = loadedSettings;
       }
-    } catch (err) {
-      console.error("Error loading settings from localStorage", err);
-      // This is just to avoid the headache of drilling in the window object to the workers
-      if (lastLoadedStoredSettings) {
-        console.log("Using last loaded settings - ", lastLoadedStoredSettings);
-        loadedSettings = lastLoadedStoredSettings;
-      }
+    }
+  } catch (err) {
+    console.error(
+      "Error loading settings from localStorage, loading saved settings if we have them",
+      lastLoadedStoredSettings
+    );
+    // This is just to avoid the headache of drilling in the window object to the workers
+    if (lastLoadedStoredSettings) {
+      console.log("Using last loaded settings - ", lastLoadedStoredSettings);
+      loadedSettings = lastLoadedStoredSettings;
     }
   }
 

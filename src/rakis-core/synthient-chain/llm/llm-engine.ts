@@ -299,7 +299,11 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
       this.unloadWorker(workerId, true);
     }
 
-    return await this.llmWorkers[workerId]!.modelLoadingPromise!.promise;
+    return (
+      (this.llmWorkers[workerId] &&
+        (await this.llmWorkers[workerId]!.modelLoadingPromise!.promise)) ||
+      false
+    );
   }
 
   private emitModelLoadingProgress = debounce(() => {
