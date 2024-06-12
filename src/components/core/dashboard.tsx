@@ -47,7 +47,9 @@ const Dashboard: React.FC<{
   } = useTheDomain(identityPassword, overwriteIdentity);
 
   const [open, setOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<LLMModelName | "">("");
+  const [selectedModel, setSelectedModel] = useState<LLMModelName | "">(
+    "gemma-2b-it-q4f16_1"
+  );
   const [numWorkers, setNumWorkers] = useState(1);
 
   const [prompt, setPrompt] = useState("");
@@ -149,7 +151,10 @@ const Dashboard: React.FC<{
                 type="number"
                 min={1}
                 value={numWorkers}
-                onChange={(e) => setNumWorkers(parseInt(e.target.value))}
+                onChange={(e) => {
+                  if (!isNaN(parseInt(e.target.value)))
+                    setNumWorkers(parseInt(e.target.value));
+                }}
                 className="w-20 px-2 py-1 border rounded-md"
               />
               <Button onClick={handleScale}>Scale Workers</Button>

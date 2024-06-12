@@ -3,8 +3,11 @@ import { decryptData, encryptData } from "./utils/simple-crypto";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
 import { getDeviceInfo } from "./utils/utils";
-import { IDENTITY_ENCRYPTED_KEY } from "./thedomain/settings";
+import { loadSettings } from "./thedomain/settings";
+
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+
+const identityEncryptedKey = loadSettings().identityEncryptedKey;
 
 // Personal persisted information about this particular client
 export type ClientInfo = {
@@ -35,7 +38,7 @@ export async function saveIdentity(identity: ClientInfo, password: string) {
   // Encrypt and save
   const encryptedIdentity: string = await encryptData(identity, password);
 
-  localStorage.setItem(IDENTITY_ENCRYPTED_KEY, encryptedIdentity);
+  localStorage.setItem(identityEncryptedKey, encryptedIdentity);
 }
 
 export async function initClientInfo(
@@ -44,10 +47,10 @@ export async function initClientInfo(
 ): Promise<ClientInfo> {
   if (clientInfo) return clientInfo;
 
-  if (!overwrite && localStorage.getItem(IDENTITY_ENCRYPTED_KEY) && password) {
+  if (!overwrite && localStorage.getItem(identityEncryptedKey) && password) {
     // Decrypt and load
     try {
-      const encrypted = localStorage.getItem(IDENTITY_ENCRYPTED_KEY);
+      const encrypted = localStorage.getItem(identityEncryptedKey);
       const decryptedIdentity: ClientInfo = await decryptData(
         encrypted!,
         password

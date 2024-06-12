@@ -6,8 +6,8 @@ import {
   PacketReceivedCallback,
 } from "./p2pnetwork-types";
 import { DeferredPromise } from "../utils/deferredpromise";
-import { P2P_CONFIG } from "./p2p-config";
 import { createLogger, logStyles } from "../utils/logger";
+import { DEFAULT_P2P_CONFIG } from "./p2p-config";
 
 const logger = createLogger("P2P: NKN", logStyles.p2pNetworks.nkn);
 
@@ -38,7 +38,11 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
     [];
   private errorHandlers: ErrorHandler[] = [];
 
-  constructor(synthientId: string, options: NknBootstrapOptions) {
+  constructor(
+    synthientId: string,
+    options: NknBootstrapOptions,
+    private p2pNKNSettings: (typeof DEFAULT_P2P_CONFIG)["NKN"]
+  ) {
     super(synthientId, options);
     this.nknTopic = options.nknTopic;
 
@@ -116,7 +120,7 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
         this.transmissionErrorCount++;
         if (
           this.transmissionErrorCount >
-          P2P_CONFIG.NKN.maxSendErrorsBeforeRestart
+          this.p2pNKNSettings.maxSendErrorsBeforeRestart
         ) {
           this.errorHandlers.forEach((handler) =>
             handler(error as Error, true)

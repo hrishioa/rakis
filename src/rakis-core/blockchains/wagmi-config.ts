@@ -1,7 +1,9 @@
 import { createConfig, http } from "wagmi";
 import { mainnet, sepolia, polygon, arbitrum, avalanche } from "wagmi/chains";
 import { metaMask } from "wagmi/connectors";
-import { CHAIN_CONNECTION_SETTINGS } from "../synthient-chain/thedomain/settings";
+import { loadSettings } from "../../rakis-core/synthient-chain/thedomain/settings";
+
+const chainConnectionSettings = loadSettings().chainConnectionSettings;
 
 declare module "wagmi" {
   interface Register {
@@ -14,8 +16,8 @@ export const wagmiConfig = createConfig({
   connectors: [
     metaMask({
       dappMetadata: {
-        name: CHAIN_CONNECTION_SETTINGS.dAppName,
-        url: CHAIN_CONNECTION_SETTINGS.url,
+        name: chainConnectionSettings.dAppName,
+        url: chainConnectionSettings.url,
       },
     }),
   ],

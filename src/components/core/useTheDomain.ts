@@ -15,6 +15,7 @@ import {
   generateRandomString,
   stringifyDateWithOffset,
 } from "../../rakis-core/synthient-chain/utils/utils";
+import { loadSettings } from "../../rakis-core/synthient-chain/thedomain/settings";
 
 const POLLING_INTERVAL = 3000; // 5 seconds
 
@@ -209,13 +210,14 @@ export function useTheDomain(
     }, 100);
 
     const initDomain = async () => {
+      const rakisSettings = loadSettings();
+
       const domain = await TheDomain.bootup({
         identityPassword,
         overwriteIdentity,
-        initialLLMWorkers: [{ modelName: "gemma-2b-it-q4f16_1", count: 2 }],
-        initialEmbeddingWorkers: [
-          { modelName: "nomic-ai/nomic-embed-text-v1.5", count: 1 },
-        ],
+        initialEmbeddingWorkers:
+          rakisSettings.workerSettings.initialEmbeddingWorkers,
+        initialLLMWorkers: rakisSettings.workerSettings.initialLLMWorkers,
       });
       domainRef.current = domain;
 

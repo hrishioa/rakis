@@ -16,7 +16,7 @@ import {
 } from "../db/packet-types";
 import { generateRandomString } from "../utils/utils";
 import { createLogger, logStyles } from "../utils/logger";
-import { LLM_ENGINE_SETTINGS } from "../thedomain/settings";
+import { loadSettings, saveSettings } from "../thedomain/settings";
 
 type LLMEngineEvents = {
   workerLoadFailed: (data: {
@@ -32,6 +32,8 @@ type LLMEngineEvents = {
 
 const logger = createLogger("LLM Engine", logStyles.llmEngine.main);
 
+const llmEngineSettings = loadSettings().llmEngineSettings;
+
 export class LLMEngine extends EventEmitter<LLMEngineEvents> {
   public llmWorkers: Record<string, LLMWorker> = {};
   // TODO: Move this into indexedDB
@@ -46,10 +48,8 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
 
     this.engineLog.push(entry);
 
-    if (this.engineLog.length > LLM_ENGINE_SETTINGS.engineLogLimit)
-      this.engineLog = this.engineLog.slice(
-        -LLM_ENGINE_SETTINGS.engineLogLimit
-      );
+    if (this.engineLog.length > llmEngineSettings.engineLogLimit)
+      this.engineLog = this.engineLog.slice(-llmEngineSettings.engineLogLimit);
 
     return logLength;
   }
@@ -152,7 +152,29 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
       });
 
       this.emit("workerUnloaded", { workerId });
+      this.saveWorkersToSettings();
     }
+  }
+
+  private saveWorkersToSettings() {
+    const llmWorkerConfig = Object.values(
+      Object.values(this.llmWorkers)
+        .filter((worker) => worker.modelLoadingProgress >= 1)
+        .reduce((acc, cur) => {
+          if (acc[cur.modelName]) {
+            acc[cur.modelName].count++;
+          } else {
+            acc[cur.modelName] = { modelName: cur.modelName, count: 1 };
+          }
+          return acc;
+        }, {} as { [modelName: string]: { modelName: LLMModelName; count: number } })
+    );
+
+    saveSettings({
+      workerSettings: {
+        initialLLMWorkers: llmWorkerConfig,
+      },
+    });
   }
 
   public async getWorkerState(workerId: string) {
@@ -250,10 +272,12 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
 
                   this.emit("workerLoaded", { modelName, workerId });
                   this.emit("workerFree", { workerId });
+
+                  this.saveWorkersToSettings();
+                  this.llmWorkers[workerId].modelLoadingPromise?.resolve(
+                    workerId
+                  );
                 }
-                this.llmWorkers[workerId].modelLoadingPromise?.resolve(
-                  workerId
-                );
               }
             },
           }

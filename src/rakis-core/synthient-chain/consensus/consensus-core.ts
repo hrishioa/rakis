@@ -4,14 +4,16 @@ import {
   InferenceRevealRejected,
   InferenceSecurityFrame,
 } from "../db/packet-types";
-import { QUORUM_SETTINGS } from "../thedomain/settings";
 import { createLogger, logStyles } from "../utils/logger";
 import cosSimilarity from "cos-similarity";
 import { stringifyDateWithOffset } from "../utils/utils";
 import { hashBinaryEmbedding, hashString } from "../utils/simple-crypto";
 import { InferenceQuorum, ConsensusResults } from "../db/entities";
+import { loadSettings } from "../thedomain/settings";
 
 const logger = createLogger("Consensus Core", logStyles.consensusCore);
+
+const quorumSettings = loadSettings().quorumSettings;
 
 // TODO: Change this to a worker in case it becomes
 // Computationally expensive
@@ -73,7 +75,7 @@ export async function runFinalConsensus(
           verifiedEmbedding.binaryEmbedding
         );
 
-        if (similarity < 1 - QUORUM_SETTINGS.bEmbeddingThreshold) {
+        if (similarity < 1 - quorumSettings.bEmbeddingThreshold) {
           logger.warn(
             `Consensus ${quorum.requestId}: Rejecting reveal for ${revealedCommit.inferenceId} from ${revealedCommit.synthientId} - our embeddings didn't match`,
             revealedCommit,
@@ -82,7 +84,7 @@ export async function runFinalConsensus(
             " to verified embedding ",
             verifiedEmbedding,
             " over threshold ",
-            QUORUM_SETTINGS.bEmbeddingThreshold
+            quorumSettings.bEmbeddingThreshold
           );
 
           rejectionPackets.push({

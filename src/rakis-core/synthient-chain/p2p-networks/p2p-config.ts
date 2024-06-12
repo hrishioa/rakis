@@ -1,6 +1,24 @@
-export const P2P_CONFIG = {
+import { DEFAULT_P2P_SETTINGS } from "../thedomain/settings";
+
+export function getP2PConfig(p2pSettings: typeof DEFAULT_P2P_SETTINGS) {
+  const config = DEFAULT_P2P_CONFIG;
+
+  config.PEWPEW.topic = p2pSettings.topic;
+  config.NKN.topic = p2pSettings.topic;
+  config.TRYSTERO.appId = p2pSettings.topic;
+  config.TRYSTERO.topic = p2pSettings.topic + "T";
+
+  config.NKN.maxSendErrorsBeforeRestart =
+    p2pSettings.maxTransmissionErrorsBeforeRestart;
+  config.TRYSTERO.maxTransmissionErrorsBeforeRestart =
+    p2pSettings.maxTransmissionErrorsBeforeRestart;
+
+  return config;
+}
+
+export const DEFAULT_P2P_CONFIG = {
   PEWPEW: {
-    topic: "synthient-testnet5",
+    topic: "rakis0",
     bootFixedDelayMs: 1000,
     bootstrapPeers: [
       "https://gun-manhattan.herokuapp.com/gun",
@@ -12,12 +30,12 @@ export const P2P_CONFIG = {
 
   NKN: {
     maxSendErrorsBeforeRestart: 5,
-    topic: "zensu5",
+    topic: "rakis0",
   },
   TRYSTERO: {
     maxTransmissionErrorsBeforeRestart: 5,
-    appId: "synthient",
-    topic: "synthient5",
+    appId: "rakis",
+    topic: "rakis0",
     relayRedundancy: 4,
     rtcConfig: {
       iceServers: [

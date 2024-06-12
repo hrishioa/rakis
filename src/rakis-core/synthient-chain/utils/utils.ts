@@ -1,3 +1,90 @@
+import {
+  DEFAULT_CHAIN_CONNECTION_SETTINGS,
+  DEFAULT_WORKER_SETTINGS,
+  DEFAULT_IDENTITY_ENCRYPTED_KEY,
+  DEFAULT_LLM_ENGINE_SETTINGS,
+  DEFAULT_LOGGER_SETTINGS,
+  DEFAULT_P2P_SETTINGS,
+  DEFAULT_PACKET_DB_SETTINGS,
+  DEFAULT_QUORUM_SETTINGS,
+  STORED_SETTINGS,
+  STORED_SETTINGS_KEY,
+  DEFAULT_THEDOMAIN_SETTINGS,
+  LOADED_SETTINGS,
+} from "../thedomain/settings";
+
+export function loadSettings() {
+  let loadedSettings: STORED_SETTINGS = {};
+
+  try {
+    if (
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(STORED_SETTINGS_KEY)
+    )
+      loadedSettings = JSON.parse(
+        window.localStorage.getItem(STORED_SETTINGS_KEY) as string
+      );
+  } catch (err) {
+    console.error("Error loading settings from localStorage", err);
+  }
+
+  loadedSettings.packetDBSettings = {
+    ...loadedSettings.packetDBSettings,
+    ...DEFAULT_PACKET_DB_SETTINGS,
+  };
+
+  loadedSettings.identityEncryptedKey =
+    loadedSettings.identityEncryptedKey || DEFAULT_IDENTITY_ENCRYPTED_KEY;
+
+  loadedSettings.p2pSettings = {
+    ...loadedSettings.p2pSettings,
+    ...DEFAULT_P2P_SETTINGS,
+  };
+
+  loadedSettings.chainConnectionSettings = {
+    ...loadedSettings.chainConnectionSettings,
+    ...DEFAULT_CHAIN_CONNECTION_SETTINGS,
+  };
+
+  loadedSettings.loggerSettings = {
+    ...loadedSettings.loggerSettings,
+    ...DEFAULT_LOGGER_SETTINGS,
+  };
+
+  loadedSettings.theDomainSettings = {
+    ...loadedSettings.theDomainSettings,
+    ...DEFAULT_THEDOMAIN_SETTINGS,
+  };
+
+  loadedSettings.quorumSettings = {
+    ...loadedSettings.quorumSettings,
+    ...DEFAULT_QUORUM_SETTINGS,
+  };
+
+  loadedSettings.llmEngineSettings = {
+    ...loadedSettings.llmEngineSettings,
+    ...DEFAULT_LLM_ENGINE_SETTINGS,
+  };
+
+  loadedSettings.workerSettings = {
+    ...loadedSettings.workerSettings,
+    ...DEFAULT_WORKER_SETTINGS,
+  };
+
+  // DOn't get much type safety here, need to be careful
+  return loadedSettings as LOADED_SETTINGS;
+}
+
+export function saveSettings(partialSettings: Partial<STORED_SETTINGS>) {
+  if (typeof window !== "undefined") {
+    const existingSettings = loadSettings();
+    window.localStorage.setItem(
+      STORED_SETTINGS_KEY,
+      JSON.stringify({ ...partialSettings, ...existingSettings })
+    );
+  }
+}
+
 export function stringifyDateWithOffset(date: Date) {
   // Convert date to local time by subtracting the timezone offset
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);

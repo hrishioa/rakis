@@ -1,13 +1,16 @@
 import { SupportedP2PDeliveryNetwork } from "../db/entities";
+import { loadSettings } from "../thedomain/settings";
 import { timeoutPromise } from "../utils/utils";
 import { NknP2PNetworkInstance } from "./nkn";
-import { P2P_CONFIG } from "./p2p-config";
 import { P2PNetworkInstance } from "./p2pnetwork-types";
 import { GunP2PNetworkInstance } from "./pewpewdb";
 import { TrysteroP2PNetworkInstance } from "./trystero";
 import { createLogger, logStyles } from "../utils/logger";
+import { getP2PConfig } from "./p2p-config";
 
 const logger = createLogger("Domain", logStyles.theDomain);
+
+const p2pConfig = getP2PConfig(loadSettings().p2pSettings);
 
 export class P2PNetworkFactory {
   static createP2PNetworkInstance(
@@ -17,31 +20,43 @@ export class P2PNetworkFactory {
     switch (network) {
       case "gun":
         return new GunP2PNetworkInstance(synthientId, {
-          gunPeers: P2P_CONFIG.PEWPEW.bootstrapPeers,
-          gunTopic: P2P_CONFIG.PEWPEW.topic,
-          startupDelayMs: P2P_CONFIG.PEWPEW.bootFixedDelayMs,
+          gunPeers: p2pConfig.PEWPEW.bootstrapPeers,
+          gunTopic: p2pConfig.PEWPEW.topic,
+          startupDelayMs: p2pConfig.PEWPEW.bootFixedDelayMs,
         });
       case "nkn":
-        return new NknP2PNetworkInstance(synthientId, {
-          nknTopic: P2P_CONFIG.NKN.topic,
-          nknWalletPassword: "password",
-        });
+        return new NknP2PNetworkInstance(
+          synthientId,
+          {
+            nknTopic: p2pConfig.NKN.topic,
+            nknWalletPassword: "password",
+          },
+          p2pConfig.NKN
+        );
       case "nostr":
-        return new TrysteroP2PNetworkInstance(synthientId, {
-          relayRedundancy: P2P_CONFIG.TRYSTERO.relayRedundancy,
-          rtcConfig: P2P_CONFIG.TRYSTERO.rtcConfig,
-          trysteroTopic: P2P_CONFIG.TRYSTERO.topic,
-          trysteroAppId: P2P_CONFIG.TRYSTERO.appId,
-          trysteroType: "nostr",
-        });
+        return new TrysteroP2PNetworkInstance(
+          synthientId,
+          {
+            relayRedundancy: p2pConfig.TRYSTERO.relayRedundancy,
+            rtcConfig: p2pConfig.TRYSTERO.rtcConfig,
+            trysteroTopic: p2pConfig.TRYSTERO.topic,
+            trysteroAppId: p2pConfig.TRYSTERO.appId,
+            trysteroType: "nostr",
+          },
+          p2pConfig.TRYSTERO
+        );
       case "torrent":
-        return new TrysteroP2PNetworkInstance(synthientId, {
-          relayRedundancy: P2P_CONFIG.TRYSTERO.relayRedundancy,
-          rtcConfig: P2P_CONFIG.TRYSTERO.rtcConfig,
-          trysteroTopic: P2P_CONFIG.TRYSTERO.topic,
-          trysteroAppId: P2P_CONFIG.TRYSTERO.appId,
-          trysteroType: "torrent",
-        });
+        return new TrysteroP2PNetworkInstance(
+          synthientId,
+          {
+            relayRedundancy: p2pConfig.TRYSTERO.relayRedundancy,
+            rtcConfig: p2pConfig.TRYSTERO.rtcConfig,
+            trysteroTopic: p2pConfig.TRYSTERO.topic,
+            trysteroAppId: p2pConfig.TRYSTERO.appId,
+            trysteroType: "torrent",
+          },
+          p2pConfig.TRYSTERO
+        );
       default:
         throw new Error(`Unsupported P2P network: ${network}`);
     }

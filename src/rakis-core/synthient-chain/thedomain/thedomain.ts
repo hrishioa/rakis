@@ -13,7 +13,7 @@ import { ClientInfo, initClientInfo, saveIdentity } from "../identity";
 import { P2PNetworkFactory } from "../p2p-networks/networkfactory";
 import { P2PNetworkInstance } from "../p2p-networks/p2pnetwork-types";
 import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
-import { QUORUM_SETTINGS, THEDOMAIN_SETTINGS } from "./settings";
+import { loadSettings } from "../thedomain/settings";
 import { debounce } from "lodash";
 import { createLogger, logStyles } from "../utils/logger";
 import {
@@ -25,6 +25,8 @@ import { recoverEthChainAddressFromSignature } from "../utils/simple-crypto";
 import { DeferredPromise } from "../utils/deferredpromise";
 
 const logger = createLogger("Domain", logStyles.theDomain);
+
+const settings = loadSettings();
 
 export type DomainStartOptions = {
   identityPassword: string;
@@ -129,7 +131,7 @@ export class TheDomain {
             },
             expiresAt: new Date(
               consensusRequestedAt.getTime() +
-                QUORUM_SETTINGS.quorumConsensusWindowMs
+                settings.quorumSettings.quorumConsensusWindowMs
             ),
             queued: false,
           });
@@ -627,7 +629,7 @@ export class TheDomain {
       );
       setTimeout(() => this.processInferenceRequestQueue(), 0);
     },
-    THEDOMAIN_SETTINGS.inferenceRequestQueueDebounceMs,
+    settings.theDomainSettings.inferenceRequestQueueDebounceMs,
     { leading: true }
   );
 
@@ -665,7 +667,7 @@ export class TheDomain {
     logger.debug("Identity retrieved/created successfully.");
 
     const p2pNetworkInstances: P2PNetworkInstance<any, any>[] =
-      THEDOMAIN_SETTINGS.enabledP2PNetworks.map((network) =>
+      settings.theDomainSettings.enabledP2PNetworks.map((network) =>
         P2PNetworkFactory.createP2PNetworkInstance(
           network,
           clientInfo.synthientId
@@ -677,7 +679,7 @@ export class TheDomain {
     const workingP2PNetworkInstances =
       await P2PNetworkFactory.initializeP2PNetworks(
         p2pNetworkInstances,
-        THEDOMAIN_SETTINGS.waitForP2PBootupMs
+        settings.theDomainSettings.waitForP2PBootupMs
       );
 
     logger.debug("Connecting up working networks.");

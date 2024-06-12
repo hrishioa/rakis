@@ -9,13 +9,16 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Checkbox } from "../components/ui/checkbox";
-import { IDENTITY_ENCRYPTED_KEY } from "../rakis-core/synthient-chain/thedomain/settings";
 import { initClientInfo } from "../rakis-core/synthient-chain/identity";
 import { useToast } from "../components/ui/use-toast";
 import Dashboard from "../components/core/dashboard";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "../rakis-core/blockchains/wagmi-config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  LOADED_SETTINGS,
+  loadSettings,
+} from "../rakis-core/synthient-chain/thedomain/settings";
 
 const queryClient = new QueryClient();
 
@@ -23,9 +26,20 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [overwriteIdentity, setOverwriteIdentity] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [existingIdentity, setExistingIdentity] = useState(false);
+  const [existingIdentity, setExistingIdentity] = useState<boolean | null>(
+    null
+  );
+  const [rakisSettings, setRakisSettings] = useState<LOADED_SETTINGS | null>(
+    null
+  );
 
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setRakisSettings(loadSettings());
+    }
+  }, []);
 
   const handlePasswordSubmit = () => {
     console.log("Trying to decrypt identity");
@@ -57,11 +71,12 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (window.localStorage.getItem(IDENTITY_ENCRYPTED_KEY))
+    if (typeof window !== "undefined" && rakisSettings) {
+      if (window.localStorage.getItem(rakisSettings.identityEncryptedKey))
         setExistingIdentity(true);
+      else setExistingIdentity(false);
     }
-  }, []);
+  }, [rakisSettings]);
 
   return (
     (isAuthenticated && (
@@ -73,7 +88,8 @@ export default function Home() {
           />
         </QueryClientProvider>
       </WagmiProvider>
-    )) || (
+    )) ||
+    (existingIdentity !== null && rakisSettings && (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-96">
           <CardHeader>
@@ -120,6 +136,7 @@ export default function Home() {
           </CardFooter>
         </Card>
       </div>
-    )
+    )) ||
+    null
   );
 }

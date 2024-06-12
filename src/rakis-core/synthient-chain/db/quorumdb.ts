@@ -8,13 +8,15 @@ import {
   ReceivedPeerPacket,
 } from "./packet-types";
 import { createLogger, logStyles } from "../utils/logger";
-import { QUORUM_SETTINGS } from "../thedomain/settings";
 import EventEmitter from "eventemitter3";
 import { EmbeddingResult } from "../embeddings/types";
 import { runFinalConsensus } from "../consensus/consensus-core";
 import { InferenceQuorum, ConsensusResults, QuorumDBEvents } from "./entities";
+import { loadSettings } from "../thedomain/settings";
 
 const logger = createLogger("QuorumDB", logStyles.databases.quorumDB);
+
+const quorumSettings = loadSettings().quorumSettings;
 
 class QuorumDatabase extends Dexie {
   quorums!: Dexie.Table<InferenceQuorum, string>;
@@ -94,7 +96,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     // And the quorums is still awaiting_commitments
     const currentTime = new Date();
     const revealStartTime = new Date(
-      currentTime.getTime() - QUORUM_SETTINGS.quorumRevealRequestIssueTimeoutMs
+      currentTime.getTime() - quorumSettings.quorumRevealRequestIssueTimeoutMs
     );
 
     const candidateQuorums = (
@@ -164,7 +166,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     if (
       revealPacket.receivedTime &&
       revealPacket.receivedTime.getTime() >
-        quorum.endingAt.getTime() + QUORUM_SETTINGS.quorumRevealTimeoutMs
+        quorum.endingAt.getTime() + quorumSettings.quorumRevealTimeoutMs
     ) {
       logger.debug(
         "Received reveal packet after reveal timeout, discarding.",
@@ -212,12 +214,12 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
     const now = new Date();
     const timeoutRevealWindow = new Date(
-      now.getTime() - QUORUM_SETTINGS.quorumRevealTimeoutMs
+      now.getTime() - quorumSettings.quorumRevealTimeoutMs
     );
     const consensusProcessingWindow = new Date(
       now.getTime() -
-        QUORUM_SETTINGS.quorumRevealTimeoutMs -
-        QUORUM_SETTINGS.quorumConsensusWindowMs
+        quorumSettings.quorumRevealTimeoutMs -
+        quorumSettings.quorumConsensusWindowMs
     );
 
     const quorums = (
@@ -282,7 +284,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
         `Setting timeout for next quorum check: ${
           quorumsAboutToNeedChecking[0].endingAt.getTime() -
           Date.now() +
-          QUORUM_SETTINGS.quorumRevealTimeoutMs -
+          quorumSettings.quorumRevealTimeoutMs -
           10
         }`,
         quorumsAboutToNeedChecking[0]
@@ -291,7 +293,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       this.quorumConsensusTimeout = setTimeout(
         () => this.checkQuorumsReadyForConsensus(),
         quorumsAboutToNeedChecking[0].endingAt.getTime() +
-          QUORUM_SETTINGS.quorumRevealTimeoutMs -
+          quorumSettings.quorumRevealTimeoutMs -
           Date.now() +
           10
       );
@@ -300,9 +302,9 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
   async getQuorumConsensusQueue() {
     const now = new Date();
-    // Subtract QUORUM_SETTINGS.quorumConsensusWindowMs from now
+    // Subtract quorumSettings.quorumConsensusWindowMs from now
     const revealStartTime = new Date(
-      now.getTime() - QUORUM_SETTINGS.quorumConsensusWindowMs
+      now.getTime() - quorumSettings.quorumConsensusWindowMs
     );
 
     // Get the quorum that's still awaiting_consensus with the soonest endingAt

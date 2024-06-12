@@ -17,13 +17,15 @@ import { generateRandomString, stringifyDateWithOffset } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { createLogger, logStyles } from "../utils/logger";
 import { QuorumDB } from "./quorumdb";
-import { QUORUM_SETTINGS } from "../thedomain/settings";
 import { EmbeddingResult } from "../embeddings/types";
+import { loadSettings } from "../thedomain/settings";
 import {
   ConsensusResults,
   InferenceDBEvents,
   InferenceQuorum,
 } from "./entities";
+
+const quorumSettings = loadSettings().quorumSettings;
 
 const logger = createLogger("InferenceDB", logStyles.databases.inferenceDB);
 
@@ -217,7 +219,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
         synthientId: inference.synthientId,
         bEmbeddingHash: inference.bEmbeddingHash,
       })),
-      timeoutMs: QUORUM_SETTINGS.quorumRevealTimeoutMs,
+      timeoutMs: quorumSettings.quorumRevealTimeoutMs,
     }));
 
     logger.debug(

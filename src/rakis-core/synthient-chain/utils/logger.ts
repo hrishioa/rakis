@@ -1,8 +1,10 @@
 // Custom logger function
 
 import EventEmitter from "eventemitter3";
-import { LOGGER_SETTINGS } from "../thedomain/settings";
 import { debounce } from "lodash";
+import { loadSettings } from "../thedomain/settings";
+
+const loggerSettings = loadSettings().loggerSettings;
 
 export const logStyles = {
   llmEngine: {
@@ -67,7 +69,7 @@ export class InMemoryLogs extends EventEmitter {
 
   private emitNewLogs = debounce(() => {
     this.emit("newLog");
-  }, LOGGER_SETTINGS.newLogEventDebounceMs);
+  }, loggerSettings.newLogEventDebounceMs);
 
   static addLog(logger: string, type: LogType, message: string) {
     InMemoryLogs.getInstance().logs.push({
@@ -77,7 +79,7 @@ export class InMemoryLogs extends EventEmitter {
       message,
     });
     InMemoryLogs.getInstance().logs = InMemoryLogs.getInstance()
-      .logs.slice(-LOGGER_SETTINGS.maxLogsInMemory)
+      .logs.slice(-loggerSettings.maxLogsInMemory)
       .sort((a, b) => b.at.getTime() - a.at.getTime());
 
     InMemoryLogs.getInstance().emitNewLogs();
@@ -113,7 +115,7 @@ export function createLogger(
           (window as any)?.blockedLoggers?.includes(name))
       )
         return;
-      if (!LOGGER_SETTINGS.loggersToSkipForInMemoryLog.includes(name))
+      if (!loggerSettings.loggersToSkipForInMemoryLog.includes(name))
         InMemoryLogs.addLog(name, "debug", firstArg);
       console.log(`%c[D] ${name}:`, style, firstArg, ...args);
     },
@@ -125,7 +127,7 @@ export function createLogger(
       )
         return;
 
-      if (!LOGGER_SETTINGS.loggersToSkipForInMemoryLog.includes(name))
+      if (!loggerSettings.loggersToSkipForInMemoryLog.includes(name))
         InMemoryLogs.addLog(name, "info", firstArg);
       console.log(`%c[I] ${name}:`, style, firstArg, ...args);
     },
@@ -137,7 +139,7 @@ export function createLogger(
       )
         return;
 
-      if (!LOGGER_SETTINGS.loggersToSkipForInMemoryLog.includes(name))
+      if (!loggerSettings.loggersToSkipForInMemoryLog.includes(name))
         InMemoryLogs.addLog(name, "warn", firstArg);
       console.warn(`%c[W] ${name}:`, style, firstArg, ...args);
     },
@@ -149,7 +151,7 @@ export function createLogger(
       )
         return;
 
-      if (!LOGGER_SETTINGS.loggersToSkipForInMemoryLog.includes(name))
+      if (!loggerSettings.loggersToSkipForInMemoryLog.includes(name))
         InMemoryLogs.addLog(name, "error", firstArg);
       console.error(`%c[ERROR] ${name}:`, style, firstArg, ...args);
     },

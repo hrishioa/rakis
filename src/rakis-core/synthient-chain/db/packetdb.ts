@@ -22,15 +22,17 @@ import EventEmitter from "eventemitter3";
 import { PeerDB } from "./peerdb";
 import { createLogger, logStyles } from "../utils/logger";
 import { PacketDBEvents } from "./entities";
-import { PACKET_DB_SETTINGS } from "../thedomain/settings";
 import { debounce } from "lodash";
 import { stringifyDateWithOffset } from "../utils/utils";
+import { loadSettings } from "../thedomain/settings";
 
 const logger = createLogger("PacketDB", logStyles.databases.packetDB);
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 type SendPacketOverP2PFunc = (packet: TransmittedPeerPacket) => Promise<void>;
+
+const packetDBSettings = loadSettings().packetDBSettings;
 
 // TODO: Consider keeping createdAt time as a separate date field on the outside, as a Date object in the db for better indexing
 
@@ -308,13 +310,13 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
       // Peerhearts are special and throttled
       const peerHearts = fixedPackets
         .filter((packet) => packet.packet.type === "peerHeart")
-        .slice(0, PACKET_DB_SETTINGS.peerHeartLimit) as (ReceivedPeerPacket & {
+        .slice(0, packetDBSettings.peerHeartLimit) as (ReceivedPeerPacket & {
         packet: PeerHeart;
       })[];
 
       peerHearts.forEach((packet) => this.emitPeerHeart(packet));
     },
-    PACKET_DB_SETTINGS.receivePacketQueueDebounceMs,
+    packetDBSettings.receivePacketQueueDebounceMs,
     { trailing: true }
   );
 
@@ -326,7 +328,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     const peerList = await this.peerDB.getLastPeers(lastTwelveHours, 200);
 
     const commsProbability =
-      PACKET_DB_SETTINGS.peerCommunicationCount / peerList.length;
+      packetDBSettings.peerCommunicationCount / peerList.length;
 
     if (Math.random() < commsProbability) {
       const knownPeers: KnownPeers = {
@@ -362,7 +364,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
     if (
       this.receivedPacketQueue.length >=
-      PACKET_DB_SETTINGS.maxReceivedPacketQueueSize
+      packetDBSettings.maxReceivedPacketQueueSize
     ) {
       this.processReceivedPacketQueue.flush();
     }

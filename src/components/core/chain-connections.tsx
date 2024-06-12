@@ -33,10 +33,6 @@ const ChainConnections: React.FC<{
   const { signMessageAsync } = useSignMessage();
   const signatureInProgress = useRef(false);
 
-  useEffect(() => {
-    console.log("Got chain connectors ", connectors);
-  }, [connectors]);
-
   function getFilteredConnectors(connectors: readonly Connector[]) {
     const firstPartyConnectors = connectors.filter(
       (connector) => connector.type === "injected"

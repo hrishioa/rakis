@@ -8,8 +8,8 @@ import {
 } from "./p2pnetwork-types";
 import { DeferredPromise } from "../utils/deferredpromise";
 import { Room } from "trystero";
-import { P2P_CONFIG } from "./p2p-config";
 import { createLogger, logStyles } from "../utils/logger";
+import { DEFAULT_P2P_CONFIG } from "./p2p-config";
 
 export type TrysteroBootstrapOptions = {
   trysteroAppId: string;
@@ -35,7 +35,11 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
   private errorHandlers: ErrorHandler[] = [];
   private logger: ReturnType<typeof createLogger>;
 
-  constructor(synthientId: string, options: TrysteroBootstrapOptions) {
+  constructor(
+    synthientId: string,
+    options: TrysteroBootstrapOptions,
+    private trysteroP2PSettings: (typeof DEFAULT_P2P_CONFIG)["TRYSTERO"]
+  ) {
     super(synthientId, options);
     this.logger = createLogger(
       `P2P: ${options.trysteroType} (trystero)`,
@@ -108,7 +112,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
           handler(
             error as Error,
             this.transmissionErrorCount >
-              P2P_CONFIG.TRYSTERO.maxTransmissionErrorsBeforeRestart
+              this.trysteroP2PSettings.maxTransmissionErrorsBeforeRestart
           )
         );
         return false;
