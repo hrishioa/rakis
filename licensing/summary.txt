@@ -1,14 +1,19 @@
-├─ MIT: 699
-├─ Apache-2.0: 86
-├─ ISC: 61
+├─ MIT: 1153
+├─ Apache-2.0: 104
+├─ ISC: 72
 ├─ Apache-2.0 OR MIT: 59
-├─ BSD-3-Clause: 47
-├─ BSD-2-Clause: 9
+├─ BSD-3-Clause: 59
+├─ BSD-2-Clause: 12
 ├─ MIT OR Apache-2.0: 9
+├─ MPL-2.0: 4
 ├─ MIT*: 4
 ├─ Unlicense: 3
+├─ 0BSD: 3
 ├─ BlueOak-1.0.0: 2
 ├─ Custom: https://github.com/tmcw/jsonlint: 1
+├─ Custom: https://metamask.app.link/connect: 1
+├─ UNKNOWN: 1
+├─ Custom: https://docs.metamask.io/guide/ethereum-provider.html: 1
 ├─ Python-2.0: 1
 ├─ CC-BY-4.0: 1
 ├─ (MIT OR WTFPL): 1
@@ -16,9 +21,12 @@
 ├─ Zlib: 1
 ├─ (BSD-3-Clause AND Apache-2.0): 1
 ├─ (Zlib OR MIT OR Apache-2.0): 1
+├─ (BSD-3-Clause OR GPL-2.0): 1
 ├─ (MIT AND Zlib): 1
+├─ Apache 2.0: 1
 ├─ (BSD-2-Clause OR MIT OR Apache-2.0): 1
+├─ BSD*: 1
+├─ (MIT AND BSD-3-Clause): 1
 ├─ UNLICENSED: 1
-├─ 0BSD: 1
 └─ (MIT OR CC0-1.0): 1
 
