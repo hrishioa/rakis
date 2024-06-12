@@ -97,6 +97,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <input
+              autoFocus
               type="password"
               placeholder={
                 existingIdentity ? "Enter password" : "Create a password"

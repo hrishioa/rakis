@@ -8,6 +8,7 @@ import { ReceivedPeerPacket } from "../../rakis-core/synthient-chain/db/packet-t
 import {
   LLMEngineLogEntry,
   LLMModelName,
+  LLMWorkerStates,
 } from "../../rakis-core/synthient-chain/llm/types";
 import { debounce } from "lodash";
 import { EmbeddingModelName } from "../../rakis-core/synthient-chain/embeddings/types";
@@ -121,9 +122,7 @@ export function useTheDomain(
     packets: ReceivedPeerPacket[];
     total: number;
   } | null>(null);
-  const [llmWorkerStates, setllmWorkerStates] = useState<{
-    [workerId: string]: { modelName: LLMModelName; state: string };
-  }>({});
+  const [llmWorkerStates, setllmWorkerStates] = useState<LLMWorkerStates>({});
   const [llmEngineLog, setLLMEngineLog] = useState<LLMEngineLogEntry[]>([]);
   const [inferences, setInferences] = useState<InferencesForDisplay[]>([]);
   const [peerCount, setPeerCount] = useState<number | null>(null);
@@ -229,6 +228,7 @@ export function useTheDomain(
       domain.llmEngine.on("workerLoadFailed", updateEngines);
       domain.llmEngine.on("workerLoaded", updateEngines);
       domain.llmEngine.on("workerUnloaded", updateEngines);
+      domain.llmEngine.on("modelLoadingProgress", updateEngines);
 
       domain.inferenceDB.on(
         "inferenceResultAwaitingEmbedding",

@@ -212,6 +212,8 @@ export const DEFAULT_QUORUM_SETTINGS: {
 
 export const DEFAULT_LLM_ENGINE_SETTINGS: {
   engineLogLimit: number;
+  debounceLoadingProgressEventMs: number;
 } = {
   engineLogLimit: 2000,
+  debounceLoadingProgressEventMs: 50,
 };

@@ -8,6 +8,7 @@ import {
   LLMEngineLogEntry,
   LLMModelName,
   LLMWorker,
+  LLMWorkerStates,
 } from "./types";
 import EventEmitter from "eventemitter3";
 import {
@@ -17,6 +18,7 @@ import {
 import { generateRandomString } from "../utils/utils";
 import { createLogger, logStyles } from "../utils/logger";
 import { loadSettings, saveSettings } from "../thedomain/settings";
+import { debounce } from "lodash";
 
 type LLMEngineEvents = {
   workerLoadFailed: (data: {
@@ -28,6 +30,7 @@ type LLMEngineEvents = {
   workerLoading: (data: { modelName: LLMModelName; workerId: string }) => void;
   workerUnloaded: (data: { workerId: string }) => void;
   workerFree: (data: { workerId: string }) => void;
+  modelLoadingProgress: () => void;
 };
 
 const logger = createLogger("LLM Engine", logStyles.llmEngine.main);
@@ -104,13 +107,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     }
   }
 
-  public getWorkerStates(): {
-    [workerId: string]: {
-      modelName: LLMModelName;
-      state: string;
-      loadingProgress: number;
-    };
-  } {
+  public getWorkerStates(): LLMWorkerStates {
     return Object.keys(this.llmWorkers).reduce((acc, cur) => {
       acc[cur] = {
         modelName: this.llmWorkers[cur].modelName,
@@ -122,7 +119,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         loadingProgress: this.llmWorkers[cur].modelLoadingProgress,
       };
       return acc;
-    }, {} as { [workerId: string]: { modelName: LLMModelName; state: string; loadingProgress: number } });
+    }, {} as LLMWorkerStates);
   }
 
   public getWorkerAvailability(modelNames: LLMModelName[]): {
@@ -238,6 +235,8 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
                 report
               );
 
+              this.emitModelLoadingProgress();
+
               if (report.progress === 0) {
                 const customParsedProgress = this.parseCustomLoadingProgress(
                   report.text
@@ -302,6 +301,10 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
 
     return await this.llmWorkers[workerId]!.modelLoadingPromise!.promise;
   }
+
+  private emitModelLoadingProgress = debounce(() => {
+    this.emit("modelLoadingProgress");
+  }, llmEngineSettings.debounceLoadingProgressEventMs);
 
   private getMatchingWorkers(
     params: InferenceParams,

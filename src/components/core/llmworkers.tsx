@@ -1,6 +1,7 @@
+import { Loader2 } from "lucide-react";
 import {
-  LLMModelName,
   LLMEngineLogEntry,
+  LLMWorkerStates,
 } from "../../rakis-core/synthient-chain/llm/types";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import {
@@ -11,14 +12,13 @@ import {
   TableCell,
   Table,
 } from "../ui/table";
+import { Progress } from "../ui/progress";
 
 function LLMWorkers({
   llmWorkerStates,
   llmEngineLog,
 }: {
-  llmWorkerStates: {
-    [workerId: string]: { modelName: LLMModelName; state: string };
-  };
+  llmWorkerStates: LLMWorkerStates;
   llmEngineLog: LLMEngineLogEntry[];
 }) {
   function getLogRef(entry: LLMEngineLogEntry) {
@@ -71,12 +71,22 @@ function LLMWorkers({
             </TableHeader>
             <TableBody>
               {Object.entries(llmWorkerStates).map(
-                ([workerId, { modelName, state }]) => (
+                ([workerId, { modelName, state, loadingProgress }]) => (
                   <TableRow key={workerId}>
                     <TableCell className="text-xs">{workerId}</TableCell>
                     <TableCell className="text-sm">{modelName}</TableCell>
                     <TableCell className="text-sm text-right">
-                      {state}
+                      {state}{" "}
+                      {state !== "idle" ? (
+                        state === "loading" ? (
+                          <Progress
+                            value={loadingProgress * 100}
+                            className="w-[200%] -ml-8"
+                          />
+                        ) : (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 )

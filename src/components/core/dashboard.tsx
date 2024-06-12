@@ -180,6 +180,7 @@ const Dashboard: React.FC<{
               <Input
                 id="prompt"
                 value={prompt}
+                autoFocus
                 onChange={(e: any) => setPrompt(e.target.value)}
                 className="w-full"
                 onKeyDown={(e) => {

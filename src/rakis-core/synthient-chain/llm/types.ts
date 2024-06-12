@@ -16,6 +16,14 @@ export const availableModels = [
 
 export type LLMModelName = (typeof availableModels)[number];
 
+export type LLMWorkerStates = {
+  [workerId: string]: {
+    modelName: LLMModelName;
+    state: "inference-in-progress" | "idle" | "loading";
+    loadingProgress: number;
+  };
+};
+
 export type LLMWorker = {
   modelName: LLMModelName;
   llmEngine?: MLCEngineInterface;
