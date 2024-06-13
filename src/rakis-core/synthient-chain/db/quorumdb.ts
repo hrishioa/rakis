@@ -23,9 +23,8 @@ class QuorumDatabase extends Dexie {
 
   constructor() {
     super("QuorumDatabase");
-    this.version(1).stores({
-      quorums:
-        "requestId, status, endingAt, thresholdMet, quorumCommitted, quorumRevealed, consensusRequestedAt",
+    this.version(2).stores({
+      quorums: "requestId, status, endingAt, consensusRequestedAt",
     });
   }
 }

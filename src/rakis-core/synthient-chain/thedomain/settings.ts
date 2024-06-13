@@ -145,11 +145,13 @@ export const DEFAULT_PACKET_DB_SETTINGS: {
   receivePacketQueueDebounceMs: number;
   peerHeartLimit: number;
   peerCommunicationCount: number; // Expected number of people (probabilistically enforced) who will pipe up with a peer list when you join
+  maxPacketDBSize: number; // Number of packets to keep in database
 } = {
   maxReceivedPacketQueueSize: 100,
   receivePacketQueueDebounceMs: 100,
   peerHeartLimit: 20,
   peerCommunicationCount: 40,
+  maxPacketDBSize: 5000,
 };
 
 export const DEFAULT_P2P_SETTINGS: {
@@ -192,12 +194,14 @@ export const DEFAULT_THEDOMAIN_SETTINGS: {
   inferencePollingIntervalMs: number;
   inferenceRequestQueueDebounceMs: number;
   embeddingsQueueDebounceMs: number;
+  requestSimilarityTimeWindowMs: number; // Inferences this close together we'll choose from proabilistically
 } = {
   enabledP2PNetworks: ["nostr", "gun", "torrent", "nkn"],
   waitForP2PBootupMs: 5000,
   inferencePollingIntervalMs: 5000,
   inferenceRequestQueueDebounceMs: 1000,
   embeddingsQueueDebounceMs: 100,
+  requestSimilarityTimeWindowMs: 2000,
 };
 
 export const DEFAULT_QUORUM_SETTINGS: {

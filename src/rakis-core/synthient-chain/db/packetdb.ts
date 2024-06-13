@@ -42,9 +42,8 @@ class PacketDatabase extends Dexie {
 
   constructor(options: DexieOptions = {}) {
     super("PacketDatabase", options);
-    this.version(1).stores({
-      packets:
-        "[synthientId+signature], synthientId, packet.type, packet.requestId, packet.inferenceId, receivedTime",
+    this.version(2).stores({
+      packets: "[synthientId+signature], receivedTime",
     });
   }
 }
@@ -163,7 +162,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     // Save the packet in the database
     await this.db.packets.add({
       ...transmittedPacket,
-      // receivedTime: undefined, // Set as undefined since it's our own packet
+      receivedTime: new Date(), // This was initially undefined to mark our own packets, but that was too much of a headache when cleaning up
     });
 
     this.emitNewPacketEvents(transmittedPacket);
@@ -242,6 +241,17 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     return Object.values(uniquePackets);
   }
 
+  private cleanUpOldPackets = debounce(async () => {
+    // Bye bye packets
+    logger.debug(`Cleaning up old packets.`);
+
+    await this.db.packets
+      .orderBy("receivedTime")
+      .reverse()
+      .offset(packetDBSettings.maxPacketDBSize + 50) // add some hysteresis so we're not constantly thrashing
+      .delete();
+  }, 5000);
+
   processReceivedPacketQueue = debounce(
     async () => {
       const queueCopy = this.receivedPacketQueue;
@@ -262,13 +272,6 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
             existingPacket.synthientId === packet.synthientId &&
             existingPacket.signature === packet.signature
         );
-
-        // if (!packetExists) {
-        //   logger.debug(
-        //     "Packet already exists in the database, dropping",
-        //     packet
-        //   );
-        // }
 
         return packetExists;
       });
@@ -315,6 +318,8 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
       })[];
 
       peerHearts.forEach((packet) => this.emitPeerHeart(packet));
+
+      setTimeout(() => this.cleanUpOldPackets(), 0);
     },
     packetDBSettings.receivePacketQueueDebounceMs,
     { trailing: true }

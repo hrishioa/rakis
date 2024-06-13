@@ -34,8 +34,8 @@ class InferenceEmbeddingDatabase extends Dexie {
 
   constructor(options: DexieOptions = {}) {
     super("InferenceEmbeddingDB", options);
-    this.version(1).stores({
-      inferenceEmbeddings: "inferenceId, requestId, bEmbeddingHash",
+    this.version(2).stores({
+      inferenceEmbeddings: "inferenceId, requestId",
     });
   }
 }
@@ -45,9 +45,8 @@ class InferenceRequestDatabase extends Dexie {
 
   constructor(options: DexieOptions = {}) {
     super("InferenceRequestDB", options);
-    this.version(1).stores({
-      inferenceRequests:
-        "requestId, fromChain, endingAt, payload.acceptedModels",
+    this.version(2).stores({
+      inferenceRequests: "requestId, endingAt",
     });
   }
 }
@@ -57,8 +56,8 @@ class InferenceResultDatabase extends Dexie {
 
   constructor(options: DexieOptions = {}) {
     super("InferenceResultDB", options);
-    this.version(1).stores({
-      inferenceResults: "inferenceId, requestId, startedAt, completedAt",
+    this.version(2).stores({
+      inferenceResults: "inferenceId, requestId",
     });
   }
 }

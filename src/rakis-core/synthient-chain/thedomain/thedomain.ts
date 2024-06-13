@@ -537,9 +537,26 @@ export class TheDomain {
         return;
       }
 
-      const selectedInference = possibleInferences.sort((a, b) => {
+      const sortedInferences = possibleInferences.sort((a, b) => {
         return b.endingAt.getTime() - a.endingAt.getTime();
-      })[0];
+      });
+
+      const randomSelectionGroup = sortedInferences.filter(
+        (inference) =>
+          Math.abs(
+            inference.endingAt.getTime() -
+              sortedInferences[0].endingAt.getTime()
+          ) < settings.theDomainSettings.requestSimilarityTimeWindowMs
+      );
+
+      logger.debug(
+        `Request Inference Queue: Random selection group has ${randomSelectionGroup.length} inferences`
+      );
+
+      const selectedInference =
+        randomSelectionGroup[
+          Math.floor(Math.random() * randomSelectionGroup.length)
+        ];
 
       logger.debug(
         `Request Inference Queue: ${cycleId}: Selected inference - ${selectedInference.requestId}`
