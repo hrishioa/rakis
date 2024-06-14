@@ -3,11 +3,14 @@ import { decryptData, encryptData } from "./utils/simple-crypto";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
 import { getDeviceInfo } from "./utils/utils";
-import { loadSettings } from "./thedomain/settings";
+import {
+  DEFAULT_IDENTITY_ENCRYPTED_KEY,
+  loadSettings,
+} from "./thedomain/settings";
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
-const identityEncryptedKey = loadSettings().identityEncryptedKey;
+const identityEncryptedKey = DEFAULT_IDENTITY_ENCRYPTED_KEY;
 
 // Personal persisted information about this particular client
 export type ClientInfo = {

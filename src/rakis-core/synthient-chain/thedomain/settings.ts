@@ -8,7 +8,6 @@ export type STORED_SETTINGS = Partial<{
   packetDBSettings: Partial<typeof DEFAULT_PACKET_DB_SETTINGS>;
   p2pSettings: Partial<typeof DEFAULT_P2P_SETTINGS>;
   chainConnectionSettings: Partial<typeof DEFAULT_CHAIN_CONNECTION_SETTINGS>;
-  identityEncryptedKey: string;
   loggerSettings: Partial<typeof DEFAULT_LOGGER_SETTINGS>;
   theDomainSettings: Partial<typeof DEFAULT_THEDOMAIN_SETTINGS>;
   quorumSettings: Partial<typeof DEFAULT_QUORUM_SETTINGS>;
@@ -20,7 +19,6 @@ export type LOADED_SETTINGS = {
   packetDBSettings: typeof DEFAULT_PACKET_DB_SETTINGS;
   p2pSettings: typeof DEFAULT_P2P_SETTINGS;
   chainConnectionSettings: typeof DEFAULT_CHAIN_CONNECTION_SETTINGS;
-  identityEncryptedKey: string;
   loggerSettings: typeof DEFAULT_LOGGER_SETTINGS;
   theDomainSettings: typeof DEFAULT_THEDOMAIN_SETTINGS;
   quorumSettings: typeof DEFAULT_QUORUM_SETTINGS;
@@ -62,9 +60,6 @@ export function loadSettings() {
     ...DEFAULT_PACKET_DB_SETTINGS,
     ...loadedSettings.packetDBSettings,
   };
-
-  loadedSettings.identityEncryptedKey =
-    loadedSettings.identityEncryptedKey || DEFAULT_IDENTITY_ENCRYPTED_KEY;
 
   loadedSettings.p2pSettings = {
     ...DEFAULT_P2P_SETTINGS,

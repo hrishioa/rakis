@@ -16,6 +16,7 @@ import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "../rakis-core/blockchains/wagmi-config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  DEFAULT_IDENTITY_ENCRYPTED_KEY,
   LOADED_SETTINGS,
   loadSettings,
 } from "../rakis-core/synthient-chain/thedomain/settings";
@@ -72,7 +73,7 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window !== "undefined" && rakisSettings) {
-      if (window.localStorage.getItem(rakisSettings.identityEncryptedKey))
+      if (window.localStorage.getItem(DEFAULT_IDENTITY_ENCRYPTED_KEY))
         setExistingIdentity(true);
       else setExistingIdentity(false);
     }
