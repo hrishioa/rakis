@@ -301,7 +301,7 @@ export async function runFinalConsensus(
   };
 
   logger.debug(
-    "Consensus ${quorum.requestId}: Computed Final inference quorum",
+    `Consensus ${quorum.requestId}: Computed Final inference quorum`,
     inferenceQuorumComputed
   );
 

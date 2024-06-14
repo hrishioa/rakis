@@ -18,6 +18,10 @@ import { useEffect, useState } from "react";
 import { initClientInfo } from "../../rakis-core/synthient-chain/identity";
 import { toast } from "../../components/ui/use-toast";
 import Dashboard from "./components/dashboard";
+import { WagmiProvider } from "wagmi";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { wagmiConfig } from "../../rakis-core/blockchains/wagmi-config";
+const queryClient = new QueryClient();
 
 export default function Home() {
   const [existingIdentity, setExistingIdentity] = useState<boolean>(false);
@@ -67,7 +71,11 @@ export default function Home() {
   };
 
   return isAuthenticated ? (
-    <Dashboard />
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <Dashboard password={password} overwrite={overwriteIdentity} />
+      </QueryClientProvider>
+    </WagmiProvider>
   ) : (
     <Flex direction="column" justify={"center"} height={"100vh"}>
       <Flex direction="row" justify={"center"}>

@@ -31,6 +31,8 @@ export const logStyles = {
   },
 };
 
+let logCounter = 0;
+
 export type LogType = "trace" | "debug" | "info" | "warn" | "error";
 
 export type SynthientLogger = {
@@ -50,6 +52,7 @@ export type StringLog = {
   logger: string;
   type: LogType;
   message: string;
+  id: number;
 };
 
 export class InMemoryLogs extends EventEmitter {
@@ -76,6 +79,7 @@ export class InMemoryLogs extends EventEmitter {
       at: new Date(),
       logger,
       type,
+      id: logCounter++,
       message,
     });
     InMemoryLogs.getInstance().logs = InMemoryLogs.getInstance()
