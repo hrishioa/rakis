@@ -1,7 +1,11 @@
 import { Box, Card, Tabs } from "@radix-ui/themes";
 import Logs from "./logs";
+import Packets from "./packets";
+import usePackets from "../hooks/usePackets";
 
 export default function LogsPackets({}) {
+  const packets = usePackets({ packetLimit: 500 });
+
   return (
     <Box maxWidth="400px">
       <Card>
@@ -15,7 +19,9 @@ export default function LogsPackets({}) {
             <Tabs.Content value="logs">
               <Logs />
             </Tabs.Content>
-            <Tabs.Content value="packets"></Tabs.Content>
+            <Tabs.Content value="packets">
+              <Packets />
+            </Tabs.Content>
           </Box>
         </Tabs.Root>
       </Card>

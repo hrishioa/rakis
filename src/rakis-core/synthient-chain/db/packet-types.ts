@@ -46,6 +46,7 @@ export type InferencePayload = InferenceSuccessPayload | InferenceErrorPayload;
 export type InferenceRequest = Required<UnprocessedInferenceRequest>;
 
 export type UnprocessedInferenceRequest = {
+  fromSynthientId: string;
   requestId?: string; // Could just be a hash of known-to-be-unique values
   payload: InferenceRequestPayload;
   endingAt?: Date; // Computed from the securityframe

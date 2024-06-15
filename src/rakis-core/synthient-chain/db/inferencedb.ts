@@ -153,6 +153,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
         requestId: request.requestId,
         requestedAt: request.payload.createdAt,
         endingAt: request.endingAt,
+        fromSynthientId: request.fromSynthientId,
         requestPayload: request.payload,
         ourResult: result && {
           payload: result,

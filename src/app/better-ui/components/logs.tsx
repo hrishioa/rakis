@@ -6,6 +6,15 @@ import {
 } from "../../../rakis-core/synthient-chain/utils/logger";
 import { InfoCircledIcon } from "@radix-ui/react-icons";
 import { CircleX, ShieldAlert } from "lucide-react";
+import TimeAgo from "javascript-time-ago";
+
+// English.
+import en from "javascript-time-ago/locale/en";
+
+TimeAgo.addDefaultLocale(en);
+
+// Create formatter (English).
+const timeAgo = new TimeAgo("en-US");
 
 export default function Logs() {
   const [logEntries, setLogEntries] = useState<StringLog[]>([]);
@@ -50,8 +59,25 @@ export default function Logs() {
           </Select.Content>
         </Select.Root>
         <Text size="2" color="gray" mt="1">
-          logs
+          logs of type
         </Text>
+        <Select.Root defaultValue="all">
+          <Select.Trigger variant="soft" />
+          <Select.Content>
+            <Select.Group>
+              <Select.Item value="all">All</Select.Item>
+            </Select.Group>
+            <Select.Group>
+              {Array.from(new Set(logEntries.map((log) => log.type))).map(
+                (logType) => (
+                  <Select.Item key={logType} value={logType}>
+                    {logType.slice(0, 1).toUpperCase() + logType.slice(1)}
+                  </Select.Item>
+                )
+              )}
+            </Select.Group>
+          </Select.Content>
+        </Select.Root>
       </Flex>
       {logEntries.map((log) => (
         <Card
@@ -79,14 +105,14 @@ export default function Logs() {
               )}
             </Box>
 
-            <Flex direction="column">
+            <Flex direction="column" flexGrow="1">
               <Text size="2">{log.message}</Text>
               <Flex justify="between" mt="1">
                 <Text size="1" color="gray" weight="medium">
                   {log.logger}
                 </Text>
                 <Text size="1" color="gray">
-                  {new Date(log.at).toLocaleString()}
+                  {timeAgo.format(log.at)}
                 </Text>
               </Flex>
             </Flex>

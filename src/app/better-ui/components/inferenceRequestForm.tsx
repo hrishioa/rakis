@@ -82,6 +82,20 @@ export default function InferenceRequestForm() {
                   </TextField.Slot>
                 </TextField.Root>
               </Flex>
+              <label>
+                <Text
+                  as="div"
+                  size="2"
+                  mt="2"
+                  mb="1"
+                  weight="bold"
+                  color="gray"
+                >
+                  How big should the consensus circle be? (Feel free to play
+                  around with this!)
+                </Text>
+              </label>
+              <TextField.Root placeholder="6000" size="2" type="number" />
             </Flex>
           </Popover.Content>
         </Popover.Root>

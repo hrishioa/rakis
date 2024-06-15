@@ -22,12 +22,16 @@ export function saveInferencePacketsFromP2PToInferenceDB(
   // TODO: This should be depreated later so we don't have a cycle in our
   // data flow
 
-  const inferenceRequestListener = (packet: P2PInferenceRequestPacket) => {
+  const inferenceRequestListener = (
+    packet: P2PInferenceRequestPacket,
+    fromSynthientId: string
+  ) => {
     logger.debug("Saving p2p inference request to our db");
     setTimeout(
       () =>
         inferenceDB.saveInferenceRequest({
           fetchedAt: new Date(),
+          fromSynthientId,
           requestId: packet.requestId,
           payload: packet.payload,
         }),

@@ -23,6 +23,7 @@ const POLLING_INTERVAL = 3000; // 5 seconds
 const last24HoursDate = new Date();
 last24HoursDate.setDate(last24HoursDate.getDate() - 1);
 
+// TODO: Get rid of this
 export type InferencesForDisplay = {
   requestId: string;
   requestedAt: string;

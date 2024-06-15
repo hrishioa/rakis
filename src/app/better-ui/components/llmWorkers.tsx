@@ -23,8 +23,8 @@ export default function LLMWorkers({
           Workers
         </Text>
         <Text size="2" color="gray">
-          These are the local models you're running that will pick up inference
-          requests from the network.
+          These are the local models you&apos;re running that will pick up
+          inference requests from the network.
         </Text>
       </Flex>
 

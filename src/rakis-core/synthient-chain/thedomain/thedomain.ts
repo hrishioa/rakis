@@ -78,6 +78,11 @@ export class TheDomain {
     embeddingQueue: [],
   };
 
+  static getInstance() {
+    if (this.instance) return this.instance;
+    return null;
+  }
+
   private hookupConnections() {
     // Connect received packets from p2p to the packetdb
     for (const p2pNetwork of this.p2pNetworkInstances) {

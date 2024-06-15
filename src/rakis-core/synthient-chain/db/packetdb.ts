@@ -83,7 +83,8 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     if (packet.packet.type === "p2pInferenceRequest") {
       this.emit(
         "newP2PInferenceRequest",
-        packet.packet as P2PInferenceRequestPacket
+        packet.packet as P2PInferenceRequestPacket,
+        packet.synthientId
       );
     }
 

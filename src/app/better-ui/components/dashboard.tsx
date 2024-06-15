@@ -19,6 +19,7 @@ import LLMWorkers from "./llmWorkers";
 import ScaleWorkers from "./scaleWorkers";
 import InferenceRequestForm from "./inferenceRequestForm";
 import LogsPackets from "./logsPackets";
+import Inferences from "./inferences";
 
 export default function Dashboard({
   password,
@@ -126,8 +127,9 @@ export default function Dashboard({
         </Flex>
 
         <LLMWorkers llmWorkerStates={llmWorkerStates} />
-        <Flex direction="column" gap="2">
+        <Flex gap="2">
           <LogsPackets />
+          <Inferences />
         </Flex>
       </Flex>
     )) || (

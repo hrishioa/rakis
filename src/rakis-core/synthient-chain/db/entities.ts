@@ -63,7 +63,10 @@ export type InferenceDBEvents = {
 // Packet DB
 
 export type PacketDBEvents = {
-  newP2PInferenceRequest: (packet: P2PInferenceRequestPacket) => void;
+  newP2PInferenceRequest: (
+    packet: P2PInferenceRequestPacket,
+    fromSynthientId: string
+  ) => void;
   newInferenceCommit: (
     packet: Omit<ReceivedPeerPacket, "packet"> & { packet: InferenceCommit }
   ) => void;
