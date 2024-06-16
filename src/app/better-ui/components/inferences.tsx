@@ -12,6 +12,7 @@ import {
   IconButton,
   Grid,
   Tooltip,
+  ScrollArea,
 } from "@radix-ui/themes";
 import useInferences, {
   InferenceForDisplay,
@@ -347,37 +348,7 @@ export function Inference({ inference }: { inference: InferenceForDisplay }) {
               zIndex: 1,
             }}
           />
-          <Box
-            position="absolute"
-            bottom="0"
-            left="0"
-            right="0"
-            height="20px"
-            style={{
-              // background:
-              //   appearance === "dark"
-              //     ? ""
-              //     : "linear-gradient(to top, white, rgba(255, 255, 255, 0))",
-              pointerEvents: "none",
-              zIndex: 1,
-            }}
-          />
           <Box position="relative" pt="1">
-            <Box position="absolute" top="0" bottom="0" width="1px" ml="-0.5px">
-              <Separator
-                size="4"
-                orientation="vertical"
-                mt="2"
-                style={
-                  {
-                    // background:
-                    //   appearance === "dark"
-                    //     ? ""
-                    //     : "linear-gradient(to bottom, var(--teal-6) 90%, transparent)",
-                  }
-                }
-              />
-            </Box>
             <Box pl="6">
               <Flex direction="column-reverse" gap="4">
                 {inference.states.map((state, index) => (

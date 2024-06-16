@@ -18,20 +18,40 @@ const timeAgo = new TimeAgo("en-US");
 
 export default function Logs() {
   const [logEntries, setLogEntries] = useState<StringLog[]>([]);
+  const [selectedLogger, setSelectedLogger] = useState<string>("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
+  const [availableLoggers, setAvailableLoggers] = useState<string[]>([]);
+  const [availableTypes, setAvailableTypes] = useState<string[]>([]);
 
   useEffect(() => {
-    setLogEntries(InMemoryLogs.getInstance().logs);
-
     const onNewLog = () => {
-      setLogEntries(InMemoryLogs.getInstance().logs);
+      setLogEntries(
+        InMemoryLogs.getInstance().logs.filter(
+          (log) =>
+            (selectedLogger === "all" || log.logger === selectedLogger) &&
+            (selectedType === "all" || log.type === selectedType)
+        )
+      );
+      setAvailableLoggers(
+        Array.from(
+          new Set(InMemoryLogs.getInstance().logs.map((log) => log.logger))
+        )
+      );
+      setAvailableTypes(
+        Array.from(
+          new Set(InMemoryLogs.getInstance().logs.map((log) => log.type))
+        )
+      );
     };
+
+    onNewLog();
 
     InMemoryLogs.getInstance().on("newLog", onNewLog);
 
     return () => {
       InMemoryLogs.getInstance().off("newLog", onNewLog);
     };
-  }, []);
+  }, [selectedLogger, selectedType]);
 
   return (
     <Flex direction="column" gap="5" py="4" px="2">
@@ -41,40 +61,44 @@ export default function Logs() {
             Showing
           </Text>
         </label>
-        <Select.Root defaultValue="all">
+        <Select.Root
+          defaultValue="all"
+          value={selectedLogger}
+          onValueChange={setSelectedLogger}
+        >
           <Select.Trigger variant="soft" />
           <Select.Content>
             <Select.Group>
               <Select.Item value="all">All</Select.Item>
             </Select.Group>
             <Select.Group>
-              {Array.from(new Set(logEntries.map((log) => log.logger))).map(
-                (logger) => (
-                  <Select.Item key={logger} value={logger}>
-                    {logger}
-                  </Select.Item>
-                )
-              )}
+              {availableLoggers.map((logger) => (
+                <Select.Item key={logger} value={logger}>
+                  {logger}
+                </Select.Item>
+              ))}
             </Select.Group>
           </Select.Content>
         </Select.Root>
         <Text size="2" color="gray" mt="1">
           logs of type
         </Text>
-        <Select.Root defaultValue="all">
+        <Select.Root
+          defaultValue="all"
+          value={selectedType}
+          onValueChange={setSelectedType}
+        >
           <Select.Trigger variant="soft" />
           <Select.Content>
             <Select.Group>
               <Select.Item value="all">All</Select.Item>
             </Select.Group>
             <Select.Group>
-              {Array.from(new Set(logEntries.map((log) => log.type))).map(
-                (logType) => (
-                  <Select.Item key={logType} value={logType}>
-                    {logType.slice(0, 1).toUpperCase() + logType.slice(1)}
-                  </Select.Item>
-                )
-              )}
+              {availableTypes.map((logType) => (
+                <Select.Item key={logType} value={logType}>
+                  {logType.slice(0, 1).toUpperCase() + logType.slice(1)}
+                </Select.Item>
+              ))}
             </Select.Group>
           </Select.Content>
         </Select.Root>

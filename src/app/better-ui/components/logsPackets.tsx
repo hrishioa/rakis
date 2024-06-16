@@ -7,8 +7,8 @@ export default function LogsPackets({}) {
   const packets = usePackets({ packetLimit: 500 });
 
   return (
-    <Box maxWidth="400px">
-      <Card>
+    <Box width="400px">
+      <Card className="w-[400px]">
         <Tabs.Root defaultValue="logs">
           <Tabs.List>
             <Tabs.Trigger value="logs">Logs</Tabs.Trigger>

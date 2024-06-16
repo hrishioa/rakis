@@ -74,13 +74,13 @@ export type InferenceSecurityFrame = {
 
 // Unused for now, to set consensus thresholds and update those on the fly
 
-type NetworkHyperParameterUpdate = {
-  hyperParams: {
-    bEmbeddingVerificationThreshold: number; // Distance between computed binary embedding and revealed binary embedding that's acceptable
-    inferenceRevealTimeoutMs: number; // Time that reveal requests are valid for
-  };
-  hyperParamsMasterSignature: string; // Signature of the hyperParams by the master pubkey of the network
-};
+// type NetworkHyperParameterUpdate = {
+//   hyperParams: {
+//     bEmbeddingVerificationThreshold: number; // Distance between computed binary embedding and revealed binary embedding that's acceptable
+//     inferenceRevealTimeoutMs: number; // Time that reveal requests are valid for
+//   };
+//   hyperParamsMasterSignature: string; // Signature of the hyperParams by the master pubkey of the network
+// };
 
 // P2P Packets
 
