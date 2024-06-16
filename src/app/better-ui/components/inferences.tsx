@@ -9,15 +9,19 @@ import {
   Button,
   Popover,
   DataList,
+  IconButton,
+  Grid,
+  Tooltip,
 } from "@radix-ui/themes";
-import useInferences, { InferenceForDisplay } from "../hooks/useInferences";
+import useInferences, {
+  InferenceForDisplay,
+  InferenceState,
+} from "../hooks/useInferences";
 import TimeAgo from "javascript-time-ago";
+import { useThemeContext } from "@radix-ui/themes";
 
 // English.
-import en from "javascript-time-ago/locale/en";
-import { ChevronDown } from "lucide-react";
-
-TimeAgo.addDefaultLocale(en);
+import { ChevronDown, CopyIcon } from "lucide-react";
 
 // Create formatter (English).
 const timeAgo = new TimeAgo("en-US");
@@ -37,6 +41,171 @@ const GreenDot = () => (
   />
 );
 
+function getInferenceStateDisplay(state: InferenceState) {
+  if (state.state === "requested")
+    return (
+      <Box>
+        <Text as="div" size="1" color="gray" mb="1">
+          {state.at.toLocaleString()}
+        </Text>
+        <Text as="p" size="4">
+          Requested {state.by ? `by ${state.by.slice(0, 5)}` : ""}
+        </Text>
+        <Text as="div" size="1" color="gray" mt="1">
+          {state.endingAt > new Date()
+            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            : `ended at ${state.endingAt.toLocaleString()}`}
+        </Text>
+      </Box>
+    );
+
+  if (state.state === "committing")
+    return (
+      <Box>
+        <Text as="div" size="1" color="gray" mb="1">
+          {state.at.toLocaleString()}
+        </Text>
+        <Text as="p" size="4">
+          Collecting Inferences
+        </Text>
+        <Text
+          size="2"
+          weight="bold"
+          color={
+            state.commitmentsCollected >= state.commitmentsNeeded
+              ? "grass"
+              : "amber"
+          }
+        >
+          {state.commitmentsCollected} of {state.commitmentsNeeded} needed
+        </Text>
+        <Text as="div" size="1" color="gray" mt="1">
+          {state.endingAt > new Date()
+            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            : `ended at ${state.endingAt.toLocaleString()}`}
+        </Text>
+      </Box>
+    );
+
+  if (state.state === "revealRequested")
+    return (
+      <Box>
+        <Text as="div" size="1" color="gray" mb="1">
+          {state.at.toLocaleString()}
+        </Text>
+        <Text as="p" size="4">
+          Requesting Nodes to reveal
+        </Text>
+        <Text
+          size="2"
+          weight="bold"
+          color={
+            state.revealsCollected >= state.revealsNeeded ? "grass" : "amber"
+          }
+        >
+          {state.revealsCollected} of {state.commitments} revealed
+        </Text>
+        <Text as="div" size="1" color="gray" mt="1">
+          {state.endingAt > new Date()
+            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            : `ended at ${state.endingAt.toLocaleString()}`}
+        </Text>
+      </Box>
+    );
+
+  if (state.state === "calculatingConsensus")
+    return (
+      <Box>
+        <Text as="div" size="1" color="gray" mb="1">
+          {state.at.toLocaleString()}
+        </Text>
+        <Text as="p" size="4">
+          Nodes are calculating consensus
+        </Text>
+        <Text as="div" size="1" color="gray" mt="1">
+          {state.endingAt > new Date()
+            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            : `ended at ${state.endingAt.toLocaleString()}`}
+        </Text>
+      </Box>
+    );
+
+  if (state.state === "collectingExternalConsensuses")
+    return (
+      <Box>
+        <Text as="div" size="1" color="gray" mb="1">
+          {state.at.toLocaleString()}
+        </Text>
+        <Text as="p" size="4">
+          Collecting peer consensus
+        </Text>
+        {state.collectedExternalConsensuses > 0 && (
+          <Text size="1" color="gray">
+            {state.collectedExternalConsensuses} collected
+          </Text>
+        )}
+        <Text as="div" size="1" color="gray" mt="1">
+          {state.endingAt > new Date()
+            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            : `ended at ${state.endingAt.toLocaleString()}`}
+        </Text>
+      </Box>
+    );
+
+  if (state.state === "completed")
+    return (
+      <Box>
+        <Text as="div" size="1" color="gray" mb="1">
+          {state.at.toLocaleString()}
+        </Text>
+        <Tooltip content={state.finalOutput + " (click to copy)"}>
+          <Flex direction="row" gap="2" ml="-5">
+            <IconButton
+              size="1"
+              aria-label="Copy value"
+              color="gray"
+              variant="ghost"
+            >
+              <CopyIcon width="15" />
+            </IconButton>
+            <Text as="p" size="3" weight="medium" wrap="wrap" color="green">
+              {state.finalOutput.slice(0, 100)}...
+            </Text>
+          </Flex>
+        </Tooltip>
+        <Text as="p" size="1" mt="2">
+          {state.validCommitments}/{state.revealedCommitments} reveals judged
+          valid
+        </Text>
+        <Text as="p" size="1" color="gray" mt="2">
+          Computed by {state.external ? "network" : "us"}
+        </Text>
+        <Text as="p" size="1" color="gray" mt="1">
+          {state.bEmbeddingHash.slice(0, 25)}...
+        </Text>
+        <Text as="p" size="1" color="gray" mt="1">
+          {state.consensusAgreedWith} agree, {state.consensusDisagreedWith}{" "}
+          disagree
+        </Text>
+      </Box>
+    );
+
+  if (state.state === "failed")
+    return (
+      <Box>
+        <Text as="div" size="1" color="gray" mb="1">
+          {state.at.toLocaleString()}
+        </Text>
+        <Text as="p" size="4" weight="medium" color="ruby">
+          Failed
+        </Text>
+        <Text mt="1" size="2">
+          {state.reason}
+        </Text>
+      </Box>
+    );
+}
+
 export default function Inferences() {
   const inferences = useInferences({ inferenceLimit: 5 });
 
@@ -55,74 +224,10 @@ export default function Inferences() {
   );
 }
 
-function getInferenceStates(inference: InferenceForDisplay) {
-  const states: (
-    | {
-        state: "requested";
-        at: Date;
-        endingAt: Date;
-        by: string;
-      }
-    | {
-        state: "committing";
-        at: Date;
-        commitmentsCollected: number;
-        commitmentsNeeded: number;
-        endingAt: Date;
-      }
-    | {
-        state: "revealRequested";
-        at: Date;
-        revealsCollected: number;
-        commitments: number;
-        endingAt: Date;
-      }
-    | {
-        state: "calculatingConsensus";
-        at: Date;
-        endingAt: Date;
-      }
-    | {
-        state: "collectingConsensus";
-        at: Date;
-        validCommitments: number;
-        revealedCommitments: number;
-        quorumThreshold: number;
-        endingAt: Date;
-      }
-    | {
-        state: "completed";
-        finalOutput: string;
-        validCommitments: number;
-        revealedCommitments: number;
-        quorumThreshold: number;
-        bEmbeddingHash: number;
-        consensusAgreedWith: number;
-        consensusDisagreedWith: number;
-      }
-    | {
-        state: "failed";
-        reason:
-          | "Not enough commitments"
-          | "Not enough reveals"
-          | "No consensus computed"
-          | "Failed Quorum";
-        at: Date;
-      }
-  )[] = [];
-
-  states.push({
-    state: "requested",
-    at: new Date(inference.requestedAt),
-    endingAt: inference.endingAt,
-    by: inference.fromSynthientId || "unknown",
-  });
-}
-
 export function Inference({ inference }: { inference: InferenceForDisplay }) {
   return (
     <Card>
-      <Flex height="125px">
+      <Grid gap="2" columns="2" rows="1" height="125px">
         <Box width="300px" height="100%">
           <Flex direction="column" gap="1" className="h-full">
             <Flex justify="between" mx="1">
@@ -187,9 +292,12 @@ export function Inference({ inference }: { inference: InferenceForDisplay }) {
             </Flex>
 
             <Box className="flex-grow" mt="1">
-              <Text size="3" weight="medium">
-                {inference.requestPayload.prompt}
-              </Text>
+              <Tooltip content={inference.requestPayload.prompt}>
+                <Text size="3" weight="medium">
+                  {inference.requestPayload.prompt.slice(0, 60)}
+                  {inference.requestPayload.prompt.length > 60 ? "..." : ""}
+                </Text>
+              </Tooltip>
             </Box>
             <Text
               size="1"
@@ -246,8 +354,10 @@ export function Inference({ inference }: { inference: InferenceForDisplay }) {
             right="0"
             height="20px"
             style={{
-              background:
-                "linear-gradient(to top, white, rgba(255, 255, 255, 0))",
+              // background:
+              //   appearance === "dark"
+              //     ? ""
+              //     : "linear-gradient(to top, white, rgba(255, 255, 255, 0))",
               pointerEvents: "none",
               zIndex: 1,
             }}
@@ -258,64 +368,29 @@ export function Inference({ inference }: { inference: InferenceForDisplay }) {
                 size="4"
                 orientation="vertical"
                 mt="2"
-                style={{
-                  background:
-                    "linear-gradient(to bottom, var(--teal-6) 90%, transparent)",
-                }}
+                style={
+                  {
+                    // background:
+                    //   appearance === "dark"
+                    //     ? ""
+                    //     : "linear-gradient(to bottom, var(--teal-6) 90%, transparent)",
+                  }
+                }
               />
             </Box>
             <Box pl="6">
-              <Flex direction="column" gap="4">
-                <Box>
-                  <GreenDot />
-                  <Text as="div" size="1" color="gray" mb="1">
-                    July 1, 2023, 10:28 AM
-                  </Text>
-                  <Text as="p" size="2">
-                    Package picked up from the warehouse in Phoenix, TX
-                  </Text>
-                </Box>
-                <Box>
-                  <GreenDot />
-                  <Text as="div" size="1" color="gray" mb="1">
-                    July 1, 2023, 12:43 PM
-                  </Text>
-                  <Text as="p" size="2">
-                    Departed from Phoenix, TX
-                  </Text>
-                </Box>
-                <Box>
-                  <GreenDot />
-                  <Text as="div" size="1" color="gray" mb="1">
-                    July 2, 2023, 3:20 PM
-                  </Text>
-                  <Text as="p" size="2">
-                    Arrived at a sorting facility in Seattle, WA
-                  </Text>
-                </Box>
-                <Box>
-                  <GreenDot />
-                  <Text as="div" size="1" color="gray" mb="1">
-                    July 2, 2023, 7:31 PM
-                  </Text>
-                  <Text as="p" size="2">
-                    Departed Seattle, WA
-                  </Text>
-                </Box>
-                <Box>
-                  <GreenDot />
-                  <Text as="div" size="1" color="gray" mb="1">
-                    July 2, 2023, 11:03 PM
-                  </Text>
-                  <Text as="p" size="2">
-                    Arrived to a facility in Greenville, WA
-                  </Text>
-                </Box>
+              <Flex direction="column-reverse" gap="4">
+                {inference.states.map((state, index) => (
+                  <Box key={index}>
+                    <GreenDot />
+                    {getInferenceStateDisplay(state)}
+                  </Box>
+                ))}
               </Flex>
             </Box>
           </Box>
         </Container>
-      </Flex>
+      </Grid>
     </Card>
   );
 }

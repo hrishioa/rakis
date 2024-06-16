@@ -160,6 +160,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
           bEmbeddingHash: embedding?.bEmbeddingHash,
         },
         quorum: quorum && {
+          consensusRequestedAt: quorum?.consensusRequestedAt,
           status: quorum.status,
           quorumThreshold: quorum.quorumThreshold,
           quorumCommitted: quorum.quorumCommitted,
@@ -202,6 +203,8 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
           .map((consensus) => ({
             verifiedBy: consensus.verifiedBy,
             bEmbeddingHash: consensus.validSingleInference.bEmbeddingHash,
+            validCommitments: consensus.validInferences.length,
+            allCommitments: consensus.submittedInferences.length,
             output: consensus.validSingleInference.output,
             validInferenceBy: consensus.validSingleInference.fromSynthientId,
           })),

@@ -24,7 +24,7 @@ export default function InferenceRequestForm() {
       <Textarea
         id="message"
         placeholder="Type your message here..."
-        className="min-h-24 resize-none border-0 p-3 shadow-none focus-visible:ring-0"
+        className="min-h-24 resize-none border-0 p-3 shadow-none focus-visible:ring-0 text-md"
       />
       {/* <div className="flex items-center p-3 pt-0"> */}
       <Flex justify={"center"} p="2" pt="0" gap="2">
