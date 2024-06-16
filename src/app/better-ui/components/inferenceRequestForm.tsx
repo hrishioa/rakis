@@ -13,20 +13,32 @@ import {
 } from "@radix-ui/themes";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { availableModels } from "../../../rakis-core/synthient-chain/llm/types";
+import {
+  availableModels,
+  LLMModelName,
+} from "../../../rakis-core/synthient-chain/llm/types";
 
-export default function InferenceRequestForm() {
+export default function InferenceRequestForm({
+  submitInferenceRequest,
+}: {
+  submitInferenceRequest: (
+    prompt: string,
+    models: LLMModelName[],
+    minimumParticipants: number,
+    timeAvailableSeconds: number,
+    percentageAgreement: number
+  ) => void;
+}) {
   return (
     <div className="relative overflow-hidden rounded-lg border bg-background focus-within:ring-2 focus-within:ring-ring ring-1 max-w-[550px] min-w-[525px]">
-      <Label htmlFor="message" className="sr-only">
-        Message
+      <Label htmlFor="prompt" className="sr-only">
+        Prompt
       </Label>
       <Textarea
-        id="message"
-        placeholder="Type your message here..."
+        id="prompt"
+        placeholder="Type your prompt for inference here..."
         className="min-h-24 resize-none border-0 p-3 shadow-none focus-visible:ring-0 text-md"
       />
-      {/* <div className="flex items-center p-3 pt-0"> */}
       <Flex justify={"center"} p="2" pt="0" gap="2">
         <Popover.Root>
           <Popover.Trigger>
@@ -41,7 +53,10 @@ export default function InferenceRequestForm() {
                   Which models are allowed?
                 </Text>
               </label>
-              <CheckboxGroup.Root defaultValue={["1"]} name="example">
+              <CheckboxGroup.Root
+                defaultValue={["gemma-2b-it-q4f16_1"]}
+                name="selectedModels"
+              >
                 {availableModels.map((model) => (
                   <CheckboxGroup.Item key={model} value={model}>
                     {model}
@@ -70,13 +85,19 @@ export default function InferenceRequestForm() {
                   size="2"
                   type="number"
                   className="max-w-14"
+                  value="50"
                 >
                   <TextField.Slot side="right">
                     <Text>%</Text>
                   </TextField.Slot>
                 </TextField.Root>
                 <Text size="2">of</Text>
-                <TextField.Root placeholder="6000" size="2" type="number">
+                <TextField.Root
+                  placeholder="6000"
+                  size="2"
+                  type="number"
+                  value="3"
+                >
                   <TextField.Slot side="right">
                     <Text>nodes</Text>
                   </TextField.Slot>
@@ -95,7 +116,12 @@ export default function InferenceRequestForm() {
                   around with this!)
                 </Text>
               </label>
-              <TextField.Root placeholder="6000" size="2" type="number" />
+              <TextField.Root
+                placeholder="6000"
+                size="2"
+                type="number"
+                value="500"
+              />
             </Flex>
           </Popover.Content>
         </Popover.Root>
@@ -103,6 +129,7 @@ export default function InferenceRequestForm() {
           <TextField.Root
             placeholder="6000"
             ml="3"
+            value="30"
             className="w-[5.3rem] flex-shrink mt-1"
           >
             <TextField.Slot side="right">
