@@ -233,7 +233,7 @@ export default function Inferences({
 }: {
   mySynthientId: string;
 }) {
-  const inferences = useInferences({ inferenceLimit: 5 });
+  const inferences = useInferences({ inferenceLimit: 50 });
 
   return (
     <Container size="2">

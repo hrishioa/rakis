@@ -34,14 +34,14 @@ export default function RootLayout({
         )}
       >
         <Theme
-          accentColor="crimson"
-          grayColor="sand"
-          radius="large"
-          scaling="90%"
+          accentColor="violet"
+          grayColor="slate"
+          radius="medium"
+          scaling="100%"
         >
           <Toaster />
           {children}
-          <ThemePanel />
+          {/* <ThemePanel /> */}
         </Theme>
       </body>
     </html>
