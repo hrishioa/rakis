@@ -101,7 +101,13 @@ export default function Home() {
             <Flex direction="row" className="mt-3" justify={"between"}>
               <Link color="amber">The Story</Link>
               <Link color="amber">How Rakis Works</Link>
-              <Link color="amber">See the code</Link>
+              <Link
+                color="amber"
+                href="https://github.com/hrishioa/rakis"
+                target="_blank"
+              >
+                See the code
+              </Link>
             </Flex>
             <Flex direction="row" className="mt-6" gap="3">
               <Box flexGrow={"1"}>

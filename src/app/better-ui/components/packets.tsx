@@ -1,4 +1,13 @@
-import { Flex, TextField, Text, Card, Spinner } from "@radix-ui/themes";
+import {
+  Flex,
+  TextField,
+  Text,
+  Card,
+  Spinner,
+  Popover,
+  DataList,
+  Box,
+} from "@radix-ui/themes";
 import usePackets from "../hooks/usePackets";
 import { MagnifyingGlassIcon } from "@radix-ui/react-icons";
 import { useDebounce } from "@uidotdev/usehooks";
@@ -284,33 +293,52 @@ export default function Packets() {
           </TextField.Slot>
         </TextField.Root>
         {filteredPackets.map((packet) => (
-          <Card
-            key={packet.signature + packet.synthientId}
-            style={{
-              backgroundColor:
-                packet.packet.type.startsWith("inference") ||
-                packet.packet.type === "p2pInferenceRequest"
-                  ? "$orange3"
-                  : "$gray3",
-            }}
-          >
-            <Flex align="center" gap="2">
-              {getPacketIcon(packet.packet.type)}
-              <Flex direction="column" flexGrow="1">
-                {getPacketMeta(packet)}
-                <Flex justify="between" mt="1">
-                  <Text size="1" color="gray" weight="medium">
-                    from {packet.synthientId.slice(0, 8)}
-                  </Text>
-                  <Text size="1" color="gray">
-                    {timeAgo.format(
-                      packet.receivedTime || new Date(packet.packet.createdAt)
-                    )}
-                  </Text>
+          <Popover.Root key={packet.signature + packet.synthientId}>
+            <Popover.Trigger>
+              <Card
+                key={packet.signature + packet.synthientId}
+                style={{
+                  backgroundColor:
+                    packet.packet.type.startsWith("inference") ||
+                    packet.packet.type === "p2pInferenceRequest"
+                      ? "$orange3"
+                      : "$gray3",
+                }}
+              >
+                <Flex align="center" gap="2">
+                  {getPacketIcon(packet.packet.type)}
+                  <Flex direction="column" flexGrow="1">
+                    {getPacketMeta(packet)}
+                    <Flex justify="between" mt="1">
+                      <Text size="1" color="gray" weight="medium">
+                        from {packet.synthientId.slice(0, 8)}
+                      </Text>
+                      <Text size="1" color="gray">
+                        {timeAgo.format(
+                          packet.receivedTime ||
+                            new Date(packet.packet.createdAt)
+                        )}
+                      </Text>
+                    </Flex>
+                  </Flex>
                 </Flex>
-              </Flex>
-            </Flex>
-          </Card>
+              </Card>
+            </Popover.Trigger>
+            <Popover.Content>
+              <Box maxHeight="300px" overflowY="auto">
+                <DataList.Root size="1">
+                  {Object.keys(packet.packet).map((key) => (
+                    <DataList.Item key={key}>
+                      <DataList.Label>{key}</DataList.Label>
+                      <DataList.Value>
+                        {`${(packet.packet as any)[key]}`.slice(0, 100)}
+                      </DataList.Value>
+                    </DataList.Item>
+                  ))}
+                </DataList.Root>
+              </Box>
+            </Popover.Content>
+          </Popover.Root>
         ))}
       </Flex>
     )) || <Spinner size="2" />

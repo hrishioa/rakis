@@ -42,7 +42,10 @@ const GreenDot = () => (
   />
 );
 
-function getInferenceStateDisplay(state: InferenceState) {
+function getInferenceStateDisplay(
+  state: InferenceState,
+  mySynthientId: string
+) {
   if (state.state === "requested")
     return (
       <Box>
@@ -50,11 +53,17 @@ function getInferenceStateDisplay(state: InferenceState) {
           {state.at.toLocaleString()}
         </Text>
         <Text as="p" size="4">
-          Requested {state.by ? `by ${state.by.slice(0, 5)}` : ""}
+          Requested{" "}
+          {state.by
+            ? `by ${state.by === mySynthientId ? "us" : state.by.slice(0, 5)}`
+            : ""}
         </Text>
         <Text as="div" size="1" color="gray" mt="1">
           {state.endingAt > new Date()
-            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            ? `ending in ${(
+                (state.endingAt.getTime() - new Date().getTime()) /
+                1000
+              ).toFixed(1)} seconds`
             : `ended at ${state.endingAt.toLocaleString()}`}
         </Text>
       </Box>
@@ -82,7 +91,10 @@ function getInferenceStateDisplay(state: InferenceState) {
         </Text>
         <Text as="div" size="1" color="gray" mt="1">
           {state.endingAt > new Date()
-            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            ? `ending in ${(
+                (state.endingAt.getTime() - new Date().getTime()) /
+                1000
+              ).toFixed(1)} seconds`
             : `ended at ${state.endingAt.toLocaleString()}`}
         </Text>
       </Box>
@@ -108,7 +120,10 @@ function getInferenceStateDisplay(state: InferenceState) {
         </Text>
         <Text as="div" size="1" color="gray" mt="1">
           {state.endingAt > new Date()
-            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            ? `ending in ${(
+                (state.endingAt.getTime() - new Date().getTime()) /
+                1000
+              ).toFixed(1)} seconds`
             : `ended at ${state.endingAt.toLocaleString()}`}
         </Text>
       </Box>
@@ -125,7 +140,10 @@ function getInferenceStateDisplay(state: InferenceState) {
         </Text>
         <Text as="div" size="1" color="gray" mt="1">
           {state.endingAt > new Date()
-            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            ? `ending in ${(
+                (state.endingAt.getTime() - new Date().getTime()) /
+                1000
+              ).toFixed(1)} seconds`
             : `ended at ${state.endingAt.toLocaleString()}`}
         </Text>
       </Box>
@@ -147,7 +165,10 @@ function getInferenceStateDisplay(state: InferenceState) {
         )}
         <Text as="div" size="1" color="gray" mt="1">
           {state.endingAt > new Date()
-            ? `ending in {(state.endingAt.getTime() - new Date().getTime()) / 1000} seconds`
+            ? `ending in ${(
+                (state.endingAt.getTime() - new Date().getTime()) /
+                1000
+              ).toFixed(1)} seconds`
             : `ended at ${state.endingAt.toLocaleString()}`}
         </Text>
       </Box>
@@ -207,7 +228,11 @@ function getInferenceStateDisplay(state: InferenceState) {
     );
 }
 
-export default function Inferences() {
+export default function Inferences({
+  mySynthientId,
+}: {
+  mySynthientId: string;
+}) {
   const inferences = useInferences({ inferenceLimit: 5 });
 
   return (
@@ -216,7 +241,11 @@ export default function Inferences() {
         <Flex gap="2" direction="column">
           {(inferences &&
             inferences.map((inference) => (
-              <Inference key={inference.requestId} inference={inference} />
+              <Inference
+                key={inference.requestId}
+                inference={inference}
+                mySynthientId={mySynthientId}
+              />
             ))) ||
             null}
         </Flex>
@@ -225,7 +254,13 @@ export default function Inferences() {
   );
 }
 
-export function Inference({ inference }: { inference: InferenceForDisplay }) {
+export function Inference({
+  inference,
+  mySynthientId,
+}: {
+  inference: InferenceForDisplay;
+  mySynthientId: string;
+}) {
   return (
     <Card>
       <Grid gap="2" columns="2" rows="1" height="125px">
@@ -354,7 +389,7 @@ export function Inference({ inference }: { inference: InferenceForDisplay }) {
                 {inference.states.map((state, index) => (
                   <Box key={index}>
                     <GreenDot />
-                    {getInferenceStateDisplay(state)}
+                    {getInferenceStateDisplay(state, mySynthientId)}
                   </Box>
                 ))}
               </Flex>

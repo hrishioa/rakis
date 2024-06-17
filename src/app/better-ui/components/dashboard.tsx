@@ -89,7 +89,9 @@ export default function Dashboard({
         </Flex>
         <Flex direction="row" gap="4" justify="between">
           <Box>
-            <InferenceRequestForm />
+            <InferenceRequestForm
+              submitInferenceRequest={submitInferenceRequest}
+            />
           </Box>
           <Box>
             <Flex direction="column" gap="2">
@@ -129,7 +131,7 @@ export default function Dashboard({
         <LLMWorkers llmWorkerStates={llmWorkerStates} />
         <Flex gap="2">
           <LogsPackets />
-          <Inferences />
+          <Inferences mySynthientId={mySynthientId} />
         </Flex>
       </Flex>
     )) || (
