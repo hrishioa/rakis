@@ -14,7 +14,7 @@ import {
   Section,
 } from "@radix-ui/themes";
 import { LLMModelName } from "../../../rakis-core/synthient-chain/llm/types";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import ChainIdentities from "./chainidentities";
 import LLMWorkers from "./llmWorkers";
 import ScaleWorkers from "./scaleWorkers";
@@ -22,8 +22,6 @@ import InferenceRequestForm from "./inferenceRequestForm";
 import LogsPackets from "./logsPackets";
 import Inferences from "./inferences";
 import NavBar from "./navbar";
-import Stats from "./stats";
-import { useWindowSize } from "@uidotdev/usehooks";
 
 export default function Dashboard({
   password,
@@ -46,13 +44,10 @@ export default function Dashboard({
     addNewChainIdentity,
   } = useTheDomain(password, overwrite);
 
-  const { width, height } = useWindowSize();
-
   const [workerSelectOpen, setWorkerSelectOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<LLMModelName | "">(
     "gemma-2b-it-q4f16_1"
   );
-  const [narrowScreen, setNarrowScreen] = useState<boolean>(false);
   const [numWorkers, setNumWorkers] = useState(1);
   const scaleWorkers = () => {
     if (selectedModel && !isNaN(numWorkers) && numWorkers > 0) {
@@ -61,22 +56,15 @@ export default function Dashboard({
     }
   };
 
-  useEffect(() => {
-    if (width) {
-      if (width < 1280) setNarrowScreen(true);
-      else setNarrowScreen(false);
-    }
-  }, [width]);
-
   return (
     (mySynthientId && (
       <Flex
         direction="column"
         justify="start"
         gap="2"
-        height="100vh"
+        maxHeight={"100vh"}
         p="4"
-        className="w-full"
+        pl="5"
       >
         <Box mt="1">
           <NavBar
@@ -88,46 +76,51 @@ export default function Dashboard({
           />
         </Box>
 
-        <Flex direction={{ initial: "column", lg: "row" }} gap="4">
-          <Box minWidth="490px" maxWidth={{ initial: "unset", lg: "550px" }}>
-            <Flex direction="row">
-              <Flex direction="column" gap="2">
-                <Text size="2" weight="medium">
-                  Start here: Run a prompt!
-                </Text>
-                <Text size="1" color="gray">
-                  Send an inference request to the Rakis network from here. Feel
-                  free to adjust the consensus settings to see what succeeds and
-                  fails.
-                </Text>
-                <InferenceRequestForm
-                  submitInferenceRequest={submitInferenceRequest}
-                />
-                <Text size="2" weight="medium" mt="3">
-                  Your Stats
-                </Text>
-                <Text size="1" color="gray">
-                  Rakis has no central servers, so these stats are collected
-                  from p2p exchanges during your time in the network. YMMV!
-                </Text>
-                <Stats />
-                {narrowScreen ? null : <LogsPackets />}
+        <Flex direction="row" gap="4" justify="between">
+          <Box>
+            <InferenceRequestForm
+              submitInferenceRequest={submitInferenceRequest}
+            />
+          </Box>
+          <Box>
+            <Flex direction="column" gap="2">
+              <Text size="2" color="gray">
+                Your stats
+              </Text>
+              <Flex direction="row" gap="2">
+                <Box>
+                  <Card>
+                    <Heading size="7">200</Heading>
+                    <Text size="2">Peers</Text>
+                  </Card>
+                </Box>
+                <Box>
+                  <Card>
+                    <Heading size="8">20000+</Heading>
+                    <Text size="2">Tokens</Text>
+                  </Card>
+                </Box>
+                <Box>
+                  <Card>
+                    <Heading size="7">20000</Heading>
+                    <Text size="2">Packets</Text>
+                  </Card>
+                </Box>
+                <Box>
+                  <Card>
+                    <Heading size="7">7</Heading>
+                    <Text size="2">Local Workers</Text>
+                  </Card>
+                </Box>
               </Flex>
             </Flex>
           </Box>
-          <Box flexGrow="1" minWidth="500px">
-            <Flex direction="column" gap="2">
-              <Text size="2" weight="medium">
-                Step two: watch inferences
-              </Text>
-              <Text size="1" color="gray">
-                Rakis is completely public. Watch inference requests from the
-                networks here, as they pass through each stage of validation.
-              </Text>
-              <Inferences mySynthientId={mySynthientId} />
-            </Flex>
-          </Box>
-          {narrowScreen ? <LogsPackets /> : null}
+        </Flex>
+
+        <LLMWorkers llmWorkerStates={llmWorkerStates} />
+        <Flex gap="2">
+          <LogsPackets />
+          <Inferences mySynthientId={mySynthientId} />
         </Flex>
       </Flex>
     )) || (

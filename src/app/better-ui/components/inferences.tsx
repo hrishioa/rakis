@@ -24,6 +24,11 @@ import { useThemeContext } from "@radix-ui/themes";
 // English.
 import { ChevronDown, CopyIcon } from "lucide-react";
 
+// English.
+import en from "javascript-time-ago/locale/en";
+
+TimeAgo.addDefaultLocale(en);
+
 // Create formatter (English).
 const timeAgo = new TimeAgo("en-US");
 
@@ -236,8 +241,12 @@ export default function Inferences({
   const inferences = useInferences({ inferenceLimit: 50 });
 
   return (
-    <Container size="2">
-      <Card>
+    <Card>
+      <Container
+        // size="2"
+        maxHeight={{ initial: "50vh", lg: "80vh" }}
+        overflowY="scroll"
+      >
         <Flex gap="2" direction="column">
           {(inferences &&
             inferences.map((inference) => (
@@ -249,8 +258,8 @@ export default function Inferences({
             ))) ||
             null}
         </Flex>
-      </Card>
-    </Container>
+      </Container>
+    </Card>
   );
 }
 
@@ -264,7 +273,7 @@ export function Inference({
   return (
     <Card>
       <Grid gap="2" columns="2" rows="1" height="125px">
-        <Box width="300px" height="100%">
+        <Box height="100%">
           <Flex direction="column" gap="1" className="h-full">
             <Flex justify="between" mx="1">
               <Popover.Root>

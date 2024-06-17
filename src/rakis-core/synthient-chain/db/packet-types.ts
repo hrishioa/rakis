@@ -124,6 +124,7 @@ type PeerStatusUpdate = PeerPacketAttributes &
   (
     | {
         status: "boot";
+        totalTokens: number;
       }
     | {
         status: "loaded_worker";
@@ -138,6 +139,7 @@ type PeerStatusUpdate = PeerPacketAttributes &
         status: "completed_inference";
         tps: number;
         modelName: LLMModelName;
+        totalTokens: number;
       }
     | {
         status: "computing_bEmbeddingHash";
@@ -158,9 +160,12 @@ export type KnownPeers = PeerPacketAttributes & {
     identities?: ChainIdentity[];
     lastSeen: string;
     seenOn: SupportedP2PDeliveryNetwork[];
+    totalTokens: number;
   }[];
 };
 
+// This is just a silly way to send each other hearts or show liveness
+// Removed the super fun hookup that we had ourt of worry it'll crash the network
 export type PeerHeart = PeerPacketAttributes & {
   type: "peerHeart";
   windowX: number; // X coordinate of the window

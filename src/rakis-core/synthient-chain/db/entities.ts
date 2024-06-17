@@ -44,6 +44,7 @@ export type Peer = {
   chainIds: ChainIdentity[];
   deviceInfo?: string;
   nickName?: string;
+  totalTokens: number;
 };
 
 // Inference DB
@@ -58,6 +59,7 @@ export type InferenceDBEvents = {
   newInferenceRequest: (request: InferenceRequest) => void;
   requestQuorumReveal: (revealRequests: InferenceRevealRequest[]) => void;
   revealedInference: (revealPacket: InferenceReveal) => void;
+  bootComplete: (totalTokens: number) => void;
 };
 
 // Packet DB

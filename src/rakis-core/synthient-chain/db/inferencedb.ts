@@ -69,6 +69,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   public quorumDb: QuorumDB;
   // This should ideally be part of the db or a live query once the network is larger, has a chance of becoming problematic
   public activeInferenceRequests: InferenceRequest[] = [];
+  public totalTokens: number = 0;
   private cleanupTimeout: NodeJS.Timeout | null = null;
 
   constructor(private mySynthientId: string, dbOptions: DexieOptions = {}) {
@@ -81,6 +82,25 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     this.quorumDb.on("requestReveal", (quorums) => {
       this.emitRevealRequests(quorums);
     });
+  }
+
+  async completeBoot() {
+    // TODO: This might be really quite expensive as the db gets larger, remember to denormalize when some day you have time
+
+    console.time("Counting our tokens so far");
+    const existingTotalTokens = (
+      await this.inferenceResultDb.inferenceResults.toArray()
+    ).reduce(
+      (acc, cur) => (cur.result.success ? acc + cur.result.tokenCount : acc),
+      0
+    );
+
+    this.totalTokens += existingTotalTokens;
+    console.timeEnd("Counting our tokens so far");
+
+    this.refreshCleanupTimeout();
+
+    this.emit("bootComplete", this.totalTokens);
   }
 
   async processExternalConsensus(consensusPacket: InferenceQuorumComputed) {
@@ -461,6 +481,9 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     await this.inferenceResultDb.inferenceResults.put(inferenceResult);
 
     if (inferenceResult.result.success) {
+      this.totalTokens =
+        (this.totalTokens || 0) + inferenceResult.result.tokenCount;
+
       // Get matching inferenceRequest and recheck
       const matchingRequest =
         await this.inferenceRequestDb.inferenceRequests.get(

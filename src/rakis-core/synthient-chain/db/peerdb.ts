@@ -65,6 +65,13 @@ export class PeerDB {
     return chainIds;
   }
 
+  async getNetworkTotalTokens() {
+    return (await this.db.peers.toArray()).reduce(
+      (acc, cur) => acc + cur.totalTokens,
+      0
+    );
+  }
+
   async getLastPeers(lastSeenAfter: Date, maxCount: number): Promise<Peer[]> {
     return this.db.peers
       .where("lastSeen")
@@ -112,9 +119,21 @@ export class PeerDB {
           ) as (ReceivedPeerPacket & { packet: PeerConnectedChain })[]
         ).flatMap((packet) => packet.packet.identities);
 
+        let totalTokens = Math.max(
+          ...peerPackets.map((packet) =>
+            packet.packet.type === "peerStatusUpdate" &&
+            (packet.packet.status === "completed_inference" ||
+              packet.packet.status === "boot")
+              ? packet.packet.totalTokens
+              : 0
+          ),
+          0
+        );
+
         const updatedPeer: Peer = existingPeer || {
           synthientId,
           seenOn: [],
+          totalTokens,
           lastSeen: peerPackets[0].receivedTime || new Date(),
           chainIds: [],
         };
@@ -187,6 +206,7 @@ export class PeerDB {
 
         flattenedIncomingPeerList[peer.synthientId] = {
           peer: {
+            totalTokens: peer.totalTokens,
             synthientId: peer.synthientId,
             seenOn: peer.seenOn,
             lastSeen: new Date(peer.lastSeen),
@@ -229,6 +249,11 @@ export class PeerDB {
               new Date(peer.lastSeen).getTime()
             ) || new Date(peer.lastSeen)
           );
+
+        updatedPeer.totalTokens = Math.max(
+          peer.totalTokens,
+          updatedPeer.totalTokens
+        );
 
         newPeers[peer.synthientId] = updatedPeer;
       })

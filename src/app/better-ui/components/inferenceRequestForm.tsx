@@ -119,7 +119,7 @@ export default function InferenceRequestForm({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-lg border bg-background focus-within:ring-2 focus-within:ring-ring ring-1 max-w-[550px] min-w-[525px]">
+    <div className="relative overflow-hidden rounded-lg border bg-background focus-within:ring-2 focus-within:ring-ring ring-1">
       <Label htmlFor="prompt" className="sr-only">
         Prompt
       </Label>
@@ -247,7 +247,7 @@ export default function InferenceRequestForm({
           ml="auto"
           className="ml-auto gap-1.5 flex-grow"
         >
-          Send Inference Request
+          Send to Rakis
           <CornerDownLeft className="size-3.5" />
         </Button>
       </Flex>

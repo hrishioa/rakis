@@ -229,10 +229,13 @@ export class TheDomain {
       );
     }
 
-    this.packetDB.transmitPacket({
-      type: "peerStatusUpdate",
-      status: "boot",
-      createdAt: stringifyDateWithOffset(new Date()),
+    this.inferenceDB.on("bootComplete", (totalTokens: number) => {
+      this.packetDB.transmitPacket({
+        type: "peerStatusUpdate",
+        status: "boot",
+        totalTokens,
+        createdAt: stringifyDateWithOffset(new Date()),
+      });
     });
 
     if (this.chainIdentities.length) {
@@ -609,6 +612,7 @@ export class TheDomain {
               status: "completed_inference",
               modelName: selectedInference.payload.acceptedModels[0],
               tps,
+              totalTokens: this.inferenceDB.totalTokens,
               createdAt: stringifyDateWithOffset(new Date()),
             });
           }

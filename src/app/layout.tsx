@@ -38,6 +38,7 @@ export default function RootLayout({
           grayColor="slate"
           radius="medium"
           scaling="100%"
+          appearance="dark"
         >
           <Toaster />
           {children}
