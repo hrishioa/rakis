@@ -7,7 +7,7 @@ import {
   useSignMessage,
 } from "wagmi";
 import { useEffect, useRef } from "react";
-import { ChainIdentity } from "../../../rakis-core/synthient-chain/db/entities";
+import { ChainIdentity } from "../../rakis-core/synthient-chain/db/entities";
 import { Badge, Button, Flex, Popover, Tooltip } from "@radix-ui/themes";
 
 const ChainIdentities: React.FC<{

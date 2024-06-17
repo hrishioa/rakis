@@ -5,9 +5,7 @@ import {
   Button,
   Text,
   TextField,
-  TextArea,
   Popover,
-  Heading,
   CheckboxGroup,
   Tooltip,
 } from "@radix-ui/themes";
@@ -16,9 +14,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   availableModels,
   LLMModelName,
-} from "../../../rakis-core/synthient-chain/llm/types";
+} from "../../rakis-core/synthient-chain/llm/types";
 import { useRef, useState } from "react";
-import { useToast } from "../../../components/ui/use-toast";
+import { useToast } from "../ui/use-toast";
 
 export default function InferenceRequestForm({
   submitInferenceRequest,

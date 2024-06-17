@@ -2,8 +2,8 @@ import { Box, Card, Flex, Text, Progress, Spinner } from "@radix-ui/themes";
 import {
   LLMModelName,
   LLMWorkerStates,
-} from "../../../rakis-core/synthient-chain/llm/types";
-import { BrainCircuit, Heading } from "lucide-react";
+} from "../../rakis-core/synthient-chain/llm/types";
+import { BrainCircuit } from "lucide-react";
 import { useState } from "react";
 
 export default function LLMWorkers({

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { TheDomain } from "../../../rakis-core/synthient-chain/thedomain/thedomain";
-import { ReceivedPeerPacket } from "../../../rakis-core/synthient-chain/db/packet-types";
+import { TheDomain } from "../rakis-core/synthient-chain/thedomain/thedomain";
+import { ReceivedPeerPacket } from "../rakis-core/synthient-chain/db/packet-types";
 import { debounce } from "lodash";
 
 export default function usePackets({ packetLimit }: { packetLimit: number }) {

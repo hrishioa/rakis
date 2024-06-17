@@ -1,7 +1,7 @@
 import { Box, Card, Flex, Tabs, Text } from "@radix-ui/themes";
 import Logs from "./logs";
 import Packets from "./packets";
-import usePackets from "../hooks/usePackets";
+import usePackets from "../../hooks/usePackets";
 
 export default function LogsPackets({}) {
   const packets = usePackets({ packetLimit: 500 });

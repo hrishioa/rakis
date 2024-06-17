@@ -1,23 +1,11 @@
 "use client";
 
 import Lottie from "react-lottie";
-import { useTheDomain } from "../../../components/core/useTheDomain";
-import * as sandwormAnimationData from "../../../components/core/sandworms.json";
-import {
-  Box,
-  Button,
-  Card,
-  Flex,
-  Tooltip,
-  Text,
-  Heading,
-  Section,
-} from "@radix-ui/themes";
-import { LLMModelName } from "../../../rakis-core/synthient-chain/llm/types";
+import { useTheDomain } from "../../hooks/useTheDomain";
+import * as sandwormAnimationData from "./sandworms.json";
+import { Box, Flex, Text } from "@radix-ui/themes";
+import { LLMModelName } from "../../rakis-core/synthient-chain/llm/types";
 import { useEffect, useState } from "react";
-import ChainIdentities from "./chainidentities";
-import LLMWorkers from "./llmWorkers";
-import ScaleWorkers from "./scaleWorkers";
 import InferenceRequestForm from "./inferenceRequestForm";
 import LogsPackets from "./logsPackets";
 import Inferences from "./inferences";

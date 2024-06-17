@@ -1,49 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { CursorArrowIcon } from "@radix-ui/react-icons";
 import {
+  Box,
+  Button,
   Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
-import { Checkbox } from "../components/ui/checkbox";
+  Container,
+  Flex,
+  Heading,
+  Link,
+  Switch,
+  Text,
+  TextField,
+} from "@radix-ui/themes";
+import { DEFAULT_IDENTITY_ENCRYPTED_KEY } from "../rakis-core/synthient-chain/thedomain/settings";
+import { useEffect, useState } from "react";
 import { initClientInfo } from "../rakis-core/synthient-chain/identity";
-import { useToast } from "../components/ui/use-toast";
-import Dashboard from "../components/core/dashboard";
+import { toast } from "../components/ui/use-toast";
+import Dashboard from "../components/dashboard/dashboard";
 import { WagmiProvider } from "wagmi";
-import { wagmiConfig } from "../rakis-core/blockchains/wagmi-config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  DEFAULT_IDENTITY_ENCRYPTED_KEY,
-  LOADED_SETTINGS,
-  loadSettings,
-} from "../rakis-core/synthient-chain/thedomain/settings";
-
+import { wagmiConfig } from "../rakis-core/blockchains/wagmi-config";
 const queryClient = new QueryClient();
 
 export default function Home() {
-  const [password, setPassword] = useState("");
+  const [existingIdentity, setExistingIdentity] = useState<boolean>(false);
   const [overwriteIdentity, setOverwriteIdentity] = useState(false);
+  const [password, setPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [existingIdentity, setExistingIdentity] = useState<boolean | null>(
-    null
-  );
-  const [rakisSettings, setRakisSettings] = useState<LOADED_SETTINGS | null>(
-    null
-  );
-
-  const { toast } = useToast();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setRakisSettings(loadSettings());
+      if (localStorage.getItem(DEFAULT_IDENTITY_ENCRYPTED_KEY))
+        setExistingIdentity(true);
     }
   }, []);
 
   const handlePasswordSubmit = () => {
-    console.log("Trying to decrypt identity");
+    console.log(
+      "Trying to decrypt identity with ",
+      password,
+      " and ",
+      overwriteIdentity
+    );
     (async () => {
       try {
         const testClientInfo = await initClientInfo(
@@ -65,80 +64,100 @@ export default function Home() {
         toast({
           variant: "destructive",
           title: "Could not decrypt identity.",
-          description: "Please try again!",
+          description: "Please try again or overwrite!",
         });
       }
     })();
   };
 
-  useEffect(() => {
-    if (typeof window !== "undefined" && rakisSettings) {
-      if (window.localStorage.getItem(DEFAULT_IDENTITY_ENCRYPTED_KEY))
-        setExistingIdentity(true);
-      else setExistingIdentity(false);
-    }
-  }, [rakisSettings]);
-
-  return (
-    (isAuthenticated && (
-      <WagmiProvider config={wagmiConfig}>
-        <QueryClientProvider client={queryClient}>
-          <Dashboard
-            identityPassword={password}
-            overwriteIdentity={false} // Already created when we test it
-          />
-        </QueryClientProvider>
-      </WagmiProvider>
-    )) ||
-    (existingIdentity !== null && rakisSettings && (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-96">
-          <CardHeader>
-            <CardTitle>Log into Rakis</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <input
-              autoFocus
-              type="password"
-              placeholder={
-                existingIdentity ? "Enter password" : "Create a password"
-              }
-              value={password}
-              onKeyPress={(e) => {
-                if (e.key === "Enter") {
-                  handlePasswordSubmit();
-                }
-              }}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-600"
-            />
-            {existingIdentity && (
-              <div className="mt-4">
-                <Checkbox
-                  id="overwriteIdentity"
-                  checked={overwriteIdentity}
-                  onCheckedChange={(checked) => setOverwriteIdentity(!!checked)}
-                />
-                <label
-                  htmlFor="overwriteIdentity"
-                  className="text-sm ml-2 font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  return isAuthenticated ? (
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <Dashboard password={password} overwrite={overwriteIdentity} />
+      </QueryClientProvider>
+    </WagmiProvider>
+  ) : (
+    <Flex direction="column" justify={"center"} height={"100vh"}>
+      <Flex direction="row" justify={"center"}>
+        <Card variant="ghost">
+          <Container size="1" p="4">
+            <Heading size="9" weight={"medium"}>
+              Welcome to Rakis.
+            </Heading>
+            <Flex justify={"end"} className="mt-2">
+              <Link
+                color="blue"
+                href="https://twitter.com/hrishioa"
+                target="_blank"
+              >
+                built as a two-week experiment by @hrishioa
+              </Link>
+            </Flex>
+            <Text color="gray" as="div" size="4" className="mt-6">
+              Rakis is a permissionless inference network that runs entirely in
+              the browser. Choose a password below and instantly be a part of
+              the network.
+            </Text>{" "}
+            <Flex direction="row" className="mt-3" justify={"between"}>
+              <Link color="amber">The Story</Link>
+              <Link color="amber">How Rakis Works</Link>
+              <Link
+                color="amber"
+                href="https://github.com/hrishioa/rakis"
+                target="_blank"
+              >
+                See the code
+              </Link>
+            </Flex>
+            <Flex direction="row" className="mt-6" gap="3">
+              <Box flexGrow={"1"}>
+                <TextField.Root
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handlePasswordSubmit();
+                    }
+                  }}
+                  size="3"
+                  variant="classic"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={
+                    existingIdentity
+                      ? "Enter password..."
+                      : "Create a password..."
+                  }
                 >
-                  Overwrite existing identity?
-                </label>
-              </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <button
-              onClick={handlePasswordSubmit}
-              className="px-4 py-2 font-bold text-white bg-blue-500 rounded-full hover:bg-blue-700"
-            >
-              Enter A Rakis
-            </button>
-          </CardFooter>
+                  {existingIdentity && (
+                    <TextField.Slot side="right">
+                      <Text as="label" size="2">
+                        <Flex gap="2">
+                          <Switch
+                            size="1"
+                            variant="soft"
+                            checked={overwriteIdentity}
+                            onCheckedChange={(e) => setOverwriteIdentity(!!e)}
+                          />{" "}
+                          Overwrite Existing
+                        </Flex>
+                      </Text>
+                    </TextField.Slot>
+                  )}
+                </TextField.Root>
+              </Box>
+              <Box>
+                <Button
+                  size="3"
+                  variant="classic"
+                  onClick={handlePasswordSubmit}
+                >
+                  <CursorArrowIcon /> Join
+                </Button>
+              </Box>
+            </Flex>
+          </Container>
         </Card>
-      </div>
-    )) ||
-    null
+      </Flex>
+    </Flex>
   );
 }

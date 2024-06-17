@@ -4,7 +4,6 @@ import {
   Card,
   Container,
   Flex,
-  Separator,
   Text,
   Button,
   Popover,
@@ -12,14 +11,12 @@ import {
   IconButton,
   Grid,
   Tooltip,
-  ScrollArea,
 } from "@radix-ui/themes";
 import useInferences, {
   InferenceForDisplay,
   InferenceState,
-} from "../hooks/useInferences";
+} from "../../hooks/useInferences";
 import TimeAgo from "javascript-time-ago";
-import { useThemeContext } from "@radix-ui/themes";
 
 // English.
 import { ChevronDown, CopyIcon } from "lucide-react";

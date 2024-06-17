@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { TheDomain } from "../../../rakis-core/synthient-chain/thedomain/thedomain";
 import { debounce } from "lodash";
-import { LLMModelName } from "../../../rakis-core/synthient-chain/llm/types";
-import { EmbeddingModelName } from "../../../rakis-core/synthient-chain/embeddings/types";
-import { loadSettings } from "../../../rakis-core/synthient-chain/thedomain/settings";
+import { LLMModelName } from "../rakis-core/synthient-chain/llm/types";
+import { EmbeddingModelName } from "../rakis-core/synthient-chain/embeddings/types";
+import { loadSettings } from "../rakis-core/synthient-chain/thedomain/settings";
+import { TheDomain } from "../rakis-core/synthient-chain/thedomain/thedomain";
 
 const settings = loadSettings();
 

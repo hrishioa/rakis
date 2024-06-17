@@ -1,11 +1,11 @@
 import { Flex, Button, Box, Tooltip } from "@radix-ui/themes";
-import { ChainIdentity } from "../../../rakis-core/synthient-chain/db/entities";
+import { ChainIdentity } from "../../rakis-core/synthient-chain/db/entities";
 import ChainIdentities from "./chainidentities";
 import ScaleWorkers from "./scaleWorkers";
 import {
   LLMModelName,
   LLMWorkerStates,
-} from "../../../rakis-core/synthient-chain/llm/types";
+} from "../../rakis-core/synthient-chain/llm/types";
 
 export default function NavBar({
   llmWorkerStates,

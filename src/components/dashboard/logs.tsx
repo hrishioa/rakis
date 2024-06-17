@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import {
   InMemoryLogs,
   StringLog,
-} from "../../../rakis-core/synthient-chain/utils/logger";
+} from "../../rakis-core/synthient-chain/utils/logger";
 import { InfoCircledIcon } from "@radix-ui/react-icons";
 import { CircleX, ShieldAlert } from "lucide-react";
 import TimeAgo from "javascript-time-ago";

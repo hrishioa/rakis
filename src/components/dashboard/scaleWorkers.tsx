@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   availableModels,
   LLMModelName,
-} from "../../../rakis-core/synthient-chain/llm/types";
+} from "../../rakis-core/synthient-chain/llm/types";
 import {
   Button as RadixButton,
   Dialog,
@@ -10,11 +10,7 @@ import {
   Text,
   TextField,
 } from "@radix-ui/themes";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../../../components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
   Command,
   CommandEmpty,
@@ -22,10 +18,10 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "../../../components/ui/command";
-import { Button } from "../../../components/ui/button";
+} from "../ui/command";
+import { Button } from "../ui/button";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "../../../lib/utils";
+import { cn } from "../../lib/utils";
 
 export default function ScaleWorkers({
   workerCount,

@@ -8,12 +8,12 @@ import {
   DataList,
   Box,
 } from "@radix-ui/themes";
-import usePackets from "../hooks/usePackets";
+import usePackets from "../../hooks/usePackets";
 import { MagnifyingGlassIcon } from "@radix-ui/react-icons";
 import { useDebounce } from "@uidotdev/usehooks";
 
 import TimeAgo from "javascript-time-ago";
-import { ReceivedPeerPacket } from "../../../rakis-core/synthient-chain/db/packet-types";
+import { ReceivedPeerPacket } from "../../rakis-core/synthient-chain/db/packet-types";
 import {
   Activity,
   CheckCircle,
