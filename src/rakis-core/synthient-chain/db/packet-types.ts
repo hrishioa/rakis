@@ -159,6 +159,7 @@ export type KnownPeers = PeerPacketAttributes & {
     synthientId: string;
     identities?: ChainIdentity[];
     lastSeen: string;
+    totalWorkers: number;
     seenOn: SupportedP2PDeliveryNetwork[];
     totalTokens: number;
   }[];

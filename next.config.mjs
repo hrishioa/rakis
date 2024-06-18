@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
+  distDir: "../rakis-compiled",
+  output: "export",
   reactStrictMode: true,
   webpack: (config, { isServer, nextRuntime, dev }) => {
     // Fixes npm packages that depend on `fs` module

@@ -130,12 +130,23 @@ export class PeerDB {
           .concat([existingPeer?.totalTokens || 0])
           .filter((count) => !isNaN(count) && count > 0);
 
+        const totalWorkers = peerPackets
+          .map((packet) =>
+            packet.packet.type === "peerStatusUpdate" &&
+            packet.packet.status === "loaded_worker"
+              ? packet.packet.totalWorkers
+              : 0
+          )
+          .concat([existingPeer?.totalWorkers || 0])
+          .filter((count) => !isNaN(count) && count > 0);
+
         let totalTokens = tokenCounts.length > 0 ? Math.max(...tokenCounts) : 0;
 
         const updatedPeer: Peer = existingPeer || {
           synthientId,
           seenOn: [],
-          totalTokens,
+          totalTokens: 0,
+          totalWorkers: 0,
           lastSeen: peerPackets[0].receivedTime || new Date(),
           chainIds: [],
         };
@@ -155,6 +166,16 @@ export class PeerDB {
           updatedPeer.chainIds,
           synthientId,
           newIdentities
+        );
+
+        updatedPeer.totalTokens = Math.max(
+          totalTokens,
+          updatedPeer.totalTokens || 0
+        );
+
+        updatedPeer.totalWorkers = Math.max(
+          totalWorkers.length > 0 ? Math.max(...totalWorkers) : 0,
+          updatedPeer.totalWorkers || 0
         );
 
         return updatedPeer;
@@ -211,6 +232,7 @@ export class PeerDB {
             totalTokens: peer.totalTokens,
             synthientId: peer.synthientId,
             seenOn: peer.seenOn,
+            totalWorkers: peer.totalWorkers,
             lastSeen: new Date(peer.lastSeen),
             chainIds: peer.identities || [],
           },
@@ -263,6 +285,11 @@ export class PeerDB {
 
         updatedPeer.totalTokens =
           totalTokenList.length > 0 ? Math.max(...totalTokenList) : 0;
+
+        updatedPeer.totalWorkers = Math.max(
+          peer.totalWorkers,
+          updatedPeer.totalWorkers
+        );
 
         newPeers[peer.synthientId] = updatedPeer;
       })

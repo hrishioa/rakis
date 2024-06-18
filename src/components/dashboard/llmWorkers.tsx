@@ -26,7 +26,8 @@ export default function LLMWorkers({
         </Text>
         <Text size="1" color="gray">
           These are the local models you&apos;re running that will pick up
-          inference requests from the network.
+          inference requests from the network. First time loads will take 10-15
+          minutes, subsequent loads will likely be less than a minute.
         </Text>
       </Flex>
 

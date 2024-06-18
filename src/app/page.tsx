@@ -100,7 +100,13 @@ export default function Home() {
             </Text>{" "}
             <Flex direction="row" className="mt-3" justify={"between"}>
               <Link color="amber">The Story</Link>
-              <Link color="amber">How Rakis Works</Link>
+              <Link
+                color="amber"
+                href="https://rakis-docs.vercel.app"
+                target="_blank"
+              >
+                Docs
+              </Link>
               <Link
                 color="amber"
                 href="https://github.com/hrishioa/rakis"

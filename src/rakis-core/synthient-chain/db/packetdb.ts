@@ -342,6 +342,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         peerList: peerList.map((peer) => ({
           synthientId: peer.synthientId,
           identities: peer.chainIds,
+          totalWorkers: peer.totalWorkers || 0,
           totalTokens: (!isNaN(peer.totalTokens) && peer.totalTokens) || 0,
           lastSeen: peer.lastSeen && stringifyDateWithOffset(peer.lastSeen),
           seenOn: peer.seenOn,

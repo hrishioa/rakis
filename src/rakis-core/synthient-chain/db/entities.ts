@@ -45,6 +45,7 @@ export type Peer = {
   deviceInfo?: string;
   nickName?: string;
   totalTokens: number;
+  totalWorkers: number;
 };
 
 // Inference DB
