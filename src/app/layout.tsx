@@ -38,11 +38,11 @@ export default function RootLayout({
           grayColor="slate"
           radius="medium"
           scaling="100%"
-          appearance="dark"
+          // appearance="dark"
         >
           <Toaster />
           {children}
-          {/* <ThemePanel /> */}
+          <ThemePanel />
         </Theme>
       </body>
     </html>

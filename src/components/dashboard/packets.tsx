@@ -284,7 +284,7 @@ export default function Packets() {
     (packets && (
       <Flex direction="column" gap="4" py="4">
         <TextField.Root
-          placeholder={`Search ${packets.total} packet types...`}
+          placeholder={`Search packet types (${packets.total} packets)...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         >
@@ -331,7 +331,10 @@ export default function Packets() {
                     <DataList.Item key={key}>
                       <DataList.Label>{key}</DataList.Label>
                       <DataList.Value>
-                        {`${(packet.packet as any)[key]}`.slice(0, 100)}
+                        {(packet.packet as any)[key].constructor == Object ||
+                        Array.isArray((packet.packet as any)[key])
+                          ? JSON.stringify((packet.packet as any)[key])
+                          : `${(packet.packet as any)[key]}`.slice(0, 100)}
                       </DataList.Value>
                     </DataList.Item>
                   ))}

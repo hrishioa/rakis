@@ -105,7 +105,7 @@ const ChainIdentities: React.FC<{
     >
       <Popover.Root>
         <Popover.Trigger>
-          <Button color="grass" variant="soft" size="3">
+          <Button color="grass" variant="soft" size="2">
             Connect On-Chain Identity{" "}
             {chainIdentities.length ? `(${chainIdentities.length})` : ""}
           </Button>

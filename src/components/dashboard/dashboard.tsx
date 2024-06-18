@@ -3,7 +3,7 @@
 import Lottie from "react-lottie";
 import { useTheDomain } from "../../hooks/useTheDomain";
 import * as sandwormAnimationData from "./sandworms.json";
-import { Box, Flex, Text } from "@radix-ui/themes";
+import { Box, Card, Container, Flex, Text } from "@radix-ui/themes";
 import { LLMModelName } from "../../rakis-core/synthient-chain/llm/types";
 import { useEffect, useState } from "react";
 import InferenceRequestForm from "./inferenceRequestForm";
@@ -77,20 +77,30 @@ export default function Dashboard({
         </Box>
 
         <Flex direction={{ initial: "column", lg: "row" }} gap="4">
-          <Box minWidth="490px" maxWidth={{ initial: "unset", lg: "550px" }}>
+          <Box minWidth="490px" maxWidth={{ initial: "unset", lg: "590px" }}>
             <Flex direction="row">
               <Flex direction="column" gap="2">
-                <Text size="2" weight="medium">
-                  Start here: Run a prompt!
-                </Text>
-                <Text size="1" color="gray">
-                  Send an inference request to the Rakis network from here. Feel
-                  free to adjust the consensus settings to see what succeeds and
-                  fails.
-                </Text>
-                <InferenceRequestForm
-                  submitInferenceRequest={submitInferenceRequest}
-                />
+                <Flex
+                  direction="column"
+                  gap="2"
+                  className="bg-lime-200 p-3"
+                  style={{
+                    borderRadius: "7px",
+                  }}
+                >
+                  <Text size="5" weight="medium">
+                    Run a prompt!
+                  </Text>
+                  <Text size="1" color="gray">
+                    Send an inference request to the Rakis network from here.
+                    Feel free to adjust the consensus settings to see what
+                    succeeds and fails.
+                  </Text>
+                  <InferenceRequestForm
+                    submitInferenceRequest={submitInferenceRequest}
+                  />
+                </Flex>
+
                 <Text size="2" weight="medium" mt="3">
                   Your Stats
                 </Text>

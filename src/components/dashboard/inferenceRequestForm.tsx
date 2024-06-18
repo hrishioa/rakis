@@ -36,7 +36,7 @@ export default function InferenceRequestForm({
   const [secPercentage, setSecPercentage] = useState("50");
   const [secDistance, setSecDistance] = useState("500");
   const [numNodes, setNumNodes] = useState("2");
-  const [timeAvailable, setTimeAvailable] = useState("10");
+  const [timeAvailable, setTimeAvailable] = useState("30");
   const { toast } = useToast();
 
   function validateAndSendInferenceRequest() {
@@ -244,6 +244,7 @@ export default function InferenceRequestForm({
           highContrast
           ml="auto"
           className="ml-auto gap-1.5 flex-grow"
+          onClick={validateAndSendInferenceRequest}
         >
           Send to Rakis
           <CornerDownLeft className="size-3.5" />

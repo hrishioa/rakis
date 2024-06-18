@@ -11,6 +11,7 @@ import {
   IconButton,
   Grid,
   Tooltip,
+  Separator,
 } from "@radix-ui/themes";
 import useInferences, {
   InferenceForDisplay,
@@ -230,36 +231,6 @@ function getInferenceStateDisplay(
     );
 }
 
-export default function Inferences({
-  mySynthientId,
-}: {
-  mySynthientId: string;
-}) {
-  const inferences = useInferences({ inferenceLimit: 50 });
-
-  return (
-    <Card>
-      <Container
-        // size="2"
-        maxHeight={{ initial: "50vh", lg: "80vh" }}
-        overflowY="scroll"
-      >
-        <Flex gap="2" direction="column">
-          {(inferences &&
-            inferences.map((inference) => (
-              <Inference
-                key={inference.requestId}
-                inference={inference}
-                mySynthientId={mySynthientId}
-              />
-            ))) ||
-            null}
-        </Flex>
-      </Container>
-    </Card>
-  );
-}
-
 export function Inference({
   inference,
   mySynthientId,
@@ -330,7 +301,7 @@ export function Inference({
                   </DataList.Root>
                 </Popover.Content>
               </Popover.Root>
-              {inference.quorum && <Badge>{inference.quorum.status}</Badge>}
+              {/* {inference.quorum && <Badge>{inference.quorum.status}</Badge>} */}
             </Flex>
 
             <Box className="flex-grow" mt="1">
@@ -390,6 +361,21 @@ export function Inference({
             }}
           />
           <Box position="relative" pt="1">
+            <Box position="absolute" top="0" bottom="0" width="1px" ml="-0.5px">
+              <Separator
+                size="4"
+                orientation="vertical"
+                mt="2"
+                style={
+                  {
+                    // background:
+                    //   appearance === "dark"
+                    //     ? ""
+                    //     : "linear-gradient(to bottom, var(--teal-6) 90%, transparent)",
+                  }
+                }
+              />
+            </Box>
             <Box pl="6">
               <Flex direction="column-reverse" gap="4">
                 {inference.states.map((state, index) => (
@@ -403,6 +389,47 @@ export function Inference({
           </Box>
         </Container>
       </Grid>
+    </Card>
+  );
+}
+
+export default function Inferences({
+  mySynthientId,
+}: {
+  mySynthientId: string;
+}) {
+  const inferences = useInferences({ inferenceLimit: 50 });
+
+  return (
+    <Card>
+      <Container
+        // size="2"
+        maxHeight={{ initial: "50vh", lg: "80vh" }}
+        overflowY="scroll"
+      >
+        <Flex gap="2" direction="column">
+          {(inferences &&
+            inferences.length &&
+            inferences.map((inference) => (
+              <Inference
+                key={inference.requestId}
+                inference={inference}
+                mySynthientId={mySynthientId}
+              />
+            ))) || (
+            <Flex gap="2" direction="column">
+              <Text size="4" weight="bold">
+                No Inferences yet
+              </Text>
+              <Text size="2">
+                Inferences on Rakis are ephemeral - you only see the ones that
+                happen after you node has been live. Leave your node running or
+                send an inference to see them here.
+              </Text>
+            </Flex>
+          )}
+        </Flex>
+      </Container>
     </Card>
   );
 }

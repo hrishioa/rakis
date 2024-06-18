@@ -128,8 +128,8 @@ type PeerStatusUpdate = PeerPacketAttributes &
       }
     | {
         status: "loaded_worker";
-        workerId: string;
         modelName: string;
+        totalWorkers: number;
       }
     | {
         status: "inferencing";

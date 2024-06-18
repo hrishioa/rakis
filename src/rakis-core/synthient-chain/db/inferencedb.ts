@@ -82,12 +82,13 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     this.quorumDb.on("requestReveal", (quorums) => {
       this.emitRevealRequests(quorums);
     });
+
+    this.completeBoot();
   }
 
   async completeBoot() {
     // TODO: This might be really quite expensive as the db gets larger, remember to denormalize when some day you have time
 
-    console.time("Counting our tokens so far");
     const existingTotalTokens = (
       await this.inferenceResultDb.inferenceResults.toArray()
     ).reduce(
@@ -96,7 +97,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     this.totalTokens += existingTotalTokens;
-    console.timeEnd("Counting our tokens so far");
+    logger.debug(`Our total inference tokens so far - ${this.totalTokens}`);
 
     this.refreshCleanupTimeout();
 

@@ -119,16 +119,18 @@ export class PeerDB {
           ) as (ReceivedPeerPacket & { packet: PeerConnectedChain })[]
         ).flatMap((packet) => packet.packet.identities);
 
-        let totalTokens = Math.max(
-          ...peerPackets.map((packet) =>
+        const tokenCounts = peerPackets
+          .map((packet) =>
             packet.packet.type === "peerStatusUpdate" &&
             (packet.packet.status === "completed_inference" ||
               packet.packet.status === "boot")
               ? packet.packet.totalTokens
               : 0
-          ),
-          0
-        );
+          )
+          .concat([existingPeer?.totalTokens || 0])
+          .filter((count) => !isNaN(count) && count > 0);
+
+        let totalTokens = tokenCounts.length > 0 ? Math.max(...tokenCounts) : 0;
 
         const updatedPeer: Peer = existingPeer || {
           synthientId,
@@ -250,10 +252,17 @@ export class PeerDB {
             ) || new Date(peer.lastSeen)
           );
 
-        updatedPeer.totalTokens = Math.max(
-          peer.totalTokens,
-          updatedPeer.totalTokens
+        logger.debug(
+          `UpdatedPeer totalTokens: ${peer.totalTokens} ${updatedPeer.totalTokens}`
         );
+
+        const totalTokenList = [
+          peer.totalTokens,
+          updatedPeer.totalTokens,
+        ].filter((tT) => !isNaN(tT) && tT > 0);
+
+        updatedPeer.totalTokens =
+          totalTokenList.length > 0 ? Math.max(...totalTokenList) : 0;
 
         newPeers[peer.synthientId] = updatedPeer;
       })

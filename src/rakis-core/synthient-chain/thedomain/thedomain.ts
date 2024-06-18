@@ -157,6 +157,16 @@ export class TheDomain {
       setTimeout(() => this.processInferenceRequestQueue(), 0);
     });
 
+    this.llmEngine.on("workerLoaded", ({ modelName, workerId }) => {
+      this.packetDB.transmitPacket({
+        type: "peerStatusUpdate",
+        status: "loaded_worker",
+        totalWorkers: Object.keys(this.llmEngine.getWorkerStates()).length,
+        createdAt: stringifyDateWithOffset(new Date()),
+        modelName,
+      });
+    });
+
     // If inference results are done, move them off to get embedded
     this.inferenceDB.on(
       "inferenceResultAwaitingEmbedding",

@@ -55,7 +55,7 @@ export default function ScaleWorkers({
   return (
     <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
       <Dialog.Trigger>
-        <RadixButton variant="soft" size="3">
+        <RadixButton variant="soft" size="2">
           Scale Workers
         </RadixButton>
       </Dialog.Trigger>
