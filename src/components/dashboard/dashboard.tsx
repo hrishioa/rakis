@@ -3,8 +3,7 @@
 import Lottie from "react-lottie";
 import { useTheDomain } from "../../hooks/useTheDomain";
 import * as sandwormAnimationData from "./sandworms.json";
-import { Box, Card, Container, Flex, Text } from "@radix-ui/themes";
-import { LLMModelName } from "../../rakis-core/synthient-chain/llm/types";
+import { Box, Flex, Text } from "@radix-ui/themes";
 import { useEffect, useState } from "react";
 import InferenceRequestForm from "./inferenceRequestForm";
 import LogsPackets from "./logsPackets";
@@ -12,6 +11,7 @@ import Inferences from "./inferences";
 import NavBar from "./navbar";
 import Stats from "./stats";
 import { useWindowSize } from "@uidotdev/usehooks";
+import LLMWorkers from "./llmWorkers";
 
 export default function Dashboard({
   password,
@@ -21,33 +21,17 @@ export default function Dashboard({
   overwrite: boolean;
 }) {
   const {
-    peers,
-    packets,
-    llmEngineLog,
     llmWorkerStates,
     mySynthientId,
     scaleLLMWorkers,
-    inferences,
     submitInferenceRequest,
-    peerCount,
     chainIdentities,
     addNewChainIdentity,
   } = useTheDomain(password, overwrite);
 
-  const { width, height } = useWindowSize();
+  const { width } = useWindowSize();
 
-  const [workerSelectOpen, setWorkerSelectOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<LLMModelName | "">(
-    "gemma-2b-it-q4f16_1"
-  );
   const [narrowScreen, setNarrowScreen] = useState<boolean>(false);
-  const [numWorkers, setNumWorkers] = useState(1);
-  const scaleWorkers = () => {
-    if (selectedModel && !isNaN(numWorkers) && numWorkers > 0) {
-      console.log(`Scaling ${numWorkers} workers for model ${selectedModel}`);
-      if (selectedModel) scaleLLMWorkers(selectedModel, numWorkers);
-    }
-  };
 
   useEffect(() => {
     if (width) {
@@ -114,6 +98,9 @@ export default function Dashboard({
             </Flex>
           </Box>
           <Box flexGrow="1" minWidth="500px">
+            <Flex direction="column" gap="2">
+              <LLMWorkers llmWorkerStates={llmWorkerStates} />
+            </Flex>
             <Flex direction="column" gap="2">
               <Text size="2" weight="medium">
                 Step two: watch inferences

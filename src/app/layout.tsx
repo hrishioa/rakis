@@ -5,7 +5,7 @@ import { Inter as FontSans } from "next/font/google";
 import { cn } from "../lib/utils";
 import { Toaster } from "../components/ui/toaster";
 import "@radix-ui/themes/styles.css";
-import { Theme, ThemePanel } from "@radix-ui/themes";
+import { Theme } from "@radix-ui/themes";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -42,7 +42,7 @@ export default function RootLayout({
         >
           <Toaster />
           {children}
-          <ThemePanel />
+          {/* <ThemePanel /> */}
         </Theme>
       </body>
     </html>

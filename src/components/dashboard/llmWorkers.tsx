@@ -5,6 +5,8 @@ import {
 } from "../../rakis-core/synthient-chain/llm/types";
 import { BrainCircuit } from "lucide-react";
 import { useState } from "react";
+import Lottie from "react-lottie";
+import * as thinkingAnimation from "./fluidloading.json";
 
 export default function LLMWorkers({
   llmWorkerStates,
@@ -17,12 +19,12 @@ export default function LLMWorkers({
   );
 
   return (
-    <Box p="2" my="3">
+    <Box>
       <Flex direction="column">
-        <Text size="5" weight="bold">
-          Workers
+        <Text size="2" weight="medium" mt="3">
+          Local LLM Workers
         </Text>
-        <Text size="2" color="gray">
+        <Text size="1" color="gray">
           These are the local models you&apos;re running that will pick up
           inference requests from the network.
         </Text>
@@ -53,7 +55,22 @@ export default function LLMWorkers({
             >
               <Flex gap="3" align="center">
                 {llmWorkerStates[workerId].state === "inference-in-progress" ? (
-                  <Spinner size="3" ml="2" />
+                  <Box width="40px">
+                    <Lottie
+                      options={{
+                        loop: true,
+                        autoplay: true,
+                        animationData: thinkingAnimation,
+                        rendererSettings: {
+                          preserveAspectRatio: "xMidYMid slice",
+                        },
+                      }}
+                      style={{
+                        width: "100%",
+                        height: "auto",
+                      }}
+                    />
+                  </Box>
                 ) : (
                   <BrainCircuit width="20" height="20" className="ml-2" />
                 )}
@@ -74,7 +91,12 @@ export default function LLMWorkers({
                     />
                   ) : (
                     <Text as="div" size="2" color="gray">
-                      {llmWorkerStates[workerId].state}
+                      {llmWorkerStates[workerId].state ===
+                      "inference-in-progress"
+                        ? "Inference in progress"
+                        : llmWorkerStates[workerId].state === "idle"
+                        ? "Idle"
+                        : "Ready"}
                     </Text>
                   )}
                 </Box>

@@ -1,5 +1,4 @@
 import {
-  Badge,
   Box,
   Card,
   Container,
@@ -55,7 +54,7 @@ function getInferenceStateDisplay(
         <Text as="div" size="1" color="gray" mb="1">
           {state.at.toLocaleString()}
         </Text>
-        <Text as="p" size="4">
+        <Text as="p" size="3">
           Requested{" "}
           {state.by
             ? `by ${state.by === mySynthientId ? "us" : state.by.slice(0, 5)}`
@@ -78,7 +77,7 @@ function getInferenceStateDisplay(
         <Text as="div" size="1" color="gray" mb="1">
           {state.at.toLocaleString()}
         </Text>
-        <Text as="p" size="4">
+        <Text as="p" size="3">
           Collecting Inferences
         </Text>
         <Text
@@ -109,7 +108,7 @@ function getInferenceStateDisplay(
         <Text as="div" size="1" color="gray" mb="1">
           {state.at.toLocaleString()}
         </Text>
-        <Text as="p" size="4">
+        <Text as="p" size="3">
           Requesting Nodes to reveal
         </Text>
         <Text
@@ -138,7 +137,7 @@ function getInferenceStateDisplay(
         <Text as="div" size="1" color="gray" mb="1">
           {state.at.toLocaleString()}
         </Text>
-        <Text as="p" size="4">
+        <Text as="p" size="3">
           Nodes are calculating consensus
         </Text>
         <Text as="div" size="1" color="gray" mt="1">
@@ -158,7 +157,7 @@ function getInferenceStateDisplay(
         <Text as="div" size="1" color="gray" mb="1">
           {state.at.toLocaleString()}
         </Text>
-        <Text as="p" size="4">
+        <Text as="p" size="3">
           Collecting peer consensus
         </Text>
         {state.collectedExternalConsensuses > 0 && (
@@ -404,7 +403,7 @@ export default function Inferences({
     <Card>
       <Container
         // size="2"
-        maxHeight={{ initial: "50vh", lg: "80vh" }}
+        maxHeight={{ initial: "50vh", lg: "65vh" }}
         overflowY="scroll"
       >
         <Flex gap="2" direction="column">

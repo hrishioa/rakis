@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { ChainIdentity, Peer } from "../rakis-core/synthient-chain/db/entities";
+import { ChainIdentity } from "../rakis-core/synthient-chain/db/entities";
 import { TheDomain } from "../rakis-core/synthient-chain/thedomain/thedomain";
-import { ReceivedPeerPacket } from "../rakis-core/synthient-chain/db/packet-types";
 import {
-  LLMEngineLogEntry,
   LLMModelName,
   LLMWorkerStates,
 } from "../rakis-core/synthient-chain/llm/types";
 import { debounce } from "lodash";
-import { EmbeddingModelName } from "../rakis-core/synthient-chain/embeddings/types";
 import {
   generateRandomString,
   stringifyDateWithOffset,
@@ -20,110 +17,13 @@ const POLLING_INTERVAL = 3000; // 5 seconds
 const last24HoursDate = new Date();
 last24HoursDate.setDate(last24HoursDate.getDate() - 1);
 
-// TODO: Get rid of this
-export type InferencesForDisplay = {
-  requestId: string;
-  requestedAt: string;
-  endingAt: Date;
-  requestPayload: {
-    fromChain: string; // what chain did we get this on?
-    createdAt: string;
-    prompt: string;
-    acceptedModels: LLMModelName[];
-    temperature: number;
-    maxTokens: number;
-    securityFrame: {
-      quorum: number; // Number of inferences that need to happen for a quorum
-      maxTimeMs: number; // Max amount of time that this round can take before failed inference
-      secDistance: number; // Distance in embeddingspace
-      secPercentage: number; // Percentage of quorum that needs to be within secDistance embedding distance
-      embeddingModel: EmbeddingModelName;
-    };
-  };
-  ourResult?: {
-    // this will be true if we participated.
-    payload: {
-      requestId: string;
-      inferenceId: string;
-      startedAt: string; // timezoned date
-      completedAt: string; // timezoned date
-    } & {
-      result:
-        | {
-            success: true;
-            result: string;
-            tokenCount: number;
-          }
-        | {
-            success: false;
-            error: any;
-          };
-    };
-    bEmbeddingHash?: string;
-  };
-  quorum?: {
-    // This is the consensus quorum where other nodes are participating.
-    status:
-      | "awaiting_commitments"
-      | "awaiting_reveal"
-      | "failed"
-      | "completed"
-      | "awaiting_consensus"
-      | "verifying_consensus";
-    quorumThreshold: number;
-    quorumCommitted: number;
-    quorumRevealed: number;
-    quorum: {
-      inferenceId: string;
-      synthientId: string;
-      commitReceivedAt: Date;
-      bEmbeddingHash: string;
-      reveal?: {
-        output: string;
-        receivedAt: Date;
-      };
-    }[];
-  };
-  consensusResult?: {
-    status: string;
-    result?: {
-      submittedInferences: {
-        inferenceId: string;
-      }[];
-      validInferences: {
-        inferenceId: string;
-      }[];
-      validInferenceJointHash: string;
-      validInference: {
-        output: string;
-        fromSynthientId: string;
-        bEmbeddingHash: string;
-      };
-    };
-  };
-  externalConsensuses: {
-    verifiedBy: string;
-    bEmbeddingHash: string;
-    output: string;
-    validInferenceBy: string;
-  }[];
-};
-
 export function useTheDomain(
   identityPassword: string,
   overwriteIdentity: boolean
 ) {
   const domainRef = useRef<TheDomain | null>(null);
-  const [peers, setPeers] = useState<Peer[]>([]);
   const [mySynthientId, setMySynthientId] = useState<string | null>(null);
-  const [packets, setPackets] = useState<{
-    packets: ReceivedPeerPacket[];
-    total: number;
-  } | null>(null);
   const [llmWorkerStates, setllmWorkerStates] = useState<LLMWorkerStates>({});
-  const [llmEngineLog, setLLMEngineLog] = useState<LLMEngineLogEntry[]>([]);
-  const [inferences, setInferences] = useState<InferencesForDisplay[]>([]);
-  const [peerCount, setPeerCount] = useState<number | null>(null);
   const [chainIdentities, setChainIdentities] = useState<ChainIdentity[]>([]);
 
   function scaleLLMWorkers(modelName: LLMModelName, count: number) {
@@ -187,22 +87,9 @@ export function useTheDomain(
   useEffect(() => {
     const updateEngines = debounce(() => {
       const engines = domainRef.current?.llmEngine?.getWorkerStates();
+      console.log("Got engine states", engines);
       if (engines) {
         setllmWorkerStates(engines);
-      }
-    }, 100);
-
-    const updateInferences = debounce(async () => {
-      const inferences = await domainRef.current?.inferenceDB?.getInferences(
-        10
-      );
-      if (inferences) {
-        setInferences(inferences);
-      }
-
-      const packets = await domainRef.current?.packetDB?.getLastPackets(100);
-      if (packets) {
-        setPackets(packets);
       }
     }, 100);
 
@@ -224,24 +111,10 @@ export function useTheDomain(
       domain.llmEngine.on("workerFree", updateEngines);
       domain.llmEngine.on("workerLoading", updateEngines);
       domain.llmEngine.on("workerLoadFailed", updateEngines);
+      domain.llmEngine.on("workerBusy", updateEngines);
       domain.llmEngine.on("workerLoaded", updateEngines);
       domain.llmEngine.on("workerUnloaded", updateEngines);
       domain.llmEngine.on("modelLoadingProgress", updateEngines);
-
-      domain.inferenceDB.on(
-        "inferenceResultAwaitingEmbedding",
-        updateInferences
-      );
-      domain.inferenceDB.on("newActiveInferenceRequest", updateInferences);
-      domain.inferenceDB.on("newInferenceRequest", updateInferences);
-      domain.inferenceDB.on("requestQuorumReveal", updateInferences);
-      domain.inferenceDB.on("revealedInference", updateInferences);
-      domain.inferenceDB.on("newInferenceEmbedding", updateInferences);
-
-      domain.packetDB.on("newInferenceCommit", updateInferences);
-      domain.packetDB.on("newInferenceRevealRequest", updateInferences);
-      domain.packetDB.on("newInferenceRevealed", updateInferences);
-      domain.packetDB.on("newP2PInferenceRequest", updateInferences);
 
       setllmWorkerStates(domain.llmEngine.getWorkerStates());
     };
@@ -259,12 +132,6 @@ export function useTheDomain(
           domainRef.current.inferenceDB.getInferences(10),
           domainRef.current.packetDB.peerDB.getPeerCount(),
         ]);
-
-      setPeers(latestPeers || []);
-      setPackets(latestPackets);
-      setLLMEngineLog(llmEngineLogs);
-      setInferences(inferences);
-      setPeerCount(peerCount);
     };
 
     const intervalId = setInterval(pollData, POLLING_INTERVAL);
@@ -284,61 +151,14 @@ export function useTheDomain(
         "workerUnloaded",
         updateEngines
       );
-
-      domainRef.current?.inferenceDB.removeListener(
-        "inferenceResultAwaitingEmbedding",
-        updateInferences
-      );
-      domainRef.current?.inferenceDB.removeListener(
-        "newActiveInferenceRequest",
-        updateInferences
-      );
-      domainRef.current?.inferenceDB.removeListener(
-        "newInferenceRequest",
-        updateInferences
-      );
-      domainRef.current?.inferenceDB.removeListener(
-        "requestQuorumReveal",
-        updateInferences
-      );
-      domainRef.current?.inferenceDB.removeListener(
-        "revealedInference",
-        updateInferences
-      );
-      domainRef.current?.inferenceDB.removeListener(
-        "newInferenceEmbedding",
-        updateInferences
-      );
-
-      domainRef.current?.packetDB.removeListener(
-        "newInferenceCommit",
-        updateInferences
-      );
-      domainRef.current?.packetDB.removeListener(
-        "newInferenceRevealRequest",
-        updateInferences
-      );
-      domainRef.current?.packetDB.removeListener(
-        "newInferenceRevealed",
-        updateInferences
-      );
-      domainRef.current?.packetDB.removeListener(
-        "newP2PInferenceRequest",
-        updateInferences
-      );
     };
   }, [identityPassword, overwriteIdentity]);
 
   return {
     mySynthientId,
-    peers,
-    packets,
     llmWorkerStates,
-    llmEngineLog,
-    inferences,
     scaleLLMWorkers,
     submitInferenceRequest,
-    peerCount,
     chainIdentities,
     addNewChainIdentity,
   };

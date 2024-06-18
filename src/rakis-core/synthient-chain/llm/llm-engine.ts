@@ -28,6 +28,7 @@ type LLMEngineEvents = {
   }) => void;
   workerLoaded: (data: { modelName: LLMModelName; workerId: string }) => void;
   workerLoading: (data: { modelName: LLMModelName; workerId: string }) => void;
+  workerBusy: (data: { workerId: string }) => void;
   workerUnloaded: (data: { workerId: string }) => void;
   workerFree: (data: { workerId: string }) => void;
   modelLoadingProgress: () => void;
@@ -430,6 +431,8 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
       inferenceId,
       params,
     });
+
+    this.emit("workerBusy", { workerId });
 
     this.llmWorkers[workerId].inferenceInProgress = true;
     this.llmWorkers[workerId].inferencePromise = new DeferredPromise<boolean>();
