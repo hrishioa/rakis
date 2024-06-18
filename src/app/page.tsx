@@ -125,6 +125,7 @@ export default function Home() {
                   }}
                   size="3"
                   variant="classic"
+                  autoFocus
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

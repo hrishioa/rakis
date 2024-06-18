@@ -84,14 +84,6 @@ export default function Dashboard({
                     submitInferenceRequest={submitInferenceRequest}
                   />
                 </Flex>
-
-                <Text size="2" weight="medium" mt="3">
-                  Your Stats
-                </Text>
-                <Text size="1" color="gray">
-                  Rakis has no central servers, so these stats are collected
-                  from p2p exchanges during your time in the network. YMMV!
-                </Text>
                 <Stats />
                 {narrowScreen ? null : <LogsPackets />}
               </Flex>

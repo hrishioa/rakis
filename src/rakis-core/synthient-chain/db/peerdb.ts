@@ -72,6 +72,31 @@ export class PeerDB {
     );
   }
 
+  async getPeerStats(lastSeen: Date): Promise<{
+    totalTokens: number;
+    totalPeers: number;
+    totalWorkers: number;
+  }> {
+    const totalPeers = await this.db.peers
+      .where("lastSeen")
+      .above(lastSeen)
+      .count();
+    const totalTokens = (
+      await this.db.peers.where("lastSeen").above(lastSeen).toArray()
+    ).reduce(
+      (acc, cur) => acc + ((!isNaN(cur.totalTokens) && cur.totalTokens) || 0),
+      0
+    );
+    const totalWorkers = (
+      await this.db.peers.where("lastSeen").above(lastSeen).toArray()
+    ).reduce(
+      (acc, cur) => acc + ((!isNaN(cur.totalWorkers) && cur.totalWorkers) || 0),
+      0
+    );
+
+    return { totalTokens, totalPeers, totalWorkers };
+  }
+
   async getLastPeers(lastSeenAfter: Date, maxCount: number): Promise<Peer[]> {
     return this.db.peers
       .where("lastSeen")

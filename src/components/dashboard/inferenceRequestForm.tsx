@@ -123,6 +123,7 @@ export default function InferenceRequestForm({
       </Label>
       <Textarea
         id="prompt"
+        autoFocus
         ref={promptRef}
         placeholder="Type your prompt for inference here..."
         className="min-h-24 resize-none border-0 p-3 shadow-none focus-visible:ring-0 text-md"

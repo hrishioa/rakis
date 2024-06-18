@@ -140,3 +140,16 @@ export type QuorumDBEvents = {
   ) => void;
   consensusPackets: (packts: PeerPacket[]) => void;
 };
+
+export type RakisStats = {
+  peerStats: {
+    totalTokens: number;
+    totalPeers: number;
+    totalWorkers: number;
+  };
+  packetCount: number;
+  ourStats: {
+    tokens: number;
+    workers: number;
+  };
+};

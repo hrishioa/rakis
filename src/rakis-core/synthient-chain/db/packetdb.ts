@@ -65,6 +65,17 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     this.sendPacketOverP2P = sendPacketOverP2P;
   }
 
+  async getStats(since: Date) {
+    const peerStats = await this.peerDB.getPeerStats(since);
+
+    const packetCount = await this.db.packets.count();
+
+    return {
+      peerStats,
+      packetCount,
+    };
+  }
+
   async getLastPackets(count: number): Promise<{
     packets: ReceivedPeerPacket[];
     total: number;

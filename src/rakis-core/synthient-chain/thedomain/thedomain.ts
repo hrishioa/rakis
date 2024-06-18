@@ -20,7 +20,7 @@ import {
   propagateInferencePacketsFromInferenceDBtoP2P,
   saveInferencePacketsFromP2PToInferenceDB,
 } from "./connectors";
-import { ChainIdentity } from "../db/entities";
+import { ChainIdentity, RakisStats } from "../db/entities";
 import { recoverEthChainAddressFromSignature } from "../utils/simple-crypto";
 import { DeferredPromise } from "../utils/deferredpromise";
 
@@ -255,6 +255,21 @@ export class TheDomain {
         identities: this.chainIdentities,
       });
     }
+  }
+
+  async getStats(since: Date): Promise<RakisStats> {
+    const { peerStats, packetCount } = await this.packetDB.getStats(since);
+
+    const ourStats = {
+      tokens: this.inferenceDB.totalTokens,
+      workers: Object.keys(this.llmEngine.getWorkerStates()).length,
+    };
+
+    return {
+      peerStats,
+      packetCount,
+      ourStats,
+    };
   }
 
   async addChainIdentity(

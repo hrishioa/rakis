@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
-  distDir: "../rakis-compiled",
+  distDir: "dist",
   output: "export",
   reactStrictMode: true,
   webpack: (config, { isServer, nextRuntime, dev }) => {
