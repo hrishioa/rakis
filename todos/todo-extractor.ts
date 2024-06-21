@@ -95,7 +95,7 @@ function compileTodos(rootDir: string, outputFile: string): void {
 
 // Usage
 const rootDirectory = path.join(__dirname, "..", "src");
-const outputFilePath = path.join(__dirname, "TODO.md");
+const outputFilePath = path.join(__dirname, "README.md");
 
 console.log("Compiling TODOs from", rootDirectory, "to", outputFilePath);
 
