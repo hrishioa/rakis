@@ -33,6 +33,7 @@ export default function RootLayout({
           fontSans.variable
         )}
       >
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <Theme
           accentColor="violet"
           grayColor="slate"

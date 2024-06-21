@@ -94,9 +94,7 @@ export default function Dashboard({
               <Flex direction="column" gap="2">
                 <LLMWorkers llmWorkerStates={llmWorkerStates} />
               </Flex>
-            ) : (
-              0
-            )}
+            ) : null}
             <Flex direction="column" gap="2">
               <Text size="2" weight="medium">
                 Step two: watch inferences

@@ -13,11 +13,6 @@ export default function LLMWorkers({
 }: {
   llmWorkerStates: LLMWorkerStates;
 }) {
-  const [open, setOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<LLMModelName | "">(
-    "gemma-2b-it-q4f16_1"
-  );
-
   return (
     <Box>
       <Flex direction="column">
