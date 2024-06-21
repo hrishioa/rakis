@@ -33,6 +33,7 @@ import {
 import { modelColors } from "./colors";
 import { EmbeddingEngine } from "../../../rakis-core/synthient-chain/embeddings/embedding-engine";
 import { LLMEngine } from "../../../rakis-core/synthient-chain/llm/llm-engine";
+import { hashBinaryEmbedding } from "../../../rakis-core/synthient-chain/utils/simple-crypto";
 
 const EmbeddingChart = dynamic(() => import("./embedding-chart"), {
   ssr: false,
@@ -257,11 +258,16 @@ const LLMTestingPage: React.FC = () => {
       ]);
 
     if (embeddingResult && embeddingResult.length > 0) {
+      const bEmbeddingHash = await hashBinaryEmbedding(
+        embeddingResult[0].binaryEmbedding,
+        workerId
+      );
+
       setWorkerStatus((prevStatus) => ({
         ...prevStatus,
         [workerId]: {
           ...prevStatus[workerId],
-          embeddingHash: embeddingResult[0].bEmbeddingHash,
+          embeddingHash: bEmbeddingHash,
         },
       }));
     }
@@ -321,12 +327,17 @@ const LLMTestingPage: React.FC = () => {
           ]);
 
         if (embeddingResult && embeddingResult.length > 0) {
+          const bEmbeddingHash = await hashBinaryEmbedding(
+            embeddingResult[0].binaryEmbedding,
+            workerId
+          );
+
           setWorkerStatus((prevStatus) => ({
             ...prevStatus,
             [workerId]: {
               ...prevStatus[workerId],
               isLoading: false,
-              embeddingHash: embeddingResult[0].bEmbeddingHash,
+              bEmbeddingHash,
             },
           }));
         }

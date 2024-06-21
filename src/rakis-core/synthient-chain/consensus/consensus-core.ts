@@ -106,7 +106,8 @@ export async function runFinalConsensus(
         // TODO: Investigate if it's only one particular P2P
         // network that does this
         const rehash = await hashBinaryEmbedding(
-          Object.values(revealedCommit.reveal.bEmbedding as any) as number[]
+          Object.values(revealedCommit.reveal.bEmbedding as any) as number[],
+          revealedCommit.synthientId
         );
 
         if (rehash !== revealedCommit.bEmbeddingHash) {

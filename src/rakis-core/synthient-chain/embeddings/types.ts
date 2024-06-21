@@ -56,11 +56,17 @@ export type EmbeddingWorkerSentMessage =
       reason: string;
     };
 
+export type EmbeddingResultFromWorker = {
+  text: string;
+  embedding: number[];
+  binaryEmbedding: number[];
+};
+
 export type EmbeddingResult = {
   text: string;
   embedding: number[];
   binaryEmbedding: number[];
-  bEmbeddingHash: string;
+  bEmbeddingHash?: string;
 };
 
 export type EmbeddingWorkerLogEntryRaw =
@@ -88,7 +94,6 @@ export type EmbeddingWorkerLogEntryRaw =
     }
   | {
       type: "engine_embedding_success";
-      bEmbeddingHash: string;
       batchId: string;
     };
 

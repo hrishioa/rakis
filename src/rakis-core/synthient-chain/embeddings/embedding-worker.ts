@@ -1,6 +1,7 @@
 import { pipeline, quantize_embeddings } from "@xenova/transformers";
 import {
   EmbeddingModelName,
+  EmbeddingResultFromWorker,
   EmbeddingWorker,
   EmbeddingWorkerReceivedMessage,
   EmbeddingWorkerSentMessage,
@@ -113,16 +114,13 @@ async function embedText(
 
     const binaryEmbeddings = quantize_embeddings(embeddings, "ubinary");
 
-    const results: EmbeddingResult[] = await Promise.all(
+    const results: EmbeddingResultFromWorker[] = await Promise.all(
       texts.map(async (text, index) => {
         return {
           text,
           embedding: embeddings.slice([index, index + 1]).data as number[],
           binaryEmbedding: binaryEmbeddings.slice([index, index + 1])
             .data as number[],
-          bEmbeddingHash: await hashBinaryEmbedding(
-            binaryEmbeddings.slice([index, index + 1]).data as number[]
-          ),
         };
       })
     );

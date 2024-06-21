@@ -21,7 +21,10 @@ import {
   saveInferencePacketsFromP2PToInferenceDB,
 } from "./connectors";
 import { ChainIdentity, RakisStats } from "../db/entities";
-import { recoverEthChainAddressFromSignature } from "../utils/simple-crypto";
+import {
+  hashBinaryEmbedding,
+  recoverEthChainAddressFromSignature,
+} from "../utils/simple-crypto";
 import { DeferredPromise } from "../utils/deferredpromise";
 
 const logger = createLogger("Domain", logStyles.theDomain);
@@ -476,7 +479,7 @@ export class TheDomain {
 
       this.embeddingEngine
         .embedText(embeddingPayload, item.model)
-        .then((embeddingResults) => {
+        .then(async (embeddingResults) => {
           logger.debug(
             "EmbeddingQueue: Embedding completed",
             item,
@@ -487,12 +490,18 @@ export class TheDomain {
           if (embeddingResults && embeddingResults.length) {
             if (item.request.type === "resultEmbedding") {
               const embeddingResult = embeddingResults[0];
+
+              const bEmbeddingHash = await hashBinaryEmbedding(
+                embeddingResult.binaryEmbedding,
+                this.clientInfo.synthientId
+              );
+
               this.inferenceDB.saveInferenceEmbedding(item.request.result, {
                 inferenceId: item.request.result.inferenceId,
                 requestId: item.request.result.requestId,
                 embedding: embeddingResult.embedding,
                 bEmbedding: embeddingResult.binaryEmbedding,
-                bEmbeddingHash: embeddingResult.bEmbeddingHash,
+                bEmbeddingHash,
               });
             } else {
               this.inferenceDB.processVerifiedConsensusEmbeddings({

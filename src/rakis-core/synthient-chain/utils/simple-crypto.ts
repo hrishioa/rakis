@@ -49,15 +49,36 @@ export async function recoverEthChainAddressFromSignature(
   }
 }
 
-export async function hashBinaryEmbedding(bEmbedding: number[]) {
-  const uint8Array = new Uint8Array(bEmbedding);
-  const hashBufer = await crypto.subtle.digest("SHA-256", uint8Array);
-  const hashArray = Array.from(new Uint8Array(hashBufer));
+// TODO: Verify that this is actually how to do it :D
+export async function hashBinaryEmbedding(
+  bEmbedding: number[],
+  addition: string
+) {
+  const bEmbeddingArray = new Uint8Array(bEmbedding);
+  const encoder = new TextEncoder();
+  const additionalArray = encoder.encode(addition);
+  var mergedArray = new Uint8Array(
+    bEmbeddingArray.length + additionalArray.length
+  );
+  mergedArray.set(bEmbeddingArray);
+  mergedArray.set(additionalArray, bEmbeddingArray.length);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", mergedArray);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
   const hashHex = hashArray
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
   return hashHex;
 }
+
+// export async function hashBinaryEmbedding(bEmbedding: number[]) {
+//   const uint8Array = new Uint8Array(bEmbedding);
+//   const hashBuffer = await crypto.subtle.digest("SHA-256", uint8Array);
+//   const hashArray = Array.from(new Uint8Array(hashBuffer));
+//   const hashHex = hashArray
+//     .map((b) => b.toString(16).padStart(2, "0"))
+//     .join("");
+//   return hashHex;
+// }
 
 export async function hashString(str: string) {
   const encoder = new TextEncoder();

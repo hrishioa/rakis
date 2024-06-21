@@ -2,6 +2,7 @@ import {
   EmbeddingEngineLogEntry,
   EmbeddingModelName,
   EmbeddingResult,
+  EmbeddingResultFromWorker,
   EmbeddingWorkerReceivedMessage,
   EmbeddingWorkerSentMessage,
 } from "./types";
@@ -36,7 +37,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     params: {
       texts: string[];
     };
-    completionPromise: DeferredPromise<EmbeddingResult[] | false>;
+    completionPromise: DeferredPromise<EmbeddingResultFromWorker[] | false>;
   }[] = [];
 
   public getEmbeddingEngineLogs(
@@ -313,7 +314,6 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
             results.forEach((result, index) => {
               this.logEngineEvent({
                 type: "engine_embedding_success",
-                bEmbeddingHash: result.bEmbeddingHash,
                 batchId: selectedJob.batchId,
                 workerId: selectedWorkerId,
               });
