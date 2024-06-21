@@ -99,7 +99,13 @@ export default function Home() {
               the network.
             </Text>{" "}
             <Flex direction="row" className="mt-3" justify={"between"}>
-              <Link color="amber">The Story</Link>
+              <Link
+                color="amber"
+                href="https://olickel.com/introducing-rakis"
+                target="_blank"
+              >
+                The Story
+              </Link>
               <Link
                 color="amber"
                 href="https://rakis-docs.vercel.app"

@@ -9,6 +9,7 @@ import {
   Separator,
   Container,
   Heading,
+  Link,
 } from "@radix-ui/themes";
 import { ChainIdentity } from "../../rakis-core/synthient-chain/db/entities";
 import ChainIdentities from "./chainidentities";
@@ -67,9 +68,16 @@ export default function NavBar({
         <Popover.Content>
           <Card>
             <Text size="1">
-              All Rakis nodes run the exact same code you <a href=""></a>re
-              currently running, to process AI inference requests. Here&apos;s
-              how it works:
+              All Rakis nodes run the exact same code you are currently running,
+              to process AI inference requests.{" "}
+              <Link
+                size="2"
+                href="https://olickel.com/introducing-rakis"
+                target="_blank"
+              >
+                Learn in more detail here
+              </Link>
+              . In short, here&apos;s how it works:
             </Text>
             <Container
               size="1"
