@@ -39,7 +39,7 @@ Go to [rakis.ai](https://rakis.ai) to run your own node and be part of the netwo
 # Novel contributions
 
 * **Open-source from day one**
-  - There is no hidden code, or 'coming soon'. Every line of code executed on the network is here, and all the blockchain contracts that will serve as the eventual interface to the Rakis network [are here](https://github.com/hrishioa/rakis/tree/master/chain-contracts/evm). [Lumentis](https://github.com/hrishioa/lumentis) has helped us put together detailed documentation which you can find [here](https://rakis-docs.vercel.app).
+  - There is no hidden code, or 'coming soon'. Every line of code executed on the network is here, and all the blockchain contracts that will serve as the eventual interface to the Rakis network [are here](https://github.com/hrishioa/rakis/tree/master/chain-contracts/evm). [Lumentis](https://github.com/hrishioa/lumentis) and [Julian](https://twitter.com/Degen_Julian) have helped us to put together detailed documentation [which you can find here](https://rakis-docs.vercel.app).
 
 * **Functional from day one**
   -  All of the fundamental primitives needed for a decentralized network - from inferencing, embedding, consensus mechanisms to the peer-to-peer type specs, is here. To what extent it will remain so under load, we don't know - and it's what we hope to find out with the stability test.
@@ -49,6 +49,9 @@ Go to [rakis.ai](https://rakis.ai) to run your own node and be part of the netwo
 
 * **Browser-first**
   - Rakis is a celebration of the browser as a platform. We hope that this has a democratizing effect due to the ease of entry. [WebGPU](https://www.w3.org/TR/webgpu/) today remains one of our best hope for running AI models in any platform, and client systems (like the device you're reading this on) have a lot less variability in compute than servers.
+ 
+* **Permissionless**
+  - Anyone can be a part of the Rakis network. Anyone with a browser can send inference requests and participate in consensus, and anyone with a WebGPU-enabled browser (that tends to be Chrome for now) can process inferences and generate tokens.
  
 * **Embedding-based consensus**
   - Rakis implements a novel embedding based consensus mechanism (with some paths to others) that aims to get to verifiable inference before ZKML or TPMs. Embedding clusters are used to separate valid results from invalid ones.
@@ -71,4 +74,4 @@ You can run `bun run extractForLLM` to generate a new file if you've changed the
 
 # How can I help?
 
-Generated TODOs (from my comments are in) the [TODOs folder](https://github.com/hrishioa/rakis/tree/master/todos). Feel free to pick any of them up!
+Generated TODOs (from my comments) are in the [TODOs folder](https://github.com/hrishioa/rakis/tree/master/todos). Feel free to pick any of them up!
