@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://github.com/hrishioa/wishful-search"><img src="https://github.com/hrishioa/rakis/assets/973967/5be53289-513c-46fd-b8ff-7132b502abbd" alt="Rakis" width="100"></a>
+  <a href="https://github.com/hrishioa/wishful-search"><img src="https://github.com/hrishioa/rakis/assets/973967/5abc4815-fe73-49d6-ba71-42a311b97249" alt="Rakis" width="100"></a>
   <br>
   Rakis
   <br>
