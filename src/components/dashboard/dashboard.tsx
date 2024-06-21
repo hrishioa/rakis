@@ -90,10 +90,12 @@ export default function Dashboard({
             </Flex>
           </Box>
           <Box flexGrow="1" minWidth="500px">
-            {llmWorkerStates && Object.keys(llmWorkerStates).length && (
+            {llmWorkerStates && Object.keys(llmWorkerStates).length ? (
               <Flex direction="column" gap="2">
                 <LLMWorkers llmWorkerStates={llmWorkerStates} />
               </Flex>
+            ) : (
+              0
             )}
             <Flex direction="column" gap="2">
               <Text size="2" weight="medium">
