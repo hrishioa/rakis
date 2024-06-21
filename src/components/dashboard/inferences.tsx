@@ -185,7 +185,7 @@ function getInferenceStateDisplay(
           {state.at.toLocaleString()}
         </Text>
         <Text as="p" size="1">
-          Final output:
+          Verified inference:
         </Text>
         <Tooltip content={state.finalOutput + " (click to copy)"}>
           <Flex direction="row" gap="2" ml="-5">
