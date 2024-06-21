@@ -90,9 +90,11 @@ export default function Dashboard({
             </Flex>
           </Box>
           <Box flexGrow="1" minWidth="500px">
-            <Flex direction="column" gap="2">
-              <LLMWorkers llmWorkerStates={llmWorkerStates} />
-            </Flex>
+            {llmWorkerStates && Object.keys(llmWorkerStates).length && (
+              <Flex direction="column" gap="2">
+                <LLMWorkers llmWorkerStates={llmWorkerStates} />
+              </Flex>
+            )}
             <Flex direction="column" gap="2">
               <Text size="2" weight="medium">
                 Step two: watch inferences

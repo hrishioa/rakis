@@ -57,7 +57,9 @@ function getInferenceStateDisplay(
         <Text as="p" size="3">
           Requested{" "}
           {state.by
-            ? `by ${state.by === mySynthientId ? "us" : state.by.slice(0, 5)}`
+            ? `by ${
+                state.by === mySynthientId ? "this node" : state.by.slice(0, 5)
+              }`
             : ""}
         </Text>
         <Text as="div" size="1" color="gray" mt="1">
@@ -182,6 +184,9 @@ function getInferenceStateDisplay(
         <Text as="div" size="1" color="gray" mb="1">
           {state.at.toLocaleString()}
         </Text>
+        <Text as="p" size="1">
+          Final output:
+        </Text>
         <Tooltip content={state.finalOutput + " (click to copy)"}>
           <Flex direction="row" gap="2" ml="-5">
             <IconButton
@@ -202,7 +207,7 @@ function getInferenceStateDisplay(
           valid
         </Text>
         <Text as="p" size="1" color="gray" mt="2">
-          Computed by {state.external ? "network" : "us"}
+          Computed by {state.external ? "network" : "this node"}
         </Text>
         <Text as="p" size="1" color="gray" mt="1">
           {state.bEmbeddingHash.slice(0, 25)}...
