@@ -1,11 +1,16 @@
-<CoreCode>
-
 src/rakis-core/synthient-chain/consensus/consensus-core.ts
+
 import {
   InferenceQuorumComputed,
   InferenceRevealRejected,
   InferenceSecurityFrame,
 } from "../db/packet-types";
+
+
+
+
+
+
 
 const logger = createLogger("Consensus Core", logStyles.consensusCore);
 
@@ -20,6 +25,10 @@ export async function runFinalConsensus(
   ourSynthientId: string,
   securityFrame: InferenceSecurityFrame
 ): Promise<ConsensusResults> {
+  logger.debug(
+    `Consensus ${quorum.requestId}: Running final consensus with ${quorum.quorum.length} commits `,
+    quorum
+  );
 
   const clusterSizeNeeded = Math.ceil(
     securityFrame.secPercentage * quorum.quorum.length
@@ -29,6 +38,9 @@ export async function runFinalConsensus(
 
   quorum.quorum = quorum.quorum.filter((inference) => inference.reveal);
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Removed non-revealed commits, ${quorum.quorum.length} commits remaining`
+  );
 
   // Next we want to remove any non-verified embeddings and generate a series of rejection packets
 
@@ -50,6 +62,12 @@ export async function runFinalConsensus(
         );
 
         if (!verifiedEmbedding) {
+          logger.error(
+            `Consensus ${quorum.requestId}: Could not find verified embedding for revealed commit `,
+            revealedCommit,
+            " from results ",
+            verifiedEmbeddingResults
+          );
           return false;
         }
 
@@ -59,6 +77,16 @@ export async function runFinalConsensus(
         );
 
         if (similarity < 1 - quorumSettings.bEmbeddingThreshold) {
+          logger.warn(
+            `Consensus ${quorum.requestId}: Rejecting reveal for ${revealedCommit.inferenceId} from ${revealedCommit.synthientId} - our embeddings didn't match`,
+            revealedCommit,
+            " with similarity ",
+            similarity,
+            " to verified embedding ",
+            verifiedEmbedding,
+            " over threshold ",
+            quorumSettings.bEmbeddingThreshold
+          );
 
           rejectionPackets.push({
             createdAt: stringifyDateWithOffset(new Date()),
@@ -79,10 +107,19 @@ export async function runFinalConsensus(
         // TODO: Investigate if it's only one particular P2P
         // network that does this
         const rehash = await hashBinaryEmbedding(
-          Object.values(revealedCommit.reveal.bEmbedding as any) as number[]
+          Object.values(revealedCommit.reveal.bEmbedding as any) as number[],
+          revealedCommit.synthientId
         );
 
         if (rehash !== revealedCommit.bEmbeddingHash) {
+          logger.warn(
+            `Consensus ${quorum.requestId}: Rejecting reveal for ${revealedCommit.inferenceId} from ${revealedCommit.synthientId} - our hash didn't match`,
+            revealedCommit,
+            " with hash mismatch ",
+            rehash,
+            " !== ",
+            revealedCommit.bEmbeddingHash
+          );
 
           rejectionPackets.push({
             createdAt: stringifyDateWithOffset(new Date()),
@@ -105,8 +142,14 @@ export async function runFinalConsensus(
     )
   ).filter((q) => q !== false) as InferenceQuorum["quorum"];
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Removed non-verified commits, ${quorum.quorum.length} commits remaining`
+  );
 
   if (quorum.quorum.length < quorum.quorumThreshold) {
+    logger.debug(
+      `Consensus ${quorum.requestId}: Quorum for ${quorum.requestId} did not reach threshold, ${quorum.quorum.length} < threshold ${quorum.quorumThreshold}`
+    );
 
     return {
       requestId: quorum.requestId,
@@ -149,6 +192,10 @@ export async function runFinalConsensus(
     }
   }
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Computed distances for ${quorum.quorum.length} commits`,
+    distances
+  );
 
   const clusterSizes = distances
     .map((distanceMap) =>
@@ -159,16 +206,30 @@ export async function runFinalConsensus(
       clusterSize: d.length,
     }));
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Computed cluster sizes for ${quorum.quorum.length} commits`,
+    clusterSizes
+  );
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Computed cluster size needed for ${quorum.quorum.length} commits: ${clusterSizeNeeded}`
+  );
 
   const largestSizes = clusterSizes
     .filter((cS) => cS.clusterSize >= clusterSizeNeeded)
     .sort((a, b) => b.clusterSize - a.clusterSize);
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Computed largest cluster sizes for ${quorum.quorum.length} commits`,
+    largestSizes
+  );
 
   console.timeEnd(`Computing clusters for ${quorum.quorum.length} commits`);
 
   if (!largestSizes.length) {
+    logger.debug(
+      `Consensus ${quorum.requestId}: No clusters found with size ${clusterSizeNeeded} or greater`
+    );
 
     return {
       requestId: quorum.requestId,
@@ -184,6 +245,9 @@ export async function runFinalConsensus(
 
   const largestCluster = largestSizes[0];
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Found largest cluster with size ${largestCluster.clusterSize} at index ${largestCluster.commitIndex}`
+  );
 
   const acceptedInferenceIndices: number[] = distances[
     largestCluster.commitIndex
@@ -193,11 +257,19 @@ export async function runFinalConsensus(
     )
     .filter((index) => index !== false) as number[];
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Accepted ${acceptedInferenceIndices.length} inferences for largest cluster`,
+    acceptedInferenceIndices
+  );
 
   const acceptedInferences = acceptedInferenceIndices.map(
     (index) => quorum.quorum[index]
   );
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Accepted inferences for largest cluster`,
+    acceptedInferences
+  );
 
   const inferenceJointHash = await hashString(
     quorum.requestId +
@@ -230,6 +302,10 @@ export async function runFinalConsensus(
     },
   };
 
+  logger.debug(
+    `Consensus ${quorum.requestId}: Computed Final inference quorum`,
+    inferenceQuorumComputed
+  );
 
   return {
     rejectionPackets,
@@ -245,9 +321,18 @@ export async function runFinalConsensus(
 }
 src/rakis-core/synthient-chain/identity.ts
 
+
+
+
+
+import {
+  DEFAULT_IDENTITY_ENCRYPTED_KEY,
+  loadSettings,
+} from "./thedomain/settings";
+
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
-const identityEncryptedKey = loadSettings().identityEncryptedKey;
+const identityEncryptedKey = DEFAULT_IDENTITY_ENCRYPTED_KEY;
 
 // Personal persisted information about this particular client
 export type ClientInfo = {
@@ -320,6 +405,7 @@ export async function initClientInfo(
 }
 src/rakis-core/synthient-chain/llm/mlc-worker.ts
 
+
 // Hookup an engine to a worker handler
 const engine = new MLCEngine();
 const handler = new MLCEngineWorkerHandler(engine);
@@ -331,6 +417,7 @@ import type {
   MLCEngineInterface,
   ChatCompletionMessageParam,
 } from "@mlc-ai/web-llm";
+
 
 export const availableModels = [
   "Llama-3-8B-Instruct-q4f32_1",
@@ -424,6 +511,8 @@ export type LLMEngineLogEntry = LLMWorkerLogEntry & {
 };
 src/rakis-core/synthient-chain/llm/llm-engine.ts
 // llm-engine.ts
+
+
 import {
   availableModels,
   InferencePacket,
@@ -433,10 +522,15 @@ import {
   LLMWorker,
   LLMWorkerStates,
 } from "./types";
+
 import {
   InferenceErrorPayload,
   InferenceSuccessPayload,
 } from "../db/packet-types";
+
+
+
+
 
 type LLMEngineEvents = {
   workerLoadFailed: (data: {
@@ -446,6 +540,7 @@ type LLMEngineEvents = {
   }) => void;
   workerLoaded: (data: { modelName: LLMModelName; workerId: string }) => void;
   workerLoading: (data: { modelName: LLMModelName; workerId: string }) => void;
+  workerBusy: (data: { workerId: string }) => void;
   workerUnloaded: (data: { workerId: string }) => void;
   workerFree: (data: { workerId: string }) => void;
   modelLoadingProgress: () => void;
@@ -465,6 +560,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     if (!entry.at) entry.at = new Date();
     const logLength = this.engineLog.length;
 
+    logger.debug(`Engine event ${entry.type}`, entry);
 
     this.engineLog.push(entry);
 
@@ -620,6 +716,9 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
     };
 
     if (this.llmWorkers[workerId].modelLoadingPromise) {
+      logger.debug(
+        `Tried to create worker ${workerId}, but creation is already done or in progress`
+      );
       return await this.llmWorkers[workerId]!.modelLoadingPromise!.promise;
     }
 
@@ -644,6 +743,10 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
           modelName,
           {
             initProgressCallback: (report: webllm.InitProgressReport) => {
+              logger.debug(
+                `Worker ${workerId}: Loading ${modelName} progress - `,
+                report
+              );
 
               this.emitModelLoadingProgress();
 
@@ -655,6 +758,9 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
                 if (customParsedProgress) {
                   this.llmWorkers[workerId].modelLoadingProgress =
                     customParsedProgress;
+                  logger.debug(
+                    `Worker ${workerId}: Custom progress parsed - ${customParsedProgress}`
+                  );
                 } else {
                   this.llmWorkers[workerId].modelLoadingProgress =
                     report.progress;
@@ -697,6 +803,10 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         workerId,
         error: err,
       });
+      logger.error(
+        `Worker ${workerId}: Error loading ${modelName}: ${err}`,
+        err
+      );
       this.llmWorkers[workerId].modelLoadingPromise?.reject(err);
 
       this.unloadWorker(workerId, true);
@@ -834,6 +944,8 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
       params,
     });
 
+    this.emit("workerBusy", { workerId });
+
     this.llmWorkers[workerId].inferenceInProgress = true;
     this.llmWorkers[workerId].inferencePromise = new DeferredPromise<boolean>();
 
@@ -913,6 +1025,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
       this.llmWorkers[workerId].inferenceInProgress = false;
       this.llmWorkers[workerId].inferencePromise!.resolve(true);
     } catch (err) {
+      logger.error(`Worker ${workerId}: Error running inference`, err);
       this.llmWorkers[workerId].inferenceInProgress = false;
       this.llmWorkers[workerId].inferencePromise!.resolve(false);
 
@@ -945,6 +1058,9 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
       if (numberOfExistingWorkers === count) return;
 
       if (numberOfExistingWorkers < count) {
+        logger.debug(
+          `Scaling up number of llm workers for ${modelName} to ${count}`
+        );
         const scaleUpPromises: Promise<any>[] = [];
         for (let i = 0; i < count - numberOfExistingWorkers; i++) {
           const workerId = `llm-${modelName}-${generateRandomString()}`;
@@ -953,6 +1069,9 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
 
         // TODO: Process errors
       } else {
+        logger.debug(
+          `Scaling down number of llm workers for ${modelName} to ${count}`
+        );
 
         const workerIdsByLoad = Object.keys(this.llmWorkers).sort((a, b) =>
           this.llmWorkers[a].inferenceInProgress ===
@@ -976,6 +1095,7 @@ export class LLMEngine extends EventEmitter<LLMEngineEvents> {
         // TODO: Process errors
       }
     } catch (err) {
+      logger.error("Error updating LLM workers", err);
     }
   }
 }
@@ -984,9 +1104,14 @@ import {
   EmbeddingEngineLogEntry,
   EmbeddingModelName,
   EmbeddingResult,
+  EmbeddingResultFromWorker,
   EmbeddingWorkerReceivedMessage,
   EmbeddingWorkerSentMessage,
 } from "./types";
+
+
+
+
 const logger = createLogger("Embedding Engine", logStyles.embeddingEngine.main);
 
 type EmbeddingEngineEvents = {
@@ -1014,7 +1139,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     params: {
       texts: string[];
     };
-    completionPromise: DeferredPromise<EmbeddingResult[] | false>;
+    completionPromise: DeferredPromise<EmbeddingResultFromWorker[] | false>;
   }[] = [];
 
   public getEmbeddingEngineLogs(
@@ -1037,6 +1162,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     if (!entry.at) entry.at = new Date();
     const logLength = this.embeddingEngineLog.length;
 
+    logger.debug(`Embedding engine event ${entry.type}`);
 
     this.embeddingEngineLog.push(entry);
     return logLength;
@@ -1053,11 +1179,17 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     if (numberOfExistingWorkers === count) return;
 
     if (numberOfExistingWorkers < count) {
+      logger.debug(
+        `Scaling up number of embedding workers for ${modelName} to ${count}`
+      );
       for (let i = 0; i < count - numberOfExistingWorkers; i++) {
         const workerId = `embedding-${modelName}-${generateRandomString()}`;
         this.addEmbeddingWorker(modelName, workerId);
       }
     } else {
+      logger.debug(
+        `Scaling down number of embedding workers for ${modelName} to ${count}`
+      );
 
       const workerIdsByLoad = Object.keys(this.embeddingWorkers).sort((a, b) =>
         this.embeddingWorkers[a].busy === this.embeddingWorkers[b].busy
@@ -1083,12 +1215,16 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       return;
     }
 
+    logger.debug(
+      `Trying to create new embedding worker ${workerId} for model ${modelName}`
+    );
 
-    const worker = new Worker(new URL("./embedding-worker", import.meta.url));
+    const worker = new Worker(new URL("./embedding-worker",
 
     worker.onmessage = (event: MessageEvent<EmbeddingWorkerSentMessage>) => {
       const message = event.data;
 
+      logger.debug(`Received message from worker ${workerId}: ${message.type}`);
 
       switch (message.type) {
         case "workerLoaded":
@@ -1124,6 +1260,9 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
           if (job) {
             job.completionPromise.resolve(message.results);
           } else {
+            logger.error(
+              "EMBEDDING ENGINE ERROR: SHOUDLNT HAPPEN, couldn't find job to resolve"
+            );
           }
           this.emit("workerFree", { modelName, workerId });
           break;
@@ -1195,12 +1334,16 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
     try {
       this.queuesRunning++;
 
+      logger.debug(
+        `Trying to run a job from the queue, queue length is ${this.embeddingJobQueue.length} jobs, with ${this.queuesRunning} queues running`
+      );
 
       const unassignedJobs = this.embeddingJobQueue.filter(
         (job) => !job.assignedWorkerId
       );
 
       if (unassignedJobs.length === 0) {
+        logger.debug("No jobs left, queue is going to sleep");
         this.queuesRunning--;
         return;
       }
@@ -1213,9 +1356,15 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
       );
 
       if (matchingWorkerIds.length === 0) {
+        logger.error(
+          `No workers loaded with embedding model ${selectedJob.modelName}, ignoring job`
+        );
 
         selectedJob.completionPromise.resolve(false);
       } else {
+        logger.debug(
+          `${matchingWorkerIds.length} workers available for embedding ${selectedJob.params.texts}`
+        );
 
         const freeWorkers = matchingWorkerIds.filter(
           (workerId) =>
@@ -1229,6 +1378,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
         if (freeWorkers.length === 0) {
           unassignedJobs.unshift(selectedJob);
 
+          logger.debug("No free workers available, wait to be called on idle");
           this.queuesRunning--;
           return;
         }
@@ -1249,6 +1399,9 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
           });
         });
 
+        logger.debug(
+          `Embedding ${selectedJob.batchId}: ${selectedJob.params.texts.length} texts with ${selectedJob.modelName} on worker ${selectedWorkerId}`
+        );
 
         try {
           this.embeddingWorkers[selectedWorkerId].worker.postMessage({
@@ -1263,7 +1416,6 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
             results.forEach((result, index) => {
               this.logEngineEvent({
                 type: "engine_embedding_success",
-                bEmbeddingHash: result.bEmbeddingHash,
                 batchId: selectedJob.batchId,
                 workerId: selectedWorkerId,
               });
@@ -1297,6 +1449,7 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
         }
       }
     } catch (err) {
+      logger.error("Error running job from queue", err);
       this.logEngineEvent({
         type: "engine_embedding_error",
         error: err,
@@ -1308,6 +1461,8 @@ export class EmbeddingEngine extends EventEmitter<EmbeddingEngineEvents> {
   }
 }
 src/rakis-core/synthient-chain/embeddings/types.ts
+
+
 
 export const availableEmbeddingModels = [
   "nomic-ai/nomic-embed-text-v1.5",
@@ -1364,11 +1519,17 @@ export type EmbeddingWorkerSentMessage =
       reason: string;
     };
 
+export type EmbeddingResultFromWorker = {
+  text: string;
+  embedding: number[];
+  binaryEmbedding: number[];
+};
+
 export type EmbeddingResult = {
   text: string;
   embedding: number[];
   binaryEmbedding: number[];
-  bEmbeddingHash: string;
+  bEmbeddingHash?: string;
 };
 
 export type EmbeddingWorkerLogEntryRaw =
@@ -1396,7 +1557,6 @@ export type EmbeddingWorkerLogEntryRaw =
     }
   | {
       type: "engine_embedding_success";
-      bEmbeddingHash: string;
       batchId: string;
     };
 
@@ -1408,12 +1568,18 @@ export type EmbeddingEngineLogEntry = {
   at?: Date;
 } & EmbeddingWorkerLogEntry;
 src/rakis-core/synthient-chain/embeddings/embedding-worker.ts
+
 import {
   EmbeddingModelName,
+  EmbeddingResultFromWorker,
   EmbeddingWorker,
   EmbeddingWorkerReceivedMessage,
   EmbeddingWorkerSentMessage,
 } from "./types";
+
+
+
+
 const logger = createLogger(
   "Embedding Worker",
   logStyles.embeddingEngine.worker,
@@ -1502,6 +1668,10 @@ async function embedText(
   });
 
   try {
+    logger.debug(
+      `Worker ${workerInstance.workerId} is now embedding ${batchId}`,
+      JSON.stringify(texts)
+    );
     const embeddings = await workerInstance!.pipeline!(texts, {
       normalize: true,
       pooling: "mean",
@@ -1514,16 +1684,13 @@ async function embedText(
 
     const binaryEmbeddings = quantize_embeddings(embeddings, "ubinary");
 
-    const results: EmbeddingResult[] = await Promise.all(
+    const results: EmbeddingResultFromWorker[] = await Promise.all(
       texts.map(async (text, index) => {
         return {
           text,
           embedding: embeddings.slice([index, index + 1]).data as number[],
           binaryEmbedding: binaryEmbeddings.slice([index, index + 1])
             .data as number[],
-          bEmbeddingHash: await hashBinaryEmbedding(
-            binaryEmbeddings.slice([index, index + 1]).data as number[]
-          ),
         };
       })
     );
@@ -1585,10 +1752,12 @@ self.onmessage = async (
       }
       break;
     default:
+      logger.error("EMBEDDING WORKER GOT ", event, " - THIS SHOULDNT HAPPEN!");
       break;
   }
 };
 src/rakis-core/synthient-chain/p2p-networks/p2pnetwork-types.ts
+
 
 export type BroadcastPacketFunc = (
   packet: TransmittedPeerPacket
@@ -1622,6 +1791,7 @@ export abstract class P2PNetworkInstance<BootstrapOptions, AvailablePeerInfo> {
   abstract gracefulShutdown(): void;
 }
 src/rakis-core/synthient-chain/p2p-networks/p2p-config.ts
+
 
 export function getP2PConfig(p2pSettings: typeof DEFAULT_P2P_SETTINGS) {
   const config = DEFAULT_P2P_CONFIG;
@@ -1690,11 +1860,16 @@ export const DEFAULT_P2P_CONFIG = {
   },
 };
 src/rakis-core/synthient-chain/p2p-networks/nkn.ts
+
+
 import {
   ErrorHandler,
   P2PNetworkInstance,
   PacketReceivedCallback,
 } from "./p2pnetwork-types";
+
+
+
 
 const logger = createLogger("P2P: NKN", logStyles.p2pNetworks.nkn);
 
@@ -1740,6 +1915,7 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
       seed: wallet.getSeed(),
     });
 
+    logger.debug(`NKN client created with id ${synthientId}`);
 
     this.nknClient.onMessage(({ src, payload }) => {
       const packet: ReceivedPeerPacket = JSON.parse(payload as string);
@@ -1751,11 +1927,13 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
     });
 
     this.nknClient.onConnect(({ addr }) => {
+      logger.debug(`Connected`);
 
       this.loadingPromise.resolve(true);
     });
 
     this.nknClient.onConnectFailed(() => {
+      logger.debug("Connection failed");
       this.loadingPromise.resolve(false);
 
       this.errorHandlers.forEach((handler) => {
@@ -1771,6 +1949,7 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
         ""
       )
       .then((txnHash) => {
+        logger.debug(`Subscribed to events in tx ${txnHash}`);
         this.renewalIntervalId = setInterval(async () => {
           await wallet
             .subscribe(
@@ -1780,6 +1959,7 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
               ""
             )
             .then((txnHash) => {
+              logger.debug(`Renewed subscription in tx ${txnHash}`);
             });
         }, SUBSCRIPTION_RENEWAL_INTERVAL_MS);
       });
@@ -1791,12 +1971,14 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
 
   async broadcastPacket(packet: TransmittedPeerPacket): Promise<boolean> {
     if (this.nknClient) {
+      logger.debug("Sending message", packet);
       try {
         await this.nknClient.publish(this.nknTopic, JSON.stringify(packet), {
           txPool: true,
         });
         return true;
       } catch (error) {
+        logger.error("Error sending message", error);
         this.transmissionErrorCount++;
         if (
           this.transmissionErrorCount >
@@ -1841,6 +2023,15 @@ export class NknP2PNetworkInstance extends P2PNetworkInstance<
   }
 }
 src/rakis-core/synthient-chain/p2p-networks/networkfactory.ts
+
+
+
+
+
+
+
+
+
 
 const logger = createLogger("Domain", logStyles.theDomain);
 
@@ -1912,6 +2103,7 @@ export class P2PNetworkFactory {
     ]);
 
     if (waitingResult === "timeout") {
+      logger.debug("Timed out waiting for all networks to load.");
       const unloadedNetworks = p2pNetworkInstances.filter(
         (_, index) => !p2pLoadingResults[index]
       );
@@ -1927,17 +2119,21 @@ export class P2PNetworkFactory {
   }
 }
 src/rakis-core/synthient-chain/p2p-networks/pewpewdb.ts
+
 import type {
   GunHookMessagePut,
   GunMessagePut,
   IGunInstance,
   IGunOnEvent,
 } from "gun";
+
 import {
   ErrorHandler,
   P2PNetworkInstance,
   PacketReceivedCallback,
 } from "./p2pnetwork-types";
+
+
 
 const logger = createLogger("P2P: PewPewDB", logStyles.p2pNetworks.pewpewdb);
 
@@ -1990,12 +2186,14 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
       packet: JSON.stringify(packet.packet),
     };
 
+    logger.debug("Transmitting packet with gun", serializedPacket);
 
     return new Promise((resolve) => {
       this.gun
         .get(this.gunTopic)
         .put(serializedPacket, (ack: GunMessagePut) => {
           if ((ack as any).err) {
+            logger.error("Error sending gun message: ", (ack as any).err);
             return resolve(false);
           }
           return resolve(true);
@@ -2018,6 +2216,7 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
         return;
       }
 
+      logger.debug("Received packet", data);
 
       const packet: ReceivedPeerPacket = {
         ...data,
@@ -2056,11 +2255,18 @@ export class GunP2PNetworkInstance extends P2PNetworkInstance<
   }
 }
 src/rakis-core/synthient-chain/p2p-networks/trystero.ts
+
+
+
 import {
   ErrorHandler,
   P2PNetworkInstance,
   PacketReceivedCallback,
 } from "./p2pnetwork-types";
+
+
+
+
 
 export type TrysteroBootstrapOptions = {
   trysteroAppId: string;
@@ -2116,6 +2322,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
               this.options.trysteroTopic
             );
 
+      this.logger.debug("Trystero client created", this.trysteroRoom);
 
       const [, getMessages] = this.trysteroRoom.makeAction(
         this.options.trysteroTopic
@@ -2134,6 +2341,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
 
       this.loadingPromise.resolve(true); // Best we can do 🤷
     } catch (error) {
+      this.logger.error("Error setting up Trystero", error);
       this.loadingPromise.resolve(false);
       this.errorHandlers.forEach((handler) => handler(error as Error, true));
 
@@ -2156,6 +2364,7 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
       } catch (error) {
         this.transmissionErrorCount++;
 
+        this.logger.error("Error sending message", error);
         this.errorHandlers.forEach((handler) =>
           handler(
             error as Error,
@@ -2193,7 +2402,521 @@ export class TrysteroP2PNetworkInstance extends P2PNetworkInstance<
     this.trysteroRoom.leave();
   }
 }
+src/rakis-core/synthient-chain/utils/utils.ts
+export function stringifyDateWithOffset(date: Date) {
+  // Convert date to local time by subtracting the timezone offset
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+
+  // Generate ISO string in local time
+  const isoString = localDate.toISOString();
+
+  // Replace 'Z' with the actual timezone offset formatted as `±hh:mm`
+  const timezoneOffset = date.getTimezoneOffset();
+  const offsetSign = timezoneOffset > 0 ? "-" : "+";
+  // Jesus H Christ the abs and floor being switched around from Claude was such a wild goose chase
+  const offsetHours = Math.floor(Math.abs(timezoneOffset / 60))
+    .toString()
+    .padStart(2, "0");
+  const offsetMinutes = Math.abs(timezoneOffset % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${isoString.slice(
+    0,
+    -1
+  )}${offsetSign}${offsetHours}:${offsetMinutes}`;
+}
+
+export function getDeviceInfo() {
+  if (typeof navigator === "undefined" || typeof screen === "undefined") {
+    return "not-client";
+  }
+
+  if ((window as any).disableAnalytics) return "disabled-analytics";
+
+  const info = {
+    userAgent: navigator.userAgent,
+    browserVersion: navigator.appVersion,
+    platform: navigator.platform,
+    language: navigator.language,
+    screenWidth: screen.width,
+    screenHeight: screen.height,
+    colorDepth: screen.colorDepth,
+    timezoneOffset: new Date().getTimezoneOffset(),
+    cpuCores: navigator.hardwareConcurrency,
+    touchSupport: "ontouchstart" in window,
+  };
+
+  return Object.values(info)
+    .map((val) => `${val}`)
+    .join("#");
+}
+
+export async function timeoutPromise(ms: number): Promise<"timeout"> {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve("timeout"), ms);
+  });
+}
+
+export function generateRandomString(length: number = 6): string {
+  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+}
+src/rakis-core/synthient-chain/utils/deferredpromise.ts
+export class DeferredPromise<T> {
+  promise: Promise<T>;
+  resolve!: (value: T | PromiseLike<T>) => void;
+  reject!: (reason?: any) => void;
+
+  constructor() {
+    this.promise = new Promise<T>((resolve, reject) => {
+      this.resolve = resolve;
+      this.reject = reject;
+    });
+  }
+}
+src/rakis-core/synthient-chain/utils/logger.ts
+// Custom logger function
+
+
+
+
+
+const loggerSettings = loadSettings().loggerSettings;
+
+export const logStyles = {
+  llmEngine: {
+    main: "background: #f0f8ff; color: #1e90ff; font-weight: bold;",
+    worker: "background: #f0f8ff; color: #87cefa;",
+  },
+  embeddingEngine: {
+    main: "background: #f0fff0; color: #2e8b57; font-weight: bold;",
+    worker: "background: #f0fff0; color: #90ee90;",
+  },
+  theDomain: "background: #fff0f5; color: #ff69b4; font-weight: bold;",
+  consensusCore: "background: #f5f5f5; color: #4682b4; font-weight: bold;",
+  databases: {
+    inferenceDB: "background: #f5f5f5; color: #a9a9a9;",
+    packetDB: "background: #f5f5f5; color: #708090;",
+    peerDB: "background: #f5f5f5; color: #778899;",
+    quorumDB: "background: #f5f5f5; color: #696969;",
+  },
+  p2pNetworks: {
+    nkn: "background: #fffacd; color: #ffa500;",
+    torrent: "background: #fffacd; color: #ff8c00;",
+    pewpewdb: "background: #fffacd; color: #ff7f50;",
+    nostr: "background: #fffacd; color: #ff6347;",
+  },
+};
+
+let logCounter = 0;
+
+export type LogType = "trace" | "debug" | "info" | "warn" | "error";
+
+export type SynthientLogger = {
+  trace: (firstArg: string, ...args: any[]) => void;
+  debug: (firstArg: string, ...args: any[]) => void;
+  info: (firstArg: string, ...args: any[]) => void;
+  warn: (firstArg: string, ...args: any[]) => void;
+  error: (firstArg: string, ...args: any[]) => void;
+};
+
+export type INLogsEvents = {
+  newLog: () => void;
+};
+
+export type StringLog = {
+  at: Date;
+  logger: string;
+  type: LogType;
+  message: string;
+  id: number;
+};
+
+export class InMemoryLogs extends EventEmitter {
+  private static instance: InMemoryLogs;
+  public logs: StringLog[] = [];
+
+  private constructor() {
+    super();
+  }
+
+  static getInstance() {
+    if (!InMemoryLogs.instance) {
+      InMemoryLogs.instance = new InMemoryLogs();
+    }
+    return InMemoryLogs.instance;
+  }
+
+  private emitNewLogs = debounce(() => {
+    this.emit("newLog");
+  }, loggerSettings.newLogEventDebounceMs);
+
+  static addLog(logger: string, type: LogType, message: string) {
+    InMemoryLogs.getInstance().logs.push({
+      at: new Date(),
+      logger,
+      type,
+      id: logCounter++,
+      message,
+    });
+    InMemoryLogs.getInstance().logs = InMemoryLogs.getInstance()
+      .logs.slice(-loggerSettings.maxLogsInMemory)
+      .sort((a, b) => b.at.getTime() - a.at.getTime());
+
+    InMemoryLogs.getInstance().emitNewLogs();
+  }
+}
+
+export function createLogger(
+  name: string,
+  style: string,
+  noWindow: boolean = false
+): SynthientLogger {
+  if (!noWindow && typeof window !== "undefined" && window) {
+    (window as any).blockedLogLevels =
+      localStorage.getItem("blockedLogLevels") || [];
+    (window as any).blockedLoggers =
+      localStorage.getItem("blockedLoggers") || [];
+  }
+
+  const logger = {
+    trace: (firstArg: string, ...args: any[]) => {
+      if (
+        !noWindow &&
+        ((window as any)?.blockedLogLevels?.includes("trace") ||
+          (window as any)?.blockedLoggers?.includes(name))
+      )
+        return;
+      console.log(`%c[T] ${name}:`, style, firstArg, ...args);
+    },
+    debug: (firstArg: string, ...args: any[]) => {
+      if (
+        !noWindow &&
+        ((window as any)?.blockedLogLevels?.includes("debug") ||
+          (window as any)?.blockedLoggers?.includes(name))
+      )
+        return;
+      if (!loggerSettings.loggersToSkipForInMemoryLog.includes(name))
+        InMemoryLogs.addLog(name, "debug", firstArg);
+      console.log(`%c[D] ${name}:`, style, firstArg, ...args);
+    },
+    info: (firstArg: string, ...args: any[]) => {
+      if (
+        !noWindow &&
+        ((window as any)?.blockedLogLevels?.includes("info") ||
+          (window as any)?.blockedLoggers?.includes(name))
+      )
+        return;
+
+      if (!loggerSettings.loggersToSkipForInMemoryLog.includes(name))
+        InMemoryLogs.addLog(name, "info", firstArg);
+      console.log(`%c[I] ${name}:`, style, firstArg, ...args);
+    },
+    warn: (firstArg: string, ...args: any[]) => {
+      if (
+        !noWindow &&
+        ((window as any)?.blockedLogLevels?.includes("warn") ||
+          (window as any)?.blockedLoggers?.includes(name))
+      )
+        return;
+
+      if (!loggerSettings.loggersToSkipForInMemoryLog.includes(name))
+        InMemoryLogs.addLog(name, "warn", firstArg);
+      console.warn(`%c[W] ${name}:`, style, firstArg, ...args);
+    },
+    error: (firstArg: string, ...args: any[]) => {
+      if (
+        !noWindow &&
+        ((window as any)?.blockedLogLevels?.includes("error") ||
+          (window as any)?.blockedLoggers?.includes(name))
+      )
+        return;
+
+      if (!loggerSettings.loggersToSkipForInMemoryLog.includes(name))
+        InMemoryLogs.addLog(name, "error", firstArg);
+      console.error(`%c[ERROR] ${name}:`, style, firstArg, ...args);
+    },
+  };
+
+  return logger;
+}
+src/rakis-core/synthient-chain/utils/simple-crypto.ts
+// This is just a stub implementation, definitely not properly fuzz tested so please don't borrow this. NEVER ROLL YOUR OWN CRYPTO, unless you're pressed for time.
+
+
+
+
+
+ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+
+// TODO: only works for external accounts, which is fine for us
+// and to actually do account abstraction you need to drill in
+// the actual wallet client which is a massive pain
+export async function verifyEthChainSignature(
+  message: string,
+  signature: `0x${string}`
+) {
+  try {
+    const address = await recoverEthChainAddressFromSignature(
+      message,
+      signature
+    );
+
+    if (!address) {
+      return false;
+    }
+
+    return await verifyMessage({
+      address,
+      message,
+      signature,
+    });
+  } catch (err) {
+    console.error("Could not verify signature", err);
+    return false;
+  }
+}
+
+export async function recoverEthChainAddressFromSignature(
+  message: string,
+  signature: `0x${string}`
+) {
+  try {
+    return await recoverMessageAddress({
+      message,
+      signature,
+    });
+  } catch (err) {
+    console.error("Could not recover address from signature", err);
+    return null;
+  }
+}
+
+// TODO: Verify that this is actually how to do it :D
+export async function hashBinaryEmbedding(
+  bEmbedding: number[],
+  addition: string
+) {
+  const bEmbeddingArray = new Uint8Array(bEmbedding);
+  const encoder = new TextEncoder();
+  const additionalArray = encoder.encode(addition);
+  var mergedArray = new Uint8Array(
+    bEmbeddingArray.length + additionalArray.length
+  );
+  mergedArray.set(bEmbeddingArray);
+  mergedArray.set(additionalArray, bEmbeddingArray.length);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", mergedArray);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return hashHex;
+}
+
+// export async function hashBinaryEmbedding(bEmbedding: number[]) {
+//   const uint8Array = new Uint8Array(bEmbedding);
+//   const hashBuffer = await crypto.subtle.digest("SHA-256", uint8Array);
+//   const hashArray = Array.from(new Uint8Array(hashBuffer));
+//   const hashHex = hashArray
+//     .map((b) => b.toString(16).padStart(2, "0"))
+//     .join("");
+//   return hashHex;
+// }
+
+export async function hashString(str: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  // TODO: replace this with the sha512, but I'm a little worried about rewriting the
+  // crypto right now
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return hashHex;
+}
+
+export function verifySignatureOnJSONObject(
+  pubKey: string,
+  signature: string,
+  obj: any
+) {
+  const message = JSON.stringify(obj);
+
+  const encoder = new TextEncoder();
+  const messageBytes = new Uint8Array(encoder.encode(message));
+
+  const toBeVerified = messageBytes;
+
+  // const signatureBytes = Buffer.from(signature, "hex");
+
+  return ed.verify(signature, toBeVerified, pubKey);
+}
+
+export function signJSONObject(pKey: string, obj: any) {
+  const message = JSON.stringify(obj);
+
+  const encoder = new TextEncoder();
+  const messageBytes = new Uint8Array(encoder.encode(message));
+
+  const toBeSigned = messageBytes;
+
+  const signature = ed.sign(toBeSigned, pKey);
+
+  return ed.etc.bytesToHex(signature);
+}
+
+// Function to encrypt the JSON object
+export async function encryptData(
+  data: any,
+  password: string
+): Promise<string> {
+  console.time("Encrypting info for storage");
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordBytes,
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+
+  const derivedKey = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    key,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"]
+  );
+
+  const jsonBytes = encoder.encode(JSON.stringify(data));
+  const encryptedBytes = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv },
+    derivedKey,
+    jsonBytes
+  );
+
+  const encryptedData = Buffer.from(encryptedBytes).toString("base64");
+  const ivHex = Buffer.from(iv).toString("hex");
+  const saltHex = Buffer.from(salt).toString("hex");
+  console.timeEnd("Encrypting info for storage");
+
+  return `${encryptedData}.${ivHex}.${saltHex}`;
+}
+
+// Function to decrypt the encrypted data
+export async function decryptData(
+  encryptedData: string,
+  password: string
+): Promise<any> {
+  console.time("Decrypting info from storage");
+
+  const [encryptedBase64, ivHex, saltHex] = encryptedData.split(".");
+  const encryptedBytes = Buffer.from(encryptedBase64, "base64");
+  const iv = Buffer.from(ivHex, "hex");
+  const salt = Buffer.from(saltHex, "hex");
+
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordBytes,
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+
+  const derivedKey = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    key,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"]
+  );
+
+  const decryptedBytes = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv },
+    derivedKey,
+    encryptedBytes
+  );
+
+  const decoder = new TextDecoder();
+  const jsonString = decoder.decode(decryptedBytes);
+
+  console.timeEnd("Decrypting info from storage");
+  return JSON.parse(jsonString);
+}
+
+// Function to sign the encrypted data
+export async function signData(
+  encryptedData: string,
+  password: string
+): Promise<string> {
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(encryptedData)
+  );
+  return Buffer.from(signature).toString("base64");
+}
+
+// Function to verify the signature
+export async function verifySignature(
+  encryptedData: string,
+  signature: string,
+  password: string
+): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+
+  const signatureBytes = Buffer.from(signature, "base64");
+  return crypto.subtle.verify(
+    "HMAC",
+    key,
+    signatureBytes,
+    encoder.encode(encryptedData)
+  );
+}
 src/rakis-core/synthient-chain/db/entities.ts
+
 import type {
   InferenceRequest,
   InferenceSuccessResult,
@@ -2239,6 +2962,8 @@ export type Peer = {
   chainIds: ChainIdentity[];
   deviceInfo?: string;
   nickName?: string;
+  totalTokens: number;
+  totalWorkers: number;
 };
 
 // Inference DB
@@ -2253,12 +2978,16 @@ export type InferenceDBEvents = {
   newInferenceRequest: (request: InferenceRequest) => void;
   requestQuorumReveal: (revealRequests: InferenceRevealRequest[]) => void;
   revealedInference: (revealPacket: InferenceReveal) => void;
+  bootComplete: (totalTokens: number) => void;
 };
 
 // Packet DB
 
 export type PacketDBEvents = {
-  newP2PInferenceRequest: (packet: P2PInferenceRequestPacket) => void;
+  newP2PInferenceRequest: (
+    packet: P2PInferenceRequestPacket,
+    fromSynthientId: string
+  ) => void;
   newInferenceCommit: (
     packet: Omit<ReceivedPeerPacket, "packet"> & { packet: InferenceCommit }
   ) => void;
@@ -2329,12 +3058,29 @@ export type QuorumDBEvents = {
   ) => void;
   consensusPackets: (packts: PeerPacket[]) => void;
 };
+
+export type RakisStats = {
+  peerStats: {
+    totalTokens: number;
+    totalPeers: number;
+    totalWorkers: number;
+  };
+  packetCount: number;
+  ourStats: {
+    tokens: number;
+    workers: number;
+  };
+};
 src/rakis-core/synthient-chain/db/peerdb.ts
+
+
 import {
   KnownPeers,
   PeerConnectedChain,
   ReceivedPeerPacket,
 } from "./packet-types";
+
+
 
 const logger = createLogger("PeerDB", logStyles.databases.peerDB);
 
@@ -2383,11 +3129,46 @@ export class PeerDB {
         ) {
           chainIds.push(identity);
         } else {
+          logger.error(
+            `Could not verify identity for ${synthientId} on chain ${identity.chain} with address ${identity.address}`
+          );
         }
       })
     );
 
     return chainIds;
+  }
+
+  async getNetworkTotalTokens() {
+    return (await this.db.peers.toArray()).reduce(
+      (acc, cur) => acc + cur.totalTokens,
+      0
+    );
+  }
+
+  async getPeerStats(lastSeen: Date): Promise<{
+    totalTokens: number;
+    totalPeers: number;
+    totalWorkers: number;
+  }> {
+    const totalPeers = await this.db.peers
+      .where("lastSeen")
+      .above(lastSeen)
+      .count();
+    const totalTokens = (
+      await this.db.peers.where("lastSeen").above(lastSeen).toArray()
+    ).reduce(
+      (acc, cur) => acc + ((!isNaN(cur.totalTokens) && cur.totalTokens) || 0),
+      0
+    );
+    const totalWorkers = (
+      await this.db.peers.where("lastSeen").above(lastSeen).toArray()
+    ).reduce(
+      (acc, cur) => acc + ((!isNaN(cur.totalWorkers) && cur.totalWorkers) || 0),
+      0
+    );
+
+    return { totalTokens, totalPeers, totalWorkers };
   }
 
   async getLastPeers(lastSeenAfter: Date, maxCount: number): Promise<Peer[]> {
@@ -2437,9 +3218,34 @@ export class PeerDB {
           ) as (ReceivedPeerPacket & { packet: PeerConnectedChain })[]
         ).flatMap((packet) => packet.packet.identities);
 
+        const tokenCounts = peerPackets
+          .map((packet) =>
+            packet.packet.type === "peerStatusUpdate" &&
+            (packet.packet.status === "completed_inference" ||
+              packet.packet.status === "boot")
+              ? packet.packet.totalTokens
+              : 0
+          )
+          .concat([existingPeer?.totalTokens || 0])
+          .filter((count) => !isNaN(count) && count > 0);
+
+        const totalWorkers = peerPackets
+          .map((packet) =>
+            packet.packet.type === "peerStatusUpdate" &&
+            packet.packet.status === "loaded_worker"
+              ? packet.packet.totalWorkers
+              : 0
+          )
+          .concat([existingPeer?.totalWorkers || 0])
+          .filter((count) => !isNaN(count) && count > 0);
+
+        let totalTokens = tokenCounts.length > 0 ? Math.max(...tokenCounts) : 0;
+
         const updatedPeer: Peer = existingPeer || {
           synthientId,
           seenOn: [],
+          totalTokens: 0,
+          totalWorkers: 0,
           lastSeen: peerPackets[0].receivedTime || new Date(),
           chainIds: [],
         };
@@ -2459,6 +3265,16 @@ export class PeerDB {
           updatedPeer.chainIds,
           synthientId,
           newIdentities
+        );
+
+        updatedPeer.totalTokens = Math.max(
+          totalTokens,
+          updatedPeer.totalTokens || 0
+        );
+
+        updatedPeer.totalWorkers = Math.max(
+          totalWorkers.length > 0 ? Math.max(...totalWorkers) : 0,
+          updatedPeer.totalWorkers || 0
         );
 
         return updatedPeer;
@@ -2512,8 +3328,10 @@ export class PeerDB {
 
         flattenedIncomingPeerList[peer.synthientId] = {
           peer: {
+            totalTokens: peer.totalTokens,
             synthientId: peer.synthientId,
             seenOn: peer.seenOn,
+            totalWorkers: peer.totalWorkers,
             lastSeen: new Date(peer.lastSeen),
             chainIds: peer.identities || [],
           },
@@ -2555,6 +3373,23 @@ export class PeerDB {
             ) || new Date(peer.lastSeen)
           );
 
+        logger.debug(
+          `UpdatedPeer totalTokens: ${peer.totalTokens} ${updatedPeer.totalTokens}`
+        );
+
+        const totalTokenList = [
+          peer.totalTokens,
+          updatedPeer.totalTokens,
+        ].filter((tT) => !isNaN(tT) && tT > 0);
+
+        updatedPeer.totalTokens =
+          totalTokenList.length > 0 ? Math.max(...totalTokenList) : 0;
+
+        updatedPeer.totalWorkers = Math.max(
+          peer.totalWorkers,
+          updatedPeer.totalWorkers
+        );
+
         newPeers[peer.synthientId] = updatedPeer;
       })
     );
@@ -2575,6 +3410,8 @@ export class PeerDB {
   }
 }
 src/rakis-core/synthient-chain/db/packetdb.ts
+
+
 import {
   InferenceCommit,
   InferenceQuorumComputed,
@@ -2587,10 +3424,19 @@ import {
   type ReceivedPeerPacket,
   type TransmittedPeerPacket,
 } from "./packet-types";
+
+
 import {
   signJSONObject,
   verifySignatureOnJSONObject,
 } from "../utils/simple-crypto";
+
+
+
+
+
+
+
 
 const logger = createLogger("PacketDB", logStyles.databases.packetDB);
 
@@ -2631,6 +3477,17 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     this.sendPacketOverP2P = sendPacketOverP2P;
   }
 
+  async getStats(since: Date) {
+    const peerStats = await this.peerDB.getPeerStats(since);
+
+    const packetCount = await this.db.packets.count();
+
+    return {
+      peerStats,
+      packetCount,
+    };
+  }
+
   async getLastPackets(count: number): Promise<{
     packets: ReceivedPeerPacket[];
     total: number;
@@ -2649,13 +3506,18 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     if (packet.packet.type === "p2pInferenceRequest") {
       this.emit(
         "newP2PInferenceRequest",
-        packet.packet as P2PInferenceRequestPacket
+        packet.packet as P2PInferenceRequestPacket,
+        packet.synthientId
       );
     }
 
     if (packet.packet.type === "inferenceQuorumComputed") {
       if (packet.packet.verifiedBy !== packet.synthientId) {
         // TODO: In the future we can add some actual verification and propagation between nodes in case we want to implement that *above* the p2p layer, for now you shouldn't really be getting them from someone else
+        logger.debug(
+          "Received inferenceQuorumComputed not directly from the sender, dropping",
+          packet
+        );
       } else {
         this.emit(
           "consensusPacketReceived",
@@ -2698,6 +3560,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         (inference) => inference.synthientId === this.clientInfo.synthientId
       )
     ) {
+      logger.debug("Received inferenceRevealRequest for own synthientId");
       this.emit(
         "newInferenceRevealRequest",
         packet as Omit<ReceivedPeerPacket, "packet"> & {
@@ -2728,6 +3591,10 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
     this.emitNewPacketEvents(transmittedPacket);
 
+    logger.debug(
+      `Transmitting packet ${transmittedPacket.packet.type}`,
+      transmittedPacket
+    );
 
     // Send the packet over the P2P network
     await this.sendPacketOverP2P(transmittedPacket);
@@ -2777,6 +3644,10 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
       );
 
       if (!validSignature) {
+        logger.debug(
+          `Invalid signature on packet, dropping packet from ${packet.synthientId}`,
+          packet
+        );
       }
 
       return validSignature;
@@ -2796,6 +3667,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
 
   private cleanUpOldPackets = debounce(async () => {
     // Bye bye packets
+    logger.debug(`Cleaning up old packets.`);
 
     await this.db.packets
       .orderBy("receivedTime")
@@ -2839,8 +3711,13 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
           .catch(Dexie.BulkError, function (e) {
             // Explicitly catching the bulkAdd() operation makes those successful
             // additions commit despite that there were errors.
+            logger.error(
+              `${e.failures.length} packets were added successfully, but some others could not be. Check console for errors`,
+              e
+            );
           });
       } catch (err) {
+        logger.error("Different error adding packets to the database", err);
       }
 
       const bootPacketsInQueue = !!fixedPackets.some(
@@ -2888,12 +3765,18 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
         peerList: peerList.map((peer) => ({
           synthientId: peer.synthientId,
           identities: peer.chainIds,
+          totalWorkers: peer.totalWorkers || 0,
+          totalTokens: (!isNaN(peer.totalTokens) && peer.totalTokens) || 0,
           lastSeen: peer.lastSeen && stringifyDateWithOffset(peer.lastSeen),
           seenOn: peer.seenOn,
         })),
         createdAt: stringifyDateWithOffset(new Date()),
       };
 
+      logger.debug(
+        `Transmitting peer list with ${Object.values(knownPeers).length}`,
+        knownPeers
+      );
 
       await this.transmitPacket(knownPeers);
     }
@@ -2904,6 +3787,7 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
   }
 
   receivePacket(receivedPacket: ReceivedPeerPacket): void {
+    logger.trace("Queued received packet: ", receivedPacket);
 
     this.receivedPacketQueue.push(receivedPacket);
 
@@ -2927,13 +3811,18 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
     // Won't drop our packets at any length of time because they don't have receivedTime set, this is intentional - for now
     await this.db.packets.where("receivedTime").below(cutoffTime).delete();
 
+    logger.debug(`Dropped packets older than ${maxAgeMs}ms`);
   }
 
   async clearPackets(): Promise<void> {
     await this.db.packets.clear();
+    logger.debug("Cleared all packets from the database.");
   }
 }
 src/rakis-core/synthient-chain/db/packet-types.ts
+
+
+
 
 // Things from chain to client
 
@@ -2979,6 +3868,7 @@ export type InferencePayload = InferenceSuccessPayload | InferenceErrorPayload;
 export type InferenceRequest = Required<UnprocessedInferenceRequest>;
 
 export type UnprocessedInferenceRequest = {
+  fromSynthientId: string;
   requestId?: string; // Could just be a hash of known-to-be-unique values
   payload: InferenceRequestPayload;
   endingAt?: Date; // Computed from the securityframe
@@ -3006,13 +3896,13 @@ export type InferenceSecurityFrame = {
 
 // Unused for now, to set consensus thresholds and update those on the fly
 
-type NetworkHyperParameterUpdate = {
-  hyperParams: {
-    bEmbeddingVerificationThreshold: number; // Distance between computed binary embedding and revealed binary embedding that's acceptable
-    inferenceRevealTimeoutMs: number; // Time that reveal requests are valid for
-  };
-  hyperParamsMasterSignature: string; // Signature of the hyperParams by the master pubkey of the network
-};
+// type NetworkHyperParameterUpdate = {
+//   hyperParams: {
+//     bEmbeddingVerificationThreshold: number; // Distance between computed binary embedding and revealed binary embedding that's acceptable
+//     inferenceRevealTimeoutMs: number; // Time that reveal requests are valid for
+//   };
+//   hyperParamsMasterSignature: string; // Signature of the hyperParams by the master pubkey of the network
+// };
 
 // P2P Packets
 
@@ -3056,11 +3946,12 @@ type PeerStatusUpdate = PeerPacketAttributes &
   (
     | {
         status: "boot";
+        totalTokens: number;
       }
     | {
         status: "loaded_worker";
-        workerId: string;
         modelName: string;
+        totalWorkers: number;
       }
     | {
         status: "inferencing";
@@ -3070,6 +3961,7 @@ type PeerStatusUpdate = PeerPacketAttributes &
         status: "completed_inference";
         tps: number;
         modelName: LLMModelName;
+        totalTokens: number;
       }
     | {
         status: "computing_bEmbeddingHash";
@@ -3089,10 +3981,14 @@ export type KnownPeers = PeerPacketAttributes & {
     synthientId: string;
     identities?: ChainIdentity[];
     lastSeen: string;
+    totalWorkers: number;
     seenOn: SupportedP2PDeliveryNetwork[];
+    totalTokens: number;
   }[];
 };
 
+// This is just a silly way to send each other hearts or show liveness
+// Removed the super fun hookup that we had ourt of worry it'll crash the network
 export type PeerHeart = PeerPacketAttributes & {
   type: "peerHeart";
   windowX: number; // X coordinate of the window
@@ -3183,6 +4079,7 @@ export type InferenceQuorumComputed = PeerPacketAttributes & {
   };
 };
 src/rakis-core/synthient-chain/db/inferencedb.ts
+
 import {
   InferenceCommit,
   InferenceEmbedding,
@@ -3195,6 +4092,14 @@ import {
   ReceivedPeerPacket,
   UnprocessedInferenceRequest,
 } from "./packet-types";
+
+
+
+
+
+
+
+
 import {
   ConsensusResults,
   InferenceDBEvents,
@@ -3245,6 +4150,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   public quorumDb: QuorumDB;
   // This should ideally be part of the db or a live query once the network is larger, has a chance of becoming problematic
   public activeInferenceRequests: InferenceRequest[] = [];
+  public totalTokens: number = 0;
   private cleanupTimeout: NodeJS.Timeout | null = null;
 
   constructor(private mySynthientId: string, dbOptions: DexieOptions = {}) {
@@ -3257,6 +4163,26 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     this.quorumDb.on("requestReveal", (quorums) => {
       this.emitRevealRequests(quorums);
     });
+
+    this.completeBoot();
+  }
+
+  async completeBoot() {
+    // TODO: This might be really quite expensive as the db gets larger, remember to denormalize when some day you have time
+
+    const existingTotalTokens = (
+      await this.inferenceResultDb.inferenceResults.toArray()
+    ).reduce(
+      (acc, cur) => (cur.result.success ? acc + cur.result.tokenCount : acc),
+      0
+    );
+
+    this.totalTokens += existingTotalTokens;
+    logger.debug(`Our total inference tokens so far - ${this.totalTokens}`);
+
+    this.refreshCleanupTimeout();
+
+    this.emit("bootComplete", this.totalTokens);
   }
 
   async processExternalConsensus(consensusPacket: InferenceQuorumComputed) {
@@ -3265,6 +4191,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!matchingRequest) {
+      logger.error(
+        `No matching request for consensus packet for ${consensusPacket.requestId}, dropping`,
+        consensusPacket
+      );
       return;
     }
 
@@ -3325,12 +4255,14 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
         requestId: request.requestId,
         requestedAt: request.payload.createdAt,
         endingAt: request.endingAt,
+        fromSynthientId: request.fromSynthientId,
         requestPayload: request.payload,
         ourResult: result && {
           payload: result,
           bEmbeddingHash: embedding?.bEmbeddingHash,
         },
         quorum: quorum && {
+          consensusRequestedAt: quorum?.consensusRequestedAt,
           status: quorum.status,
           quorumThreshold: quorum.quorumThreshold,
           quorumCommitted: quorum.quorumCommitted,
@@ -3373,6 +4305,8 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
           .map((consensus) => ({
             verifiedBy: consensus.verifiedBy,
             bEmbeddingHash: consensus.validSingleInference.bEmbeddingHash,
+            validCommitments: consensus.validInferences.length,
+            allCommitments: consensus.submittedInferences.length,
             output: consensus.validSingleInference.output,
             validInferenceBy: consensus.validSingleInference.fromSynthientId,
           })),
@@ -3393,6 +4327,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       timeoutMs: quorumSettings.quorumRevealTimeoutMs,
     }));
 
+    logger.debug(
+      `Emitting reveal requests for ${revealPackets.length} packets`,
+      revealPackets
+    );
 
     this.emit("requestQuorumReveal", revealPackets);
   }
@@ -3438,6 +4376,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
         !matchingResults.includes(inference.requestId)
     );
 
+    logger.debug(
+      `Active inferences after cleanup: ${this.activeInferenceRequests.length}`,
+      this.activeInferenceRequests.length
+    );
 
     if (this.activeInferenceRequests.length > 0) {
       this.refreshCleanupTimeout();
@@ -3455,6 +4397,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!matchingRequest) {
+      logger.error(
+        `No matching request for revealed inference, skipping ${revealPacket.packet.requestId}`,
+        revealPacket
+      );
       return;
     }
 
@@ -3466,6 +4412,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     results: EmbeddingResult[] | false;
   }) {
     if (!embeddingResults.results) {
+      logger.error(
+        `No results to process for verified embeddings we just did`,
+        embeddingResults
+      );
       return;
     }
 
@@ -3474,6 +4424,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!matchingRequest) {
+      logger.error(
+        `No matching request for verified embeddings to run final consensus`,
+        embeddingResults
+      );
       return;
     }
 
@@ -3494,10 +4448,17 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!matchingRequest) {
+      logger.error(
+        `We were asked to reveal our inference. No matching request for reveal request ${requestPacket.packet.requestId}`,
+        requestPacket
+      );
       return;
     }
 
     if (matchingRequest.endingAt > new Date()) {
+      logger.error(
+        `We were asked to reveal our inference. Request ${matchingRequest.requestId} is still active. Not revealing embeddings.`
+      );
       return;
     }
 
@@ -3506,6 +4467,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!ourCommit) {
+      logger.error(
+        `We were asked to reveal our inference. No matching commit with our synthient id for ${requestPacket.packet.requestId}`,
+        requestPacket
+      );
       return;
     }
 
@@ -3515,10 +4480,17 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!matchingResult) {
+      logger.error(
+        `We were asked to reveal our inference. No matching result for reveal request ${requestPacket.packet.requestId}`,
+        requestPacket
+      );
       return;
     }
 
     if (!matchingResult.result.success) {
+      logger.error(
+        `We were asked to reveal our inference for ${requestPacket.packet.requestId} - Result was not successful. Not revealing embeddings.`
+      );
       return;
     }
 
@@ -3528,11 +4500,18 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       );
 
     if (!matchingEmbedding) {
+      logger.error(
+        `No matching embedding for reveal request ${requestPacket.packet.requestId}`,
+        requestPacket
+      );
       return;
     }
 
     // Get the embeddings for the result
 
+    logger.debug(
+      `Revealing our inference for ${requestPacket.packet.requestId} to ${requestPacket.synthientId}`
+    );
 
     this.emit("revealedInference", {
       createdAt: stringifyDateWithOffset(new Date()),
@@ -3567,6 +4546,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       );
 
     if (existingEmbedding) {
+      logger.debug("Embedding already exists. Skipping save.");
       return;
     }
 
@@ -3583,6 +4563,9 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     await this.inferenceResultDb.inferenceResults.put(inferenceResult);
 
     if (inferenceResult.result.success) {
+      this.totalTokens =
+        (this.totalTokens || 0) + inferenceResult.result.tokenCount;
+
       // Get matching inferenceRequest and recheck
       const matchingRequest =
         await this.inferenceRequestDb.inferenceRequests.get(
@@ -3608,6 +4591,10 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       );
 
     if (!matchingInferenceRequest) {
+      logger.error(
+        `No matching inference request for commit to save ${packet.packet.requestId}`,
+        packet
+      );
       return;
     }
 
@@ -3631,6 +4618,9 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       request.requestId
     );
     if (existingRequest) {
+      logger.trace(
+        `Inference request ${request.requestId} already exists. Skipping save.`
+      );
       return;
     }
 
@@ -3647,6 +4637,12 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       requestId: request.requestId!,
     };
 
+    logger.debug(
+      `Saving ${processedRequest.requestId} ending in ${
+        (processedRequest.endingAt.getTime() - Date.now()) / 1000
+      }s`,
+      processedRequest
+    );
 
     // Save the request to the database
     await this.inferenceRequestDb.inferenceRequests.put(processedRequest);
@@ -3655,6 +4651,9 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     if (endingAt > new Date()) {
       this.activeInferenceRequests.push(processedRequest);
 
+      logger.debug(
+        `${this.activeInferenceRequests.length} Active inferences after save`
+      );
 
       this.refreshCleanupTimeout();
     }
@@ -3672,6 +4671,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
   }
 }
 src/rakis-core/synthient-chain/db/quorumdb.ts
+
 import {
   InferenceCommit,
   InferenceQuorumComputed,
@@ -3680,6 +4680,12 @@ import {
   PeerPacket,
   ReceivedPeerPacket,
 } from "./packet-types";
+
+
+
+
+
+
 
 const logger = createLogger("QuorumDB", logStyles.databases.quorumDB);
 
@@ -3755,6 +4761,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
   }
 
   private async checkQuorumsReadyForReveal() {
+    logger.debug("Checking quorums for reveal");
 
     // Find quorums where they've already ended (endingAt is in the past)
     // But the endingAt+quorumRevealRequestIssueTimeoutMs hasn't ended
@@ -3775,22 +4782,35 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       (quorum) => quorum.quorum.length < quorum.quorumThreshold
     );
 
+    logger.debug(
+      `${failedQuorums.length} quorums failed to reach threshold`,
+      failedQuorums
+    );
 
     failedQuorums.forEach((quorum) => (quorum.status = "failed"));
 
     await this.db.quorums.bulkPut(failedQuorums).catch(Dexie.BulkError, (e) => {
+      logger.error("Failed to update quorums to failed", e);
     });
 
     const successfulQuorums = candidateQuorums.filter(
       (quorum) => quorum.quorum.length >= quorum.quorumThreshold
     );
 
+    logger.debug(
+      `${successfulQuorums.length} quorums passed commitment thresholds`,
+      successfulQuorums
+    );
 
     successfulQuorums.forEach((quorum) => (quorum.status = "awaiting_reveal"));
 
     await this.db.quorums
       .bulkPut(successfulQuorums)
       .catch(Dexie.BulkError, (e) => {
+        logger.error(
+          "Failed to update quorums to awaiting_reveal for these quorums: ",
+          e
+        );
       });
 
     if (successfulQuorums.length) {
@@ -3808,6 +4828,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     const quorum = await this.db.quorums.get(revealPacket.packet.requestId);
 
     if (!quorum) {
+      logger.debug(
+        `No quorum found for reveal packet ${revealPacket.packet.requestId}`,
+        revealPacket
+      );
       return;
     }
 
@@ -3816,6 +4840,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       revealPacket.receivedTime.getTime() >
         quorum.endingAt.getTime() + quorumSettings.quorumRevealTimeoutMs
     ) {
+      logger.debug(
+        "Received reveal packet after reveal timeout, discarding.",
+        revealPacket
+      );
       return;
     }
 
@@ -3826,10 +4854,12 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     );
 
     if (!commit) {
+      logger.debug("No commit found for reveal packet", revealPacket);
       return;
     }
 
     if (commit.reveal) {
+      // logger.debug("Commit already has a reveal ", commit);
       return;
     }
     // TODO: IMPORTANT Validate the actual reveal before adding it to our quorum
@@ -3846,6 +4876,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
     await this.db.quorums.put(quorum);
 
+    logger.debug("Updated quorum with reveal", quorum);
 
     await this.checkQuorumsReadyForConsensus();
   }
@@ -3873,9 +4904,17 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
         quorum.status === "awaiting_reveal" && !quorum.consensusRequestedAt
     );
 
+    logger.debug(
+      `${quorums.length} Quorums ready for consensus processing`,
+      quorums
+    );
 
     for (const quorum of quorums) {
       if (quorum.quorumRevealed < quorum.quorumThreshold) {
+        logger.debug(
+          `${quorum.requestId} Quorum didn't meet threshold for consensus processing`,
+          quorum
+        );
 
         quorum.status = "failed";
         continue;
@@ -3884,6 +4923,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       quorum.status = "awaiting_consensus";
       quorum.consensusRequestedAt = new Date();
 
+      logger.debug(
+        `Emitting newQuorumAwaitingConsensus for quorum ${quorum.requestId}`,
+        quorum
+      );
       this.emit(
         "newQuorumAwaitingConsensus",
         quorum.requestId,
@@ -3896,6 +4939,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     }
 
     await this.db.quorums.bulkPut(quorums).catch(Dexie.BulkError, (e) => {
+      logger.error(`Failed to update quorums to awaiting_consensus`, e);
     });
 
     const quorumsAboutToNeedChecking = (
@@ -3908,6 +4952,15 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       .sort((a, b) => a.endingAt.getTime() - b.endingAt.getTime());
 
     if (quorumsAboutToNeedChecking.length) {
+      logger.debug(
+        `Setting timeout for next quorum check: ${
+          quorumsAboutToNeedChecking[0].endingAt.getTime() -
+          Date.now() +
+          quorumSettings.quorumRevealTimeoutMs -
+          10
+        }`,
+        quorumsAboutToNeedChecking[0]
+      );
 
       this.quorumConsensusTimeout = setTimeout(
         () => this.checkQuorumsReadyForConsensus(),
@@ -3954,9 +5007,11 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       .filter((quorum) => quorum.status === "awaiting_commitments")
       .sort((a, b) => a.endingAt.getTime() - b.endingAt.getTime());
 
+    logger.trace("Got quorums for setting Timeout: ", quorums);
 
     if (quorums.length) {
       this.quorumRevealTimeout = setTimeout(async () => {
+        logger.debug("Checking to see if any quorums are ready for reveal");
 
         await this.checkQuorumsReadyForReveal();
 
@@ -3973,6 +5028,9 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       ]);
 
     if (existingExternalConsensus) {
+      logger.debug(
+        `Received redundant external consensus for ${consensusPacket.requestId} from ${consensusPacket.verifiedBy}, dropping`
+      );
       return;
     }
 
@@ -3983,6 +5041,12 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     request: InferenceRequest,
     results: EmbeddingResult[]
   ) {
+    logger.debug(
+      `Processing verified consensus embeddings for ${request.requestId}`,
+      results,
+      " for request: ",
+      request
+    );
 
     await this.db.quorums.update(request.requestId, {
       status: "verifying_consensus",
@@ -3991,6 +5055,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
     const quorum = await this.db.quorums.get(request.requestId);
 
     if (!quorum) {
+      logger.error(`No quorum found for request ${request.requestId}`, request);
       return;
     }
 
@@ -4001,6 +5066,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
       request.payload.securityFrame
     );
 
+    logger.debug(
+      `Final consensus computed for ${request.requestId}`,
+      finalResults
+    );
 
     this.consensusResultsDB.consensusResults.put(finalResults);
 
@@ -4031,8 +5100,10 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
     const quorum = await this.db.quorums.get(packet.packet.requestId);
 
+    logger.debug("Received inference commit", packet);
 
     if (!quorum) {
+      logger.debug("Creating new quorum for commit", packet);
 
       this.db.quorums.put({
         requestId: packet.packet.requestId,
@@ -4059,6 +5130,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
             commit.inferenceId === packet.packet.inferenceId
         )
       ) {
+        logger.debug("Adding new commit to quorum", quorum);
 
         quorum.quorum.push({
           inferenceId: packet.packet.inferenceId,
@@ -4071,6 +5143,7 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 
         this.db.quorums.put(quorum);
       } else {
+        logger.debug("Commit already exists in quorum", quorum);
       }
     }
 
@@ -4079,13 +5152,15 @@ export class QuorumDB extends EventEmitter<QuorumDBEvents> {
 }
 src/rakis-core/synthient-chain/thedomain/settings.ts
 
+
+
+
 export const STORED_SETTINGS_KEY = "rakisSettings";
 
 export type STORED_SETTINGS = Partial<{
   packetDBSettings: Partial<typeof DEFAULT_PACKET_DB_SETTINGS>;
   p2pSettings: Partial<typeof DEFAULT_P2P_SETTINGS>;
   chainConnectionSettings: Partial<typeof DEFAULT_CHAIN_CONNECTION_SETTINGS>;
-  identityEncryptedKey: string;
   loggerSettings: Partial<typeof DEFAULT_LOGGER_SETTINGS>;
   theDomainSettings: Partial<typeof DEFAULT_THEDOMAIN_SETTINGS>;
   quorumSettings: Partial<typeof DEFAULT_QUORUM_SETTINGS>;
@@ -4097,7 +5172,6 @@ export type LOADED_SETTINGS = {
   packetDBSettings: typeof DEFAULT_PACKET_DB_SETTINGS;
   p2pSettings: typeof DEFAULT_P2P_SETTINGS;
   chainConnectionSettings: typeof DEFAULT_CHAIN_CONNECTION_SETTINGS;
-  identityEncryptedKey: string;
   loggerSettings: typeof DEFAULT_LOGGER_SETTINGS;
   theDomainSettings: typeof DEFAULT_THEDOMAIN_SETTINGS;
   quorumSettings: typeof DEFAULT_QUORUM_SETTINGS;
@@ -4139,9 +5213,6 @@ export function loadSettings() {
     ...DEFAULT_PACKET_DB_SETTINGS,
     ...loadedSettings.packetDBSettings,
   };
-
-  loadedSettings.identityEncryptedKey =
-    loadedSettings.identityEncryptedKey || DEFAULT_IDENTITY_ENCRYPTED_KEY;
 
   loadedSettings.p2pSettings = {
     ...DEFAULT_P2P_SETTINGS,
@@ -4302,15 +5373,34 @@ export const DEFAULT_LLM_ENGINE_SETTINGS: {
   debounceLoadingProgressEventMs: 50,
 };
 src/rakis-core/synthient-chain/thedomain/thedomain.ts
+
+
+
+
+
 import {
   InferenceRequest,
   InferenceSuccessResult,
   TransmittedPeerPacket,
 } from "../db/packet-types";
+
+
+
+
+
+
+
+
 import {
   propagateInferencePacketsFromInferenceDBtoP2P,
   saveInferencePacketsFromP2PToInferenceDB,
 } from "./connectors";
+
+import {
+  hashBinaryEmbedding,
+  recoverEthChainAddressFromSignature,
+} from "../utils/simple-crypto";
+
 
 const logger = createLogger("Domain", logStyles.theDomain);
 
@@ -4366,6 +5456,11 @@ export class TheDomain {
     embeddingQueue: [],
   };
 
+  static getInstance() {
+    if (this.instance) return this.instance;
+    return null;
+  }
+
   private hookupConnections() {
     // Connect received packets from p2p to the packetdb
     for (const p2pNetwork of this.p2pNetworkInstances) {
@@ -4400,6 +5495,9 @@ export class TheDomain {
     this.inferenceDB.quorumDb.on(
       "newQuorumAwaitingConsensus",
       (requestId, embeddingModel, consensusRequestedAt, hasMyContribution) => {
+        logger.debug(
+          `New quorum awaiting consensus verification - ${requestId} with our work included: ${hasMyContribution}`
+        );
         if (
           !this.inferenceStatus.embeddingQueue.find(
             (item) =>
@@ -4427,18 +5525,31 @@ export class TheDomain {
 
     // If embedding workers are free, check for new jobs
     this.embeddingEngine.on("workerFree", () => {
+      logger.debug("Worker free, checking for jobs");
       setTimeout(() => this.processEmbeddingQueue(), 0);
     });
 
     // If llm workers are free, check for new jobs
     this.llmEngine.on("workerFree", () => {
+      logger.debug("Worker free, checking for jobs");
       setTimeout(() => this.processInferenceRequestQueue(), 0);
+    });
+
+    this.llmEngine.on("workerLoaded", ({ modelName, workerId }) => {
+      this.packetDB.transmitPacket({
+        type: "peerStatusUpdate",
+        status: "loaded_worker",
+        totalWorkers: Object.keys(this.llmEngine.getWorkerStates()).length,
+        createdAt: stringifyDateWithOffset(new Date()),
+        modelName,
+      });
     });
 
     // If inference results are done, move them off to get embedded
     this.inferenceDB.on(
       "inferenceResultAwaitingEmbedding",
       (request, result) => {
+        logger.debug("New inference awaiting embedding");
         this.inferenceStatus.embeddingQueue.push({
           model: request.payload.securityFrame.embeddingModel,
           expiresAt: request.endingAt,
@@ -4455,6 +5566,7 @@ export class TheDomain {
 
     // If new inference requests come in, start the inference loop
     this.inferenceDB.on("newActiveInferenceRequest", (request) => {
+      logger.debug("New active inference request, starting inference loop.");
       setTimeout(() => this.processInferenceRequestQueue(), 0);
     });
   }
@@ -4478,14 +5590,17 @@ export class TheDomain {
     this.packetDB = new PacketDB(clientInfo, broadcastPacket);
     this.inferenceDB = new InferenceDB(clientInfo.synthientId);
 
+    logger.debug("Databases created.");
 
     this.embeddingEngine = new EmbeddingEngine();
     this.llmEngine = new LLMEngine();
 
+    logger.debug("Setting up connections...");
     this.hookupConnections();
 
     // TODO: We want the timeouts in all the dbs to restart on restart, in case it wasn't graceful and we were in the middle of something
 
+    logger.debug("Starting workers...");
 
     const workerStartPromises: Promise<any>[] = [];
     for (const worker of initialEmbeddingWorkers) {
@@ -4502,10 +5617,13 @@ export class TheDomain {
       );
     }
 
-    this.packetDB.transmitPacket({
-      type: "peerStatusUpdate",
-      status: "boot",
-      createdAt: stringifyDateWithOffset(new Date()),
+    this.inferenceDB.on("bootComplete", (totalTokens: number) => {
+      this.packetDB.transmitPacket({
+        type: "peerStatusUpdate",
+        status: "boot",
+        totalTokens,
+        createdAt: stringifyDateWithOffset(new Date()),
+      });
     });
 
     if (this.chainIdentities.length) {
@@ -4515,6 +5633,21 @@ export class TheDomain {
         identities: this.chainIdentities,
       });
     }
+  }
+
+  async getStats(since: Date): Promise<RakisStats> {
+    const { peerStats, packetCount } = await this.packetDB.getStats(since);
+
+    const ourStats = {
+      tokens: this.inferenceDB.totalTokens,
+      workers: Object.keys(this.llmEngine.getWorkerStates()).length,
+    };
+
+    return {
+      peerStats,
+      packetCount,
+      ourStats,
+    };
   }
 
   async addChainIdentity(
@@ -4528,10 +5661,15 @@ export class TheDomain {
     );
 
     if (this.chainIdentities.find((identity) => identity.address === address)) {
+      logger.debug(`Identity already exists for this address ${address}`);
       return true;
     }
 
     if (!address) {
+      logger.error(
+        "Could not recover address from signed chain identity",
+        signature
+      );
       return false;
     }
 
@@ -4545,6 +5683,7 @@ export class TheDomain {
 
       await saveIdentity(this.clientInfo, this.identityPassword);
 
+      logger.debug("Updated local identity with new chain ids.");
 
       await this.packetDB.transmitPacket({
         type: "peerConnectedChain",
@@ -4552,6 +5691,7 @@ export class TheDomain {
         identities: this.chainIdentities,
       });
     } catch (err) {
+      logger.error("Could not save new chain identity", err);
       return false;
     }
 
@@ -4561,9 +5701,13 @@ export class TheDomain {
   private async processEmbeddingQueue() {
     const runId = generateRandomString(3); // Just for debugging purposes
 
+    logger.debug(`EmbeddingQueue: ${runId}: Processing embedding queue.`);
 
     const availableModels = this.embeddingEngine.getAvailableModels();
 
+    logger.debug(
+      `EmbeddingQueue: ${runId}: Available models - ${availableModels}`
+    );
 
     // Put the soonest ending ones first, let's try and race
     this.inferenceStatus.embeddingQueue = this.inferenceStatus.embeddingQueue
@@ -4600,16 +5744,27 @@ export class TheDomain {
         }
       });
 
+    logger.trace(
+      "EmbeddingQueue: ",
+      runId,
+      ": Sorted embedding queue - ",
+      this.inferenceStatus.embeddingQueue
+    );
 
     const itemsToProcess = this.inferenceStatus.embeddingQueue.filter(
       (item) => !item.queued && availableModels.includes(item.model)
     );
 
+    logger.debug(
+      `EmbeddingQueue: ${runId}: Items to process - ${itemsToProcess.length}`,
+      itemsToProcess
+    );
 
     const usableModels = Array.from(
       new Set(itemsToProcess.map((item) => item.model))
     );
 
+    logger.debug(`EmbeddingQueue: ${runId}: Usable models - ${usableModels}`);
 
     const availableWorkers = Object.values(
       this.embeddingEngine.embeddingWorkers
@@ -4617,6 +5772,9 @@ export class TheDomain {
       (worker) => !worker.busy && usableModels.includes(worker.modelName)
     );
 
+    logger.debug(
+      `EmbeddingQueue: ${runId}: Available workers - ${availableWorkers.length}`
+    );
 
     if (availableWorkers.length && itemsToProcess.length)
       this.packetDB.transmitPacket({
@@ -4638,6 +5796,12 @@ export class TheDomain {
       // We're doing these one by one for now since we're not sure if running them
       // as a batch will influence the embeddings
       // TODO: For someone else to test
+      logger.debug(
+        `EmbeddingQueue: ${runId}: Embedding ${item.request.type}`,
+        item.request.type === "resultEmbedding"
+          ? item.request.result!.result
+          : item.request.requestId
+      );
 
       let embeddingPayload: string[] = [];
 
@@ -4647,6 +5811,10 @@ export class TheDomain {
         );
 
         if (!matchingQuorum) {
+          logger.error(
+            "EmbeddingQueue: Could not find quorum for consensus verification",
+            item.request.requestId
+          );
 
           this.inferenceStatus.embeddingQueue =
             this.inferenceStatus.embeddingQueue.filter(
@@ -4669,6 +5837,10 @@ export class TheDomain {
       }
 
       if (!embeddingPayload.length) {
+        logger.error(
+          "EmbeddingQueue: No embeddings to embed for payload",
+          item
+        );
 
         this.inferenceStatus.embeddingQueue =
           this.inferenceStatus.embeddingQueue.filter(
@@ -4678,20 +5850,33 @@ export class TheDomain {
         continue;
       }
 
+      logger.debug("EmbeddingQueue: Embedding now", embeddingPayload);
 
       this.embeddingEngine
         .embedText(embeddingPayload, item.model)
-        .then((embeddingResults) => {
+        .then(async (embeddingResults) => {
+          logger.debug(
+            "EmbeddingQueue: Embedding completed",
+            item,
+            " - ",
+            embeddingResults && embeddingResults?.length
+          );
 
           if (embeddingResults && embeddingResults.length) {
             if (item.request.type === "resultEmbedding") {
               const embeddingResult = embeddingResults[0];
+
+              const bEmbeddingHash = await hashBinaryEmbedding(
+                embeddingResult.binaryEmbedding,
+                this.clientInfo.synthientId
+              );
+
               this.inferenceDB.saveInferenceEmbedding(item.request.result, {
                 inferenceId: item.request.result.inferenceId,
                 requestId: item.request.result.requestId,
                 embedding: embeddingResult.embedding,
                 bEmbedding: embeddingResult.binaryEmbedding,
-                bEmbeddingHash: embeddingResult.bEmbeddingHash,
+                bEmbeddingHash,
               });
             } else {
               this.inferenceDB.processVerifiedConsensusEmbeddings({
@@ -4701,9 +5886,13 @@ export class TheDomain {
             }
           } else {
             // TODO: Log an error?
+            logger.error(
+              `EmbeddingQueue: Embedding failed for ${item.request.type}`
+            );
           }
         })
         .catch((err) => {
+          logger.error(`EmbeddingQueue: Error embedding - ${err}`);
         });
     }
   }
@@ -4721,6 +5910,9 @@ export class TheDomain {
             )
         );
 
+      logger.debug(
+        `Request Inference Queue: ${cycleId}: Processing inference request queue: ${availableInferenceRequests.length} available.`
+      );
 
       const neededModels = Array.from(
         new Set(
@@ -4730,10 +5922,17 @@ export class TheDomain {
         )
       );
 
+      logger.debug(
+        `Request Inference Queue: ${cycleId}: Models needed - ${neededModels}`
+      );
 
       const llmWorkerAvailability =
         this.llmEngine.getWorkerAvailability(neededModels);
 
+      logger.debug(
+        `Request Inference Queue: ${cycleId}: Worker availability - `,
+        llmWorkerAvailability
+      );
 
       const possibleInferences = availableInferenceRequests.filter(
         (inferenceRequest) =>
@@ -4744,8 +5943,14 @@ export class TheDomain {
           )
       );
 
+      logger.debug(
+        `Request Inference Queue: ${cycleId}: Possible inferences - ${possibleInferences.length}`
+      );
 
       if (!possibleInferences.length) {
+        logger.debug(
+          `Request Inference Queue: ${cycleId}: No inferences to process.`
+        );
         return;
       }
 
@@ -4761,12 +5966,18 @@ export class TheDomain {
           ) < settings.theDomainSettings.requestSimilarityTimeWindowMs
       );
 
+      logger.debug(
+        `Request Inference Queue: Random selection group has ${randomSelectionGroup.length} inferences`
+      );
 
       const selectedInference =
         randomSelectionGroup[
           Math.floor(Math.random() * randomSelectionGroup.length)
         ];
 
+      logger.debug(
+        `Request Inference Queue: ${cycleId}: Selected inference - ${selectedInference.requestId}`
+      );
 
       this.inferenceStatus.inferenceIdsInProcess.push(
         selectedInference.requestId
@@ -4789,6 +6000,10 @@ export class TheDomain {
           ],
         })
         .then((response) => {
+          logger.debug(
+            `Request Inference Queue: ${cycleId}: Inference completed for ${selectedInference.requestId}`,
+            response
+          );
 
           const inferenceEndedAt = new Date();
 
@@ -4806,6 +6021,7 @@ export class TheDomain {
               status: "completed_inference",
               modelName: selectedInference.payload.acceptedModels[0],
               tps,
+              totalTokens: this.inferenceDB.totalTokens,
               createdAt: stringifyDateWithOffset(new Date()),
             });
           }
@@ -4826,6 +6042,9 @@ export class TheDomain {
             );
         })
         .catch((err) => {
+          logger.error(
+            `Request Inference Queue: Error running inference - ${err}`
+          );
 
           return this.inferenceDB.saveInferenceResult({
             requestId: selectedInference.requestId,
@@ -4840,6 +6059,9 @@ export class TheDomain {
           });
         });
 
+      logger.debug(
+        `Request Inference Queue: ${cycleId}: Waiting a tick before next inference.`
+      );
       setTimeout(() => this.processInferenceRequestQueue(), 0);
     },
     settings.theDomainSettings.inferenceRequestQueueDebounceMs,
@@ -4868,6 +6090,7 @@ export class TheDomain {
 
     TheDomain.loadingPromise = new DeferredPromise();
 
+    logger.debug("Booting up the the domain...");
 
     // Initialize client info
     // TODO: We probably want things to emit events we can save to the logs
@@ -4876,6 +6099,7 @@ export class TheDomain {
       overwriteIdentity
     );
 
+    logger.debug("Identity retrieved/created successfully.");
 
     const p2pNetworkInstances: P2PNetworkInstance<any, any>[] =
       settings.theDomainSettings.enabledP2PNetworks.map((network) =>
@@ -4885,6 +6109,7 @@ export class TheDomain {
         )
       );
 
+    logger.debug("Initialized p2p networks, waiting for bootup...");
 
     const workingP2PNetworkInstances =
       await P2PNetworkFactory.initializeP2PNetworks(
@@ -4892,6 +6117,7 @@ export class TheDomain {
         settings.theDomainSettings.waitForP2PBootupMs
       );
 
+    logger.debug("Connecting up working networks.");
 
     this.instance = new TheDomain(
       identityPassword,
@@ -4907,6 +6133,7 @@ export class TheDomain {
   }
 }
 src/rakis-core/synthient-chain/thedomain/connectors.ts
+
 import {
   InferenceCommit,
   InferenceEmbedding,
@@ -4918,6 +6145,9 @@ import {
   ReceivedPeerPacket,
 } from "../db/packet-types";
 
+
+
+
 export function saveInferencePacketsFromP2PToInferenceDB(
   packetDB: PacketDB,
   inferenceDB: InferenceDB,
@@ -4927,11 +6157,16 @@ export function saveInferencePacketsFromP2PToInferenceDB(
   // TODO: This should be depreated later so we don't have a cycle in our
   // data flow
 
-  const inferenceRequestListener = (packet: P2PInferenceRequestPacket) => {
+  const inferenceRequestListener = (
+    packet: P2PInferenceRequestPacket,
+    fromSynthientId: string
+  ) => {
+    logger.debug("Saving p2p inference request to our db");
     setTimeout(
       () =>
         inferenceDB.saveInferenceRequest({
           fetchedAt: new Date(),
+          fromSynthientId,
           requestId: packet.requestId,
           payload: packet.payload,
         }),
@@ -4945,6 +6180,7 @@ export function saveInferencePacketsFromP2PToInferenceDB(
     }
   ) => {
     setTimeout(() => {
+      logger.debug("Processing new inference commit");
       inferenceDB.saveInferenceCommit(packet);
     }, 0);
   };
@@ -4955,6 +6191,7 @@ export function saveInferencePacketsFromP2PToInferenceDB(
     }
   ) => {
     setTimeout(() => {
+      logger.debug("Processing new inference reveal request");
       inferenceDB.processInferenceRevealRequest(packet);
     }, 0);
   };
@@ -4965,12 +6202,14 @@ export function saveInferencePacketsFromP2PToInferenceDB(
     }
   ) => {
     setTimeout(() => {
+      logger.debug("Processing new inference reveal");
       inferenceDB.processInferenceReveal(packet);
     }, 0);
   };
 
   const externalConsensusPacketListener = (packet: InferenceQuorumComputed) => {
     setTimeout(() => {
+      logger.debug("Processing new consensus packet");
       inferenceDB.processExternalConsensus(packet);
     }, 0);
   };
@@ -5005,6 +6244,7 @@ export function propagateInferencePacketsFromInferenceDBtoP2P(
     inferenceEmbedding: InferenceEmbedding
   ) => {
     setTimeout(() => {
+      logger.debug("New inference embedding, committing to result");
       packetDB.transmitPacket({
         type: "inferenceCommit",
         bEmbeddingHash: inferenceEmbedding.bEmbeddingHash,
@@ -5019,6 +6259,7 @@ export function propagateInferencePacketsFromInferenceDBtoP2P(
     revealRequests: InferenceRevealRequest[]
   ) => {
     setTimeout(() => {
+      logger.debug("Publishing reveal requests");
       revealRequests.forEach((revealRequest) => {
         packetDB.transmitPacket(revealRequest);
       });
@@ -5027,6 +6268,7 @@ export function propagateInferencePacketsFromInferenceDBtoP2P(
 
   const publishInferenceReveals = (inferenceReveal: InferenceReveal) => {
     setTimeout(() => {
+      logger.debug("Publishing revealed inference");
       packetDB.transmitPacket(inferenceReveal);
     }, 0);
   };
@@ -5034,6 +6276,7 @@ export function propagateInferencePacketsFromInferenceDBtoP2P(
   const publishConsensusPackets = (consensusPackets: PeerPacket[]) => {
     consensusPackets.forEach((packet) => {
       setTimeout(() => {
+        logger.debug("New consensus packets, propagating");
         packetDB.transmitPacket(packet);
       }, 0);
     });
@@ -5069,6 +6312,10 @@ export function propagateInferencePacketsFromInferenceDBtoP2P(
 }
 src/rakis-core/blockchains/wagmi-config.ts
 
+
+
+
+
 const chainConnectionSettings = loadSettings().chainConnectionSettings;
 
 declare module "wagmi" {
@@ -5095,5 +6342,3 @@ export const wagmiConfig = createConfig({
     [avalanche.id]: http(),
   },
 });
-
-</CoreCode>

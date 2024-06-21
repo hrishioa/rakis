@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
-    "licenses": "license-checker --production --direct --json | jq 'map_values(del(.path, .licenseFile))' > licensing/sublicenses.json && license-checker --production --direct --summary > licensing/summary.txt"
+    "licenses": "license-checker --production --direct --json | jq 'map_values(del(.path, .licenseFile))' > licensing/sublicenses.json && license-checker --production --direct --summary > licensing/summary.txt",
+    "extractForLLM": "find src/rakis-core -type f \\( -name \"*.sql\" -o -name \"*.ts\" -o -name \"*.csv\" -o -name \"*.md\" -o -name \"*.tsx\" \\) -print -exec cat {} \\; | sed -E 's/import[^;]+;//g' > help/core-code-for-LLMs.txt",
+    "updateTODOs": "bun run todos/todo-extractor.ts"
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.35",
