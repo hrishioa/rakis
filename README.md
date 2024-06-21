@@ -6,7 +6,7 @@
   <br>
 </h1>
 
-<h3 align="center">A peer-to-peer AI network in the browser</h3>
+<h3 align="center">A permissionless, verifiable AI network in the browser</h3>
 
 <div align="center">
 
