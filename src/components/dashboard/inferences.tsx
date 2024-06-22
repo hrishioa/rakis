@@ -23,6 +23,7 @@ import { ChevronDown, CopyIcon } from "lucide-react";
 
 // English.
 import en from "javascript-time-ago/locale/en";
+import { useToast } from "../ui/use-toast";
 
 TimeAgo.addDefaultLocale(en);
 
@@ -46,7 +47,8 @@ const GreenDot = () => (
 
 function getInferenceStateDisplay(
   state: InferenceState,
-  mySynthientId: string
+  mySynthientId: string,
+  toast: ReturnType<typeof useToast>["toast"]
 ) {
   if (state.state === "requested")
     return (
@@ -188,7 +190,17 @@ function getInferenceStateDisplay(
           Verified inference:
         </Text>
         <Tooltip content={state.finalOutput + " (click to copy)"}>
-          <Flex direction="row" gap="2" ml="-5">
+          <Flex
+            direction="row"
+            gap="2"
+            ml="-5"
+            onClick={() => {
+              navigator.clipboard.writeText(state.finalOutput);
+              toast({
+                title: "Copied to clipboard",
+              });
+            }}
+          >
             <IconButton
               size="1"
               aria-label="Copy value"
@@ -242,6 +254,8 @@ export function Inference({
   inference: InferenceForDisplay;
   mySynthientId: string;
 }) {
+  const { toast } = useToast();
+
   return (
     <Card>
       <Grid gap="2" columns="2" rows="1" height="125px">
@@ -385,7 +399,7 @@ export function Inference({
                 {inference.states.map((state, index) => (
                   <Box key={index}>
                     <GreenDot />
-                    {getInferenceStateDisplay(state, mySynthientId)}
+                    {getInferenceStateDisplay(state, mySynthientId, toast)}
                   </Box>
                 ))}
               </Flex>
