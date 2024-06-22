@@ -4,6 +4,7 @@ import * as path from "path";
 interface TodoItem {
   filename: string;
   content: string[];
+  lineNumber: number;
 }
 
 function walkDir(dir: string): string[] {
@@ -36,6 +37,7 @@ function extractTodos(filePath: string): TodoItem[] {
       currentTodo = {
         filename: filePath,
         content: [trimmedLine],
+        lineNumber: index + 1,
       };
     } else if (currentTodo && trimmedLine.startsWith("//")) {
       currentTodo.content.push(trimmedLine);
@@ -52,7 +54,20 @@ function extractTodos(filePath: string): TodoItem[] {
   return todos;
 }
 
-function compileTodos(rootDir: string, outputFile: string): void {
+function getGitHubPermalink(
+  relativePath: string,
+  lineNumber: number,
+  repoUrl: string
+): string {
+  const branch = "master"; // or "master", depending on your default branch name
+  return `${repoUrl}/blob/${branch}/src/${relativePath}#L${lineNumber}`;
+}
+
+function compileTodos(
+  rootDir: string,
+  outputFile: string,
+  repoUrl: string
+): void {
   const files = walkDir(rootDir);
   const allTodos: TodoItem[] = [];
 
@@ -84,7 +99,12 @@ function compileTodos(rootDir: string, outputFile: string): void {
           .join(" ")
           .replace(/^\/\/ ?TODO: ?/i, "")
           .trim();
-        output += `- [ ] ${todoContent}\n`;
+        const permalink = getGitHubPermalink(
+          filename,
+          todo.lineNumber,
+          repoUrl
+        );
+        output += `- [ ] [${todoContent}](${permalink})\n`;
       });
       output += "\n";
     });
@@ -96,7 +116,7 @@ function compileTodos(rootDir: string, outputFile: string): void {
 // Usage
 const rootDirectory = path.join(__dirname, "..", "src");
 const outputFilePath = path.join(__dirname, "README.md");
-
+const repoUrl = "https://github.com/hrishioa/rakis";
 console.log("Compiling TODOs from", rootDirectory, "to", outputFilePath);
 
-compileTodos(rootDirectory, outputFilePath);
+compileTodos(rootDirectory, outputFilePath, repoUrl);

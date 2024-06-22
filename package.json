@@ -10,7 +10,7 @@
     "lint": "next lint",
     "test": "jest",
     "licenses": "license-checker --production --direct --json | jq 'map_values(del(.path, .licenseFile))' > licensing/sublicenses.json && license-checker --production --direct --summary > licensing/summary.txt",
-    "extractForLLM": "find src/rakis-core -type f \\( -name \"*.sql\" -o -name \"*.ts\" -o -name \"*.csv\" -o -name \"*.md\" -o -name \"*.tsx\" \\) -print -exec cat {} \\; | sed -E 's/import[^;]+;//g' > help/core-code-for-LLMs.txt",
+    "extractForLLM": "find src/rakis-core -type f \\( -name \"*.sql\" -o -name \"*.ts\" -o -name \"*.csv\" -o -name \"*.md\" -o -name \"*.tsx\" \\) -not -path \"src/rakis-core/synthient-chain/p2p-networks/nkn.ts\" -not -path \"src/rakis-core/synthient-chain/p2p-networks/pewpewdb.ts\" -not -path \"src/rakis-core/synthient-chain/p2p-networks/trystero.ts\" -not -path \"src/rakis-core/synthient-chain/utils/logger.ts\" -not -path \"src/rakis-core/synthient-chain/utils/deferredpromise.ts\" -not -path \"src/rakis-core/synthient-chain/utils/simple-crypto.ts\"  -print -exec cat {} \\; | sed -E 's/import[^;]+;//g' > help/core-code-for-LLMs.txt",
     "updateTODOs": "bun run todos/todo-extractor.ts"
   },
   "dependencies": {
