@@ -6,7 +6,7 @@
   <br>
 </h1>
 
-<h3 align="center">A permissionless, verifiable AI network in the browser</h3>
+<h3 align="center">A decentralized verifiable AI network in the browser</h3>
 
 <div align="center">
 
@@ -75,3 +75,5 @@ You can run `bun run extractForLLM` to generate a new file if you've changed the
 # How can I help?
 
 Generated TODOs (from my comments) are in the [TODOs folder](https://github.com/hrishioa/rakis/tree/master/todos). Feel free to pick any of them up!
+
+Post-stability-test, we intend to further bulletproof the contracts that will be deployed on-chain, and work with ecosystem partners to deploy functional smart-contract inference on-chain.
