@@ -1,5 +1,13 @@
 # Project TODOs
 
+## components/dashboard/inferences.tsx
+
+- [ ] [Allow clicking each inference to show the full inference data as a datalist (all commit data, etc etc)](https://github.com/hrishioa/rakis/blob/master/src/components/dashboard/inferences.tsx#L421)
+
+## components/dashboard/packets.tsx
+
+- [ ] [Really dumb brute force way to filter, I know I know](https://github.com/hrishioa/rakis/blob/master/src/components/dashboard/packets.tsx#L273)
+
 ## hooks/useTheDomain.ts
 
 - [ ] [Need to type this function later so its easier to propdrill](https://github.com/hrishioa/rakis/blob/master/src/hooks/useTheDomain.ts#L66)
@@ -28,7 +36,7 @@
 ## rakis-core/synthient-chain/db/packetdb.ts
 
 - [ ] [Consider keeping createdAt time as a separate date field on the outside, as a Date object in the db for better indexing](https://github.com/hrishioa/rakis/blob/master/src/rakis-core/synthient-chain/db/packetdb.ts#L37)
-- [ ] [In the future we can add some actual verification and propagation between nodes in case we want to implement that *above* the p2p layer, for now you shouldn't really be getting them from someone else](https://github.com/hrishioa/rakis/blob/master/src/rakis-core/synthient-chain/db/packetdb.ts#L104)
+- [ ] [In the future we can add some actual verification and propagation between nodes in case we want to implement that _above_ the p2p layer, for now you shouldn't really be getting them from someone else](https://github.com/hrishioa/rakis/blob/master/src/rakis-core/synthient-chain/db/packetdb.ts#L104)
 - [ ] [These are magic constants for now, move them to settings later](https://github.com/hrishioa/rakis/blob/master/src/rakis-core/synthient-chain/db/packetdb.ts#L344)
 
 ## rakis-core/synthient-chain/db/peerdb.ts
@@ -75,4 +83,3 @@
 - [ ] [only works for external accounts, which is fine for us // and to actually do account abstraction you need to drill in // the actual wallet client which is a massive pain](https://github.com/hrishioa/rakis/blob/master/src/rakis-core/synthient-chain/utils/simple-crypto.ts#L9)
 - [ ] [Verify that this is actually how to do it :D](https://github.com/hrishioa/rakis/blob/master/src/rakis-core/synthient-chain/utils/simple-crypto.ts#L52)
 - [ ] [replace this with the sha512, but I'm a little worried about rewriting the // crypto right now](https://github.com/hrishioa/rakis/blob/master/src/rakis-core/synthient-chain/utils/simple-crypto.ts#L86)
-

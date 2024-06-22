@@ -1,25 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
+import { glob } from "glob";
 
 interface TodoItem {
   filename: string;
   content: string[];
   lineNumber: number;
-}
-
-function walkDir(dir: string): string[] {
-  let results: string[] = [];
-  const list = fs.readdirSync(dir);
-  list.forEach((file) => {
-    file = path.join(dir, file);
-    const stat = fs.statSync(file);
-    if (stat && stat.isDirectory()) {
-      results = results.concat(walkDir(file));
-    } else {
-      results.push(file);
-    }
-  });
-  return results;
 }
 
 function extractTodos(filePath: string): TodoItem[] {
@@ -30,7 +16,7 @@ function extractTodos(filePath: string): TodoItem[] {
 
   lines.forEach((line, index) => {
     const trimmedLine = line.trim();
-    if (trimmedLine.startsWith("// TODO:")) {
+    if (trimmedLine.match(/^\/\/\s*TODO:/i)) {
       if (currentTodo) {
         todos.push(currentTodo);
       }
@@ -59,7 +45,7 @@ function getGitHubPermalink(
   lineNumber: number,
   repoUrl: string
 ): string {
-  const branch = "master"; // or "master", depending on your default branch name
+  const branch = "master"; // or "main", depending on your default branch name
   return `${repoUrl}/blob/${branch}/src/${relativePath}#L${lineNumber}`;
 }
 
@@ -68,14 +54,12 @@ function compileTodos(
   outputFile: string,
   repoUrl: string
 ): void {
-  const files = walkDir(rootDir);
+  const files = glob.sync(path.join(rootDir, "**/*.{ts,js,tsx,jsx}"));
   const allTodos: TodoItem[] = [];
 
   files.forEach((file) => {
-    if (file.endsWith(".ts") || file.endsWith(".js")) {
-      const todos = extractTodos(file);
-      allTodos.push(...todos);
-    }
+    const todos = extractTodos(file);
+    allTodos.push(...todos);
   });
 
   let output = "# Project TODOs\n\n";
@@ -97,7 +81,7 @@ function compileTodos(
       groupedTodos[filename].forEach((todo) => {
         const todoContent = todo.content
           .join(" ")
-          .replace(/^\/\/ ?TODO: ?/i, "")
+          .replace(/^\/\/\s*TODO:\s*/i, "")
           .trim();
         const permalink = getGitHubPermalink(
           filename,

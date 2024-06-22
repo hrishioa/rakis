@@ -418,6 +418,8 @@ export default function Inferences({
 }) {
   const inferences = useInferences({ inferenceLimit: 50 });
 
+  // TODO: Allow clicking each inference to show the full inference data as a datalist (all commit data, etc etc)
+
   return (
     <Card>
       <Container
