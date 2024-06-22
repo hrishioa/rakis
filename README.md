@@ -54,7 +54,7 @@ Go to [rakis.ai](https://rakis.ai) to run your own node and be part of the netwo
   - Anyone can be a part of the Rakis network. Anyone with a browser can send inference requests and participate in consensus, and anyone with a WebGPU-enabled browser (that tends to be Chrome for now) can process inferences and generate tokens.
  
 * **Embedding-based consensus**
-  - Rakis implements a novel embedding based consensus mechanism (with some paths to others) that aims to get to verifiable inference before ZKML or TPMs. Embedding clusters are used to separate valid results from invalid ones.
+  - Rakis implements a novel embedding-based consensus mechanism (with some paths to others) that aims to get to verifiable inference before ZKML or TPMs. Embedding clusters are used to separate valid results from invalid ones.
 
 # Run using the repo
 
@@ -76,4 +76,7 @@ You can run `bun run extractForLLM` to generate a new file if you've changed the
 
 Generated TODOs (from my comments) are in the [TODOs folder](https://github.com/hrishioa/rakis/tree/master/todos). Feel free to pick any of them up!
 
-Post-stability-test, we intend to further bulletproof the contracts that will be deployed on-chain, and work with ecosystem partners to deploy functional smart-contract inference on-chain.
+There are two big TODOs at the project level:
+
+1. Post-stability-test, we intend to further bulletproof the contracts that will be deployed on-chain, and work with ecosystem partners to deploy functional smart-contract inference on-chain.
+2. Connecting centralized models (like Claude and GPT) is now possible, but transaction replay will not be possible. Help us add this so we can see what happens!
