@@ -6,6 +6,7 @@ import { cn } from "../lib/utils";
 import { Toaster } from "../components/ui/toaster";
 import "@radix-ui/themes/styles.css";
 import { Theme } from "@radix-ui/themes";
+import { Analytics } from "@vercel/analytics/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -45,6 +46,7 @@ export default function RootLayout({
           {children}
           {/* <ThemePanel /> */}
         </Theme>
+        <Analytics />
       </body>
     </html>
   );
