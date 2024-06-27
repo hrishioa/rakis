@@ -11,6 +11,7 @@ import {
   Grid,
   Tooltip,
   Separator,
+  Dialog,
 } from "@radix-ui/themes";
 import useInferences, {
   InferenceForDisplay,
@@ -45,10 +46,59 @@ const GreenDot = () => (
   />
 );
 
+function InferenceDialog({ inference }: { inference: InferenceForDisplay }) {
+  return inference.quorum &&
+    inference.quorum.quorum &&
+    inference.quorum.quorum.length ? (
+    <Dialog.Root>
+      <Dialog.Trigger>
+        <Button size="1" variant="outline" color="gray">
+          View Commits
+        </Button>
+      </Dialog.Trigger>
+      <Dialog.Content maxWidth="650px">
+        <Dialog.Title>
+          Commits for {inference.requestId.slice(0, 10)}
+        </Dialog.Title>
+        <Dialog.Description size="1">
+          Inferences committed and revealed by other nodes.
+        </Dialog.Description>
+        <Box mt="2" maxHeight="600px" overflowY="scroll">
+          <Flex gap="2" direction="column">
+            {inference.quorum.quorum.map((commit, index) => (
+              <Box key={index}>
+                <Text as="div" size="2" mt="1">
+                  from {commit.synthientId.slice(0, 10)}...
+                </Text>
+                <Text as="div" size="1" color="gray" mb="1">
+                  Commited at {commit.commitReceivedAt.toLocaleString()}:{" "}
+                  {commit.bEmbeddingHash.slice(0, 25)}
+                </Text>
+                {(commit.reveal && (
+                  <Box>
+                    <Text as="div" size="3" weight="medium" mt="1">
+                      {commit.reveal.output}
+                    </Text>
+                    <Text as="div" size="1" color="gray" mt="1">
+                      Revealed at {commit.reveal.receivedAt.toLocaleString()}
+                    </Text>
+                  </Box>
+                )) ||
+                  null}
+              </Box>
+            ))}
+          </Flex>
+        </Box>
+      </Dialog.Content>
+    </Dialog.Root>
+  ) : null;
+}
+
 function getInferenceStateDisplay(
   state: InferenceState,
   mySynthientId: string,
-  toast: ReturnType<typeof useToast>["toast"]
+  toast: ReturnType<typeof useToast>["toast"],
+  inference: InferenceForDisplay
 ) {
   if (state.state === "requested")
     return (
@@ -112,9 +162,13 @@ function getInferenceStateDisplay(
         <Text as="div" size="1" color="gray" mb="1">
           {state.at.toLocaleString()}
         </Text>
-        <Text as="p" size="3">
-          Requesting Nodes to reveal
-        </Text>
+        <Flex justify="between">
+          <Text as="p" size="3">
+            Requesting Nodes to reveal
+          </Text>
+          <InferenceDialog inference={inference} />
+        </Flex>
+
         <Text
           size="2"
           weight="bold"
@@ -237,9 +291,12 @@ function getInferenceStateDisplay(
         <Text as="div" size="1" color="gray" mb="1">
           {state.at.toLocaleString()}
         </Text>
-        <Text as="p" size="4" weight="medium" color="ruby">
-          Failed
-        </Text>
+        <Flex justify="between">
+          <Text as="p" size="4" weight="medium" color="ruby">
+            Failed
+          </Text>
+          <InferenceDialog inference={inference} />
+        </Flex>
         <Text mt="1" size="2">
           {state.reason}
         </Text>
@@ -399,7 +456,12 @@ export function Inference({
                 {inference.states.map((state, index) => (
                   <Box key={index}>
                     <GreenDot />
-                    {getInferenceStateDisplay(state, mySynthientId, toast)}
+                    {getInferenceStateDisplay(
+                      state,
+                      mySynthientId,
+                      toast,
+                      inference
+                    )}
                   </Box>
                 ))}
               </Flex>
