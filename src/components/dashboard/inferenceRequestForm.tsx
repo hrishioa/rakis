@@ -41,7 +41,7 @@ export default function InferenceRequestForm({
 
   function validateAndSendInferenceRequest() {
     const params = {
-      prompt: promptRef.current?.value,
+      prompt: promptRef.current?.value.slice(0, 4000),
       models: selectedModels,
       minimumParticipants: parseInt(numNodes),
       timeAvailableSeconds: parseInt(timeAvailable),
