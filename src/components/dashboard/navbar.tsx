@@ -18,6 +18,7 @@ import {
   LLMModelName,
   LLMWorkerStates,
 } from "../../rakis-core/synthient-chain/llm/types";
+import LiveHelp from "./livehelp";
 
 const GreenDot = () => (
   <Box
@@ -178,6 +179,7 @@ export default function NavBar({
         </Popover.Content>
       </Popover.Root>
       <Box flexGrow="1"></Box>
+      <LiveHelp />
       <ScaleWorkers
         workerCount={Object.keys(llmWorkerStates)
           .map((workerId) => llmWorkerStates[workerId].modelName)
