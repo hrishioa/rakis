@@ -128,9 +128,12 @@ export default function LiveHelp() {
               >
                 Anthropic
               </Link>{" "} */}
-              key (your keys are local to this browser). We use this file and
-              this one as context (about 40k tokens). If you like an answer or
-              would like to fact-check, tweet @hrishioa with a screenshot!
+              key (your keys are local to this browser). We use{" "}
+              <Link href="https://github.com/hrishioa/rakis/tree/master/help">
+                these files
+              </Link>{" "}
+              for context (about 40k tokens). If you like an answer or would
+              like to fact-check, tweet @hrishioa with a screenshot!
             </Text>
             <TextField.Root
               placeholder={helpAPIKey ? "Save new key..." : "Enter a key…"}
