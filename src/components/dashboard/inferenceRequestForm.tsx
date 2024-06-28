@@ -35,7 +35,7 @@ export default function InferenceRequestForm({
   ]);
   const [secPercentage, setSecPercentage] = useState("50");
   const [secDistance, setSecDistance] = useState("500");
-  const [numNodes, setNumNodes] = useState("2");
+  const [numNodes, setNumNodes] = useState("4");
   const [timeAvailable, setTimeAvailable] = useState("30");
   const { toast } = useToast();
 
