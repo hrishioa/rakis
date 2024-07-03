@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   availableModels,
   LLMModelName,
+  AvailableModel,
 } from "../../rakis-core/synthient-chain/llm/types";
 import {
   Button as RadixButton,
@@ -27,19 +28,29 @@ export default function ScaleWorkers({
   workerCount,
   scaleLLMWorkers,
 }: {
-  workerCount: { [modelName: string]: number };
-  scaleLLMWorkers: (modelName: LLMModelName, workerCount: number) => void;
+  workerCount: Record<AvailableModel, number>;
+  scaleLLMWorkers: (modelName: AvailableModel, workerCount: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<LLMModelName | "">(
+  const [selectedModel, setSelectedModel] = useState<AvailableModel | "">(
     "gemma-2b-it-q4f16_1"
   );
   const [scaleCount, setScaleCount] = useState("");
 
+  const workerCountRef = useRef(workerCount);
+
   useEffect(() => {
-    setScaleCount(`${(selectedModel && workerCount[selectedModel] + 1) || 1}`);
-  }, [selectedModel, workerCount]);
+    workerCountRef.current = workerCount;
+  }, [workerCount]);
+
+  useEffect(() => {
+    if (selectedModel) {
+      setScaleCount(`${(workerCountRef.current[selectedModel] ?? 0) + 1}`);
+    } else {
+      setScaleCount("1");
+    }
+  }, [selectedModel]);
 
   function checkScaleWorkers() {
     if (

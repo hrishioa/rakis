@@ -16,6 +16,8 @@ export const availableModels = [
 
 export type LLMModelName = (typeof availableModels)[number];
 
+export type AvailableModel = typeof availableModels[number];
+
 export type LLMWorkerStates = {
   [workerId: string]: {
     modelName: LLMModelName;
