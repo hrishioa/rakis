@@ -8,7 +8,6 @@ import {
   Card,
   Separator,
   Container,
-  Heading,
   Link,
 } from "@radix-ui/themes";
 import { ChainIdentity } from "../../rakis-core/synthient-chain/db/entities";
@@ -16,10 +15,10 @@ import ChainIdentities from "./chainidentities";
 import ScaleWorkers from "./scaleWorkers";
 import {
   AvailableModel,
-  LLMModelName,
   LLMWorkerStates,
 } from "../../rakis-core/synthient-chain/llm/types";
 import LiveHelp from "./livehelp";
+import { useMemo } from "react";
 
 const GreenDot = () => (
   <Box
@@ -45,7 +44,7 @@ export default function NavBar({
 }: {
   llmWorkerStates: LLMWorkerStates;
   mySynthientId: string;
-  scaleLLMWorkers: (modelName: LLMModelName, numWorkers: number) => void;
+  scaleLLMWorkers: (modelName: AvailableModel, numWorkers: number) => void;
   chainIdentities: ChainIdentity[];
   addNewChainIdentity: (
     signature: `0x${string}`,
@@ -53,12 +52,14 @@ export default function NavBar({
     signedWithWallet: string
   ) => Promise<void>;
 }) {
-  const workerCount: Record<AvailableModel, number> = Object.keys(llmWorkerStates)
-    .map((workerId) => llmWorkerStates[workerId].modelName as AvailableModel)
-    .reduce((acc, cur) => {
-      acc[cur] = (acc[cur] || 0) + 1;
-      return acc;
-  }, {} as Record<AvailableModel, number>);
+  const workerCount = useMemo(() => {
+    return Object.keys(llmWorkerStates)
+      .map((workerId) => llmWorkerStates[workerId].modelName as AvailableModel)
+      .reduce((acc, cur) => {
+        acc[cur] = (acc[cur] || 0) + 1;
+        return acc;
+      }, {} as Record<AvailableModel, number>);
+  }, [llmWorkerStates]);
 
   return (
     <Flex direction={{ initial: "column", sm: "row" }} justify="center" gap="2">
