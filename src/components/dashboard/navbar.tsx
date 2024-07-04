@@ -15,6 +15,7 @@ import { ChainIdentity } from "../../rakis-core/synthient-chain/db/entities";
 import ChainIdentities from "./chainidentities";
 import ScaleWorkers from "./scaleWorkers";
 import {
+  AvailableModel,
   LLMModelName,
   LLMWorkerStates,
 } from "../../rakis-core/synthient-chain/llm/types";
@@ -52,6 +53,13 @@ export default function NavBar({
     signedWithWallet: string
   ) => Promise<void>;
 }) {
+  const workerCount: Record<AvailableModel, number> = Object.keys(llmWorkerStates)
+    .map((workerId) => llmWorkerStates[workerId].modelName as AvailableModel)
+    .reduce((acc, cur) => {
+      acc[cur] = (acc[cur] || 0) + 1;
+      return acc;
+  }, {} as Record<AvailableModel, number>);
+
   return (
     <Flex direction={{ initial: "column", sm: "row" }} justify="center" gap="2">
       <Tooltip content={`${mySynthientId}`}>
@@ -181,13 +189,7 @@ export default function NavBar({
       <Box flexGrow="1"></Box>
       <LiveHelp />
       <ScaleWorkers
-        workerCount={Object.keys(llmWorkerStates)
-          .map((workerId) => llmWorkerStates[workerId].modelName)
-          .reduce((acc, cur) => {
-            acc[cur] ??= 0;
-            acc[cur]++;
-            return acc;
-          }, {} as { [key: string]: number })}
+        workerCount={workerCount}
         scaleLLMWorkers={scaleLLMWorkers}
       />
       <ChainIdentities
