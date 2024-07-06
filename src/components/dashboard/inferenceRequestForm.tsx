@@ -15,7 +15,7 @@ import {
   availableModels,
   LLMModelName,
 } from "../../rakis-core/synthient-chain/llm/types";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useToast } from "../ui/use-toast";
 
 export default function InferenceRequestForm({
@@ -38,6 +38,28 @@ export default function InferenceRequestForm({
   const [numNodes, setNumNodes] = useState("4");
   const [timeAvailable, setTimeAvailable] = useState("30");
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      console.log("Hooking up console inference request loop...");
+
+      (window as any).sendBroadInferenceRequest = (prompt: string) => {
+        setTimeout(() => {
+          submitInferenceRequest(
+            prompt,
+            [
+              "gemma-2b-it-q4f16_1",
+              "Mistral-7B-Instruct-v0.2-q4f16_1",
+              "TinyLlama-1.1B-Chat-v0.4-q0f16",
+            ],
+            2,
+            30,
+            50
+          );
+        });
+      };
+    }
+  }, [submitInferenceRequest]);
 
   function validateAndSendInferenceRequest() {
     const params = {
