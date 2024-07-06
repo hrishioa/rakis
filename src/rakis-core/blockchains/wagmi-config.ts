@@ -11,10 +11,19 @@ declare module "wagmi" {
   }
 }
 
+export const chainColors = [
+  "--grass-11",
+  "--purple-11",
+  "--sky-11",
+  "--red-11",
+  "--yellow-11",
+];
+
 export const wagmiConfig = createConfig({
   chains: [mainnet, sepolia, polygon, arbitrum, avalanche],
   connectors: [
     metaMask({
+      infuraAPIKey: "72b3ae4778aa43999ded12a37ade57d9",
       dappMetadata: {
         name: chainConnectionSettings.dAppName,
         url: chainConnectionSettings.url,

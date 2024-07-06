@@ -17,7 +17,7 @@ export default function useStats(sinceDays: number) {
           domainPickupTimeoutRef.current = null;
           setDomainInstance(dInstance);
         }
-      });
+      }, 1000);
     } else if (domainInstance) {
       if (!statsPickupTimeoutRef.current) {
         statsPickupTimeoutRef.current = setInterval(async () => {

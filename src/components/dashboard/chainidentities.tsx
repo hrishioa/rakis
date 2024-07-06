@@ -4,11 +4,15 @@ import {
   useAccount,
   useConnect,
   useDisconnect,
+  useReadContract,
   useSignMessage,
+  useWatchContractEvent,
 } from "wagmi";
 import { useEffect, useRef } from "react";
 import { ChainIdentity } from "../../rakis-core/synthient-chain/db/entities";
-import { Badge, Button, Flex, Popover, Tooltip } from "@radix-ui/themes";
+import { Badge, Box, Button, Flex, Popover, Tooltip } from "@radix-ui/themes";
+import { AIContractABI } from "../../../chain-contracts/evm/AIContract.abi";
+import { sepolia } from "viem/chains";
 
 const ChainIdentities: React.FC<{
   chainIdentities: ChainIdentity[];
@@ -67,7 +71,7 @@ const ChainIdentities: React.FC<{
             );
           }
 
-          disconnect();
+          // disconnect();
         } catch (err) {
           console.error("Could not sign message", err);
         }
@@ -106,7 +110,7 @@ const ChainIdentities: React.FC<{
       <Popover.Root>
         <Popover.Trigger>
           <Button color="grass" variant="soft" size="2">
-            Connect On-Chain Identity{" "}
+            Connect Chain{" "}
             {chainIdentities.length ? `(${chainIdentities.length})` : ""}
           </Button>
         </Popover.Trigger>

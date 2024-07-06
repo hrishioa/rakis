@@ -19,6 +19,7 @@ import {
   LLMWorkerStates,
 } from "../../rakis-core/synthient-chain/llm/types";
 import LiveHelp from "./livehelp";
+import WatchChains from "./watchChains";
 
 const GreenDot = () => (
   <Box

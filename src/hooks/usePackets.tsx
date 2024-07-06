@@ -29,7 +29,7 @@ export default function usePackets({ packetLimit }: { packetLimit: number }) {
           domainPickupTimeoutRef.current = null;
           setDomainInstance(dInstance);
         }
-      });
+      }, 1000);
     } else if (domainInstance) {
       if (!packetPickupTimeoutRef.current) {
         packetPickupTimeoutRef.current = setInterval(() => {

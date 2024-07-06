@@ -12,6 +12,7 @@ import {
   Tooltip,
   Separator,
   Dialog,
+  Link,
 } from "@radix-ui/themes";
 import useInferences, {
   InferenceForDisplay,
@@ -25,6 +26,11 @@ import { ChevronDown, CopyIcon } from "lucide-react";
 // English.
 import en from "javascript-time-ago/locale/en";
 import { useToast } from "../ui/use-toast";
+import {
+  chainColors,
+  wagmiConfig,
+} from "../../rakis-core/blockchains/wagmi-config";
+import { chain } from "lodash";
 
 TimeAgo.addDefaultLocale(en);
 
@@ -313,12 +319,54 @@ export function Inference({
 }) {
   const { toast } = useToast();
 
+  const matchingChain =
+    inference.requestPayload.chainId &&
+    wagmiConfig.chains.find(
+      (chain) => chain.id === inference.requestPayload.chainId
+    );
+
+  const matchingChainIndex = wagmiConfig.chains.findIndex(
+    (chain) => chain.id === inference.requestPayload.chainId
+  );
+
+  const chainColor =
+    matchingChainIndex === -1
+      ? chainColors[0]
+      : chainColors[matchingChainIndex % chainColors.length];
+
+  const chainHighlightStyle =
+    matchingChainIndex === -1
+      ? {}
+      : {
+          borderColor: `var(${chainColor})`,
+          borderWidth: "1px",
+        };
+
   return (
-    <Card>
+    <Card style={chainHighlightStyle}>
       <Grid gap="2" columns="2" rows="1" height="125px">
         <Box height="100%">
           <Flex direction="column" gap="1" className="h-full">
             <Flex justify="between" mx="1">
+              {inference.requestPayload.txHash && matchingChain && (
+                <Link
+                  size="1"
+                  weight="medium"
+                  // color="indigo"
+                  style={{
+                    color: `var(${chainColor})`,
+                  }}
+                  href={
+                    matchingChain.blockExplorers.default.url +
+                    "/tx/" +
+                    inference.requestPayload.txHash
+                  }
+                  target="_blank"
+                >
+                  From {inference.requestPayload.fromChain} (View tx{" "}
+                  {inference.requestPayload.txHash.slice(0, 10)}...)
+                </Link>
+              )}
               <Popover.Root>
                 <Popover.Trigger>
                   <Button
@@ -478,7 +526,7 @@ export default function Inferences({
 }: {
   mySynthientId: string;
 }) {
-  const inferences = useInferences({ inferenceLimit: 50 });
+  const inferences = useInferences({ inferenceLimit: 100 });
 
   // TODO: Allow clicking each inference to show the full inference data as a datalist (all commit data, etc etc)
 

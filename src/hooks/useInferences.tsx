@@ -76,6 +76,10 @@ export type InferenceForDisplayReturned = {
     fromChain: string; // what chain did we get this on?
     createdAt: string;
     prompt: string;
+    chainId?: number;
+    txHash?: string;
+    fromAccount?: string;
+    blockNumber: number;
     acceptedModels: LLMModelName[];
     temperature: number;
     maxTokens: number;
@@ -412,7 +416,7 @@ export default function useInferences({
           domainPickupTimeoutRef.current = null;
           setDomainInstance(dInstance);
         }
-      });
+      }, 1000);
     } else if (domainInstance) {
       if (!inferencePickupTimeoutRef.current) {
         inferencePickupTimeoutRef.current = setInterval(() => {

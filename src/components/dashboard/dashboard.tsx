@@ -12,6 +12,7 @@ import NavBar from "./navbar";
 import Stats from "./stats";
 import { useWindowSize } from "@uidotdev/usehooks";
 import LLMWorkers from "./llmWorkers";
+import WatchChains from "./watchChains";
 
 export default function Dashboard({
   password,
@@ -72,9 +73,12 @@ export default function Dashboard({
                     borderRadius: "7px",
                   }}
                 >
-                  <Text size="5" weight="medium">
-                    Run a prompt!
-                  </Text>
+                  <Flex justify="between">
+                    <Text size="5" weight="medium">
+                      Run a prompt!
+                    </Text>
+                    <WatchChains />
+                  </Flex>
                   <Text size="1" color="gray">
                     Send an inference request to the Rakis network from here.
                     Feel free to adjust the consensus settings to see what

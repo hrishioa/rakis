@@ -53,8 +53,11 @@ export type UnprocessedInferenceRequest = {
   fetchedAt: Date;
 };
 
-type InferenceRequestPayload = {
+export type InferenceRequestPayload = {
   fromChain: string;
+  chainId?: number;
+  txHash?: string;
+  fromAccount?: string;
   blockNumber: number;
   createdAt: string;
   prompt: string;
