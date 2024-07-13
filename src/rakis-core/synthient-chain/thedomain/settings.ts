@@ -206,9 +206,9 @@ export const DEFAULT_QUORUM_SETTINGS: {
   quorumConsensusWindowMs: number; // Amount of time after reveal timeout that is allowed for consensus processing
   bEmbeddingThreshold: number; // Distance that our recomputed embeddings are allowed to be off by
 } = {
-  quorumRevealRequestIssueTimeoutMs: 10000,
-  quorumRevealTimeoutMs: 20000,
-  quorumConsensusWindowMs: 30000,
+  quorumRevealRequestIssueTimeoutMs: 15000,
+  quorumRevealTimeoutMs: 35000,
+  quorumConsensusWindowMs: 40000,
   bEmbeddingThreshold: 0,
 };
 
