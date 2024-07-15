@@ -316,7 +316,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
     );
 
     if (!matchingRequest) {
-      logger.error(
+      logger.warn(
         `No matching request for revealed inference, skipping ${revealPacket.packet.requestId}`,
         revealPacket
       );
@@ -510,7 +510,7 @@ export class InferenceDB extends EventEmitter<InferenceDBEvents> {
       );
 
     if (!matchingInferenceRequest) {
-      logger.error(
+      logger.warn(
         `No matching inference request for commit to save ${packet.packet.requestId}`,
         packet
       );
