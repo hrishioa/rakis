@@ -254,8 +254,22 @@ export class PacketDB extends EventEmitter<PacketDBEvents> {
   }
 
   private cleanUpOldPackets = debounce(async () => {
+    if (typeof window !== "undefined") {
+      if (
+        window.localStorage &&
+        window.localStorage.getItem("newPacketDBLimit") &&
+        !isNaN(parseInt(window.localStorage.getItem("newPacketDBLimit")!))
+      ) {
+        packetDBSettings.maxPacketDBSize = parseInt(
+          window.localStorage.getItem("newPacketDBLimit")!
+        );
+      }
+    }
+
     // Bye bye packets
-    logger.debug(`Cleaning up old packets.`);
+    logger.debug(
+      `Cleaning up old packets, limit is ${packetDBSettings.maxPacketDBSize}`
+    );
 
     await this.db.packets
       .orderBy("receivedTime")
