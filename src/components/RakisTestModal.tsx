@@ -31,9 +31,12 @@ const RakisTestModal: React.FC<RakisTestModalProps> = ({ isOpen, onClose }) => {
               <li>Over 26 million tokens inferenced</li>
               <li>More than 2,000 nodes participated</li>
             </ul>
-            <p>Your participation has been valued and counted.</p>
             <p>
-              An early analysis of the results is available at{" "}
+              Your participation has been valued and counted in the last
+              snapshot taken on 24.07.2024.
+            </p>
+            <p>
+              An early analysis of the results snapshot is available at{" "}
               <a
                 href="https://rakis-st1-results.vercel.app/"
                 target="_blank"
@@ -66,9 +69,7 @@ const RakisTestModal: React.FC<RakisTestModalProps> = ({ isOpen, onClose }) => {
               >
                 hrishi
               </a>
-              ) is working on what comes next. Meanwhile, everyone is free to
-              continue running, testing and modifying Rakis, but future
-              snapshots may not be counted.
+              ) is working on what comes next.
             </p>
           </DialogDescription>
         </DialogHeader>
