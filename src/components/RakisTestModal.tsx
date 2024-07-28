@@ -50,27 +50,6 @@ const RakisTestModal: React.FC<RakisTestModalProps> = ({ isOpen, onClose }) => {
               We&apos;ve all proved together that a peer to peer inference
               network can exist in browser alone with no servers anywhere.
             </p>
-            <p>
-              The team (
-              <a
-                href="https://x.com/dgt_julian"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                julian
-              </a>{" "}
-              and{" "}
-              <a
-                href="https://x.com/hrishioa"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                hrishi
-              </a>
-              ) is working on what comes next.
-            </p>
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="mt-8 flex flex-col items-center">
